@@ -8,6 +8,7 @@ const I18N_STRINGS = {
     "nav.leads": "Leads",
     "nav.attendance": "Attendance",
     "nav.payments": "Payments",
+    "nav.packages": "Packages",
     "nav.logout": "Log out",
 
     "login.title": "Violin Studio Login",
@@ -38,10 +39,17 @@ const I18N_STRINGS = {
     "dialog.paid": "Paid",
     "dialog.cancel": "Cancel",
     "dialog.save": "Save",
+    "dialog.lesson_format": "Lesson format",
+    "dialog.price": "Price",
+    "dialog.price_placeholder": "e.g. 750",
 
     "type.consultation": "Consultation",
     "type.lesson": "Lesson",
     "type.group_class": "Group class",
+
+    "format.1on1": "1-on-1",
+    "format.group": "Group",
+    "format.1on2": "1-on-2",
 
     "status.confirmed": "Confirmed",
     "status.pending_confirmation": "Pending confirmation",
@@ -77,14 +85,56 @@ const I18N_STRINGS = {
     "attendance.title": "Attendance",
     "attendance.session": "Session",
     "attendance.col_student": "Student",
-    "attendance.col_attended": "Attended",
+    "attendance.col_attended": "Status",
+    "attendance.col_makeup": "Make-up",
     "attendance.add_to_roster": "Add to roster",
     "attendance.empty_roster": "No students on the roster yet — add one below.",
     "attendance.empty_sessions": "No upcoming/recent lessons or group classes yet — add one from the Schedule tab.",
+    "attendance.leave_warning": "⚠️ This student has taken {n} leaves this package (limit is {limit}) — please decide manually.",
+
+    "attstatus.attended": "Attended",
+    "attstatus.leave": "Leave",
+    "attstatus.no_show": "No-show",
+    "attstatus.unset": "—",
+
+    "makeup.not_needed": "—",
+    "makeup.pending": "Pending",
+    "makeup.made_up": "Made up",
+    "makeup.deferred_to_next_package": "Deferred to next package",
 
     "payments.title": "Payments",
     "payments.unpaid_only": "Show unpaid only",
     "payments.empty": "Nothing to show.",
+
+    "packages.title": "Group Class Packages",
+    "packages.students_title": "Students",
+    "packages.new_student": "+ New student",
+    "packages.new_package": "+ New package",
+    "packages.col_student": "Student",
+    "packages.col_lessons": "Lessons used",
+    "packages.col_leaves": "Leaves used",
+    "packages.col_status": "Status",
+    "packages.empty_students": "No students yet.",
+    "packages.empty_packages": "No packages yet.",
+    "dialog.new_student": "New student",
+    "student.name": "Name",
+    "student.phone": "WhatsApp number",
+    "student.age_group": "Age group",
+    "dialog.new_package": "New package (auto-generates weekly lessons)",
+    "package.student": "Student",
+    "package.start_date": "First lesson date",
+    "package.weekly_time": "Weekly time",
+    "package.total_lessons": "Total lessons",
+    "package.price": "Price ($)",
+    "package.leave_limit": "Leave limit",
+    "package.generate_note": "This will create {n} weekly group-class appointments, 1 hour each, starting from the date above.",
+
+    "agegroup.child": "Child",
+    "agegroup.adult": "Adult",
+
+    "pkgstatus.active": "Active",
+    "pkgstatus.completed": "Completed",
+    "pkgstatus.cancelled": "Cancelled",
   },
   "zh-Hant": {
     "nav.schedule": "時間表",
@@ -92,6 +142,7 @@ const I18N_STRINGS = {
     "nav.leads": "客戶",
     "nav.attendance": "出席",
     "nav.payments": "付款",
+    "nav.packages": "套票",
     "nav.logout": "登出",
 
     "login.title": "小提琴 Studio 登入",
@@ -122,10 +173,17 @@ const I18N_STRINGS = {
     "dialog.paid": "已付款",
     "dialog.cancel": "取消",
     "dialog.save": "儲存",
+    "dialog.lesson_format": "上堂形式",
+    "dialog.price": "價錢",
+    "dialog.price_placeholder": "例如:750",
 
     "type.consultation": "諮詢",
     "type.lesson": "堂",
     "type.group_class": "小組班",
+
+    "format.1on1": "1對1",
+    "format.group": "小組班",
+    "format.1on2": "1對2",
 
     "status.confirmed": "已確認",
     "status.pending_confirmation": "待確認",
@@ -161,14 +219,56 @@ const I18N_STRINGS = {
     "attendance.title": "出席",
     "attendance.session": "堂節",
     "attendance.col_student": "學生",
-    "attendance.col_attended": "出席",
+    "attendance.col_attended": "狀態",
+    "attendance.col_makeup": "補堂",
     "attendance.add_to_roster": "加入名單",
     "attendance.empty_roster": "名單仲未有學生 —— 喺下面加一個。",
     "attendance.empty_sessions": "仲未有將到/最近嘅堂或小組班 —— 去「時間表」頁加一個。",
+    "attendance.leave_warning": "⚠️ 呢個學生今個package已經請假{n}次(上限{limit}次)—— 請自行決定點處理。",
+
+    "attstatus.attended": "出席",
+    "attstatus.leave": "請假",
+    "attstatus.no_show": "無故缺席",
+    "attstatus.unset": "—",
+
+    "makeup.not_needed": "—",
+    "makeup.pending": "待補",
+    "makeup.made_up": "已補堂",
+    "makeup.deferred_to_next_package": "下期扣",
 
     "payments.title": "付款",
     "payments.unpaid_only": "只顯示未付",
     "payments.empty": "冇嘢顯示。",
+
+    "packages.title": "小組課套票",
+    "packages.students_title": "學生",
+    "packages.new_student": "+ 新增學生",
+    "packages.new_package": "+ 新增套票",
+    "packages.col_student": "學生",
+    "packages.col_lessons": "已用堂數",
+    "packages.col_leaves": "已請假",
+    "packages.col_status": "狀態",
+    "packages.empty_students": "仲未有學生。",
+    "packages.empty_packages": "仲未有套票。",
+    "dialog.new_student": "新增學生",
+    "student.name": "姓名",
+    "student.phone": "WhatsApp 號碼",
+    "student.age_group": "年齡組別",
+    "dialog.new_package": "新增套票(自動排晒每週嘅堂)",
+    "package.student": "學生",
+    "package.start_date": "第一堂日期",
+    "package.weekly_time": "每週時段",
+    "package.total_lessons": "總堂數",
+    "package.price": "價錢($)",
+    "package.leave_limit": "請假上限",
+    "package.generate_note": "呢個會自動開返{n}堂每星期一次嘅小組班預約,每堂1小時,由以上日期開始排。",
+
+    "agegroup.child": "小朋友",
+    "agegroup.adult": "成人",
+
+    "pkgstatus.active": "進行中",
+    "pkgstatus.completed": "已完成",
+    "pkgstatus.cancelled": "已取消",
   },
 };
 
@@ -183,6 +283,15 @@ function setLang(lang) {
 function t(key) {
   const lang = getLang();
   return I18N_STRINGS[lang]?.[key] ?? I18N_STRINGS.en[key] ?? key;
+}
+
+// t() with {placeholder} substitution, e.g. tf("package.generate_note", { n: 8 })
+function tf(key, vars) {
+  let str = t(key);
+  for (const [k, v] of Object.entries(vars)) {
+    str = str.replaceAll(`{${k}}`, String(v));
+  }
+  return str;
 }
 
 function applyI18n() {

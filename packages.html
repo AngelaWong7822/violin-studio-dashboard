@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Packages</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand">🎻 Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
+  <a href="payments.html" data-i18n="nav.payments">Payments</a>
+  <a href="packages.html" class="active" data-i18n="nav.packages">Packages</a>
+  <span class="spacer"></span>
+  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="packages.students_title">Students</h1>
+      <button class="primary" id="new-student-btn" data-i18n="packages.new_student">+ New student</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="student.name">Name</th>
+        <th data-i18n="student.phone">WhatsApp number</th>
+        <th data-i18n="student.age_group">Age group</th>
+      </tr></thead>
+      <tbody id="student-rows"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="packages.title">Group Class Packages</h1>
+      <button class="primary" id="new-package-btn" data-i18n="packages.new_package">+ New package</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="packages.col_student">Student</th>
+        <th data-i18n="packages.col_lessons">Lessons used</th>
+        <th data-i18n="packages.col_leaves">Leaves used</th>
+        <th data-i18n="packages.col_status">Status</th>
+      </tr></thead>
+      <tbody id="package-rows"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<dialog id="student-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
+  <form id="student-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="dialog.new_student">New student</h1>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="student.name">Name</span> <input type="text" id="student-name" required /></label>
+      <label><span data-i18n="student.phone">WhatsApp number</span> <input type="text" id="student-phone" /></label>
+      <label><span data-i18n="student.age_group">Age group</span>
+        <select id="student-age-group">
+          <option value="child" data-i18n="agegroup.child">Child</option>
+          <option value="adult" data-i18n="agegroup.adult">Adult</option>
+        </select>
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="package-dialog" style="border:none; border-radius:10px; padding:0; width:380px;">
+  <form id="package-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="dialog.new_package">New package (auto-generates weekly lessons)</h1>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="package.student">Student</span>
+        <select id="package-student" required></select>
+      </label>
+      <label><span data-i18n="package.start_date">First lesson date</span>
+        <input type="date" id="package-start-date" required />
+      </label>
+      <label><span data-i18n="package.weekly_time">Weekly time</span>
+        <input type="time" id="package-time" required />
+      </label>
+      <label><span data-i18n="package.total_lessons">Total lessons</span>
+        <input type="number" id="package-total-lessons" value="8" min="1" required />
+      </label>
+      <label><span data-i18n="package.price">Price ($)</span>
+        <input type="number" id="package-price" value="2000" min="0" required />
+      </label>
+      <label><span data-i18n="package.leave_limit">Leave limit</span>
+        <input type="number" id="package-leave-limit" value="3" min="0" required />
+      </label>
+      <p id="package-generate-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="package-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  window.onLangChange = () => { loadStudents(); loadPackages(); updateGenerateNote(); };
+
+  let students = [];
+
+  async function loadStudents() {
+    const tbody = document.getElementById("student-rows");
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("id, contacts(name, whatsapp_number, age_group)")
+      .eq("active", true)
+      .order("created_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="3" class="empty">Error: ${error.message}</td></tr>`; return; }
+    students = data;
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="3" class="empty">${t("packages.empty_students")}</td></tr>`;
+    } else {
+      tbody.innerHTML = data.map(s => `
+        <tr>
+          <td>${s.contacts?.name ?? ""}</td>
+          <td>${s.contacts?.whatsapp_number ?? ""}</td>
+          <td>${s.contacts?.age_group ? t("agegroup." + s.contacts.age_group) : "—"}</td>
+        </tr>
+      `).join("");
+    }
+    populateStudentSelect();
+  }
+
+  function populateStudentSelect() {
+    const select = document.getElementById("package-student");
+    select.innerHTML = students.map(s => `<option value="${s.id}">${s.contacts?.name ?? s.id}</option>`).join("");
+  }
+
+  async function loadPackages() {
+    const tbody = document.getElementById("package-rows");
+    const { data: packages, error } = await supabaseClient
+      .from("packages")
+      .select("id, total_lessons, leave_limit, status, students(contacts(name))")
+      .order("created_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (!packages.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="empty">${t("packages.empty_packages")}</td></tr>`;
+      return;
+    }
+
+    const rows = await Promise.all(packages.map(async (pkg) => {
+      const { count: lessonsUsed } = await supabaseClient
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("package_id", pkg.id);
+
+      const { data: appts } = await supabaseClient
+        .from("appointments")
+        .select("id")
+        .eq("package_id", pkg.id);
+      const apptIds = (appts ?? []).map(a => a.id);
+
+      let leavesUsed = 0;
+      if (apptIds.length) {
+        const { count } = await supabaseClient
+          .from("attendance")
+          .select("id", { count: "exact", head: true })
+          .in("appointment_id", apptIds)
+          .eq("status", "leave");
+        leavesUsed = count ?? 0;
+      }
+
+      const overLimit = leavesUsed > pkg.leave_limit;
+      return `
+        <tr>
+          <td>${pkg.students?.contacts?.name ?? ""}</td>
+          <td>${lessonsUsed ?? 0} / ${pkg.total_lessons}</td>
+          <td>${overLimit ? "⚠️ " : ""}${leavesUsed} / ${pkg.leave_limit}</td>
+          <td><span class="status-pill status-confirmed">${t("pkgstatus." + pkg.status)}</span></td>
+        </tr>
+      `;
+    }));
+    tbody.innerHTML = rows.join("");
+  }
+
+  // Student dialog
+  const studentDialog = document.getElementById("student-dialog");
+  document.getElementById("new-student-btn").addEventListener("click", () => {
+    document.getElementById("student-form").reset();
+    studentDialog.showModal();
+  });
+  document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());
+
+  document.getElementById("student-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("student-name").value;
+    const whatsapp_number = document.getElementById("student-phone").value || null;
+    const age_group = document.getElementById("student-age-group").value;
+
+    const { data: contact, error: contactError } = await supabaseClient
+      .from("contacts")
+      .insert({ name, whatsapp_number, age_group, source: "existing_student" })
+      .select()
+      .single();
+    if (contactError) { alert("Save failed: " + contactError.message); return; }
+
+    const { error: studentError } = await supabaseClient
+      .from("students")
+      .insert({ contact_id: contact.id, active: true });
+    if (studentError) { alert("Save failed: " + studentError.message); return; }
+
+    studentDialog.close();
+    await loadStudents();
+  });
+
+  // Package dialog
+  const packageDialog = document.getElementById("package-dialog");
+  function updateGenerateNote() {
+    const n = document.getElementById("package-total-lessons").value || 8;
+    document.getElementById("package-generate-note").textContent = tf("package.generate_note", { n });
+  }
+  document.getElementById("new-package-btn").addEventListener("click", () => {
+    document.getElementById("package-form").reset();
+    document.getElementById("package-total-lessons").value = 8;
+    document.getElementById("package-price").value = 2000;
+    document.getElementById("package-leave-limit").value = 3;
+    updateGenerateNote();
+    packageDialog.showModal();
+  });
+  document.getElementById("package-cancel-btn").addEventListener("click", () => packageDialog.close());
+  document.getElementById("package-total-lessons").addEventListener("input", updateGenerateNote);
+
+  document.getElementById("package-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const studentId = document.getElementById("package-student").value;
+    const startDate = document.getElementById("package-start-date").value;
+    const time = document.getElementById("package-time").value;
+    const totalLessons = parseInt(document.getElementById("package-total-lessons").value, 10);
+    const price = parseFloat(document.getElementById("package-price").value);
+    const leaveLimit = parseInt(document.getElementById("package-leave-limit").value, 10);
+    if (!studentId || !startDate || !time) return;
+
+    const firstStart = new Date(`${startDate}T${time}:00`);
+    const weeklyDayOfWeek = firstStart.getDay();
+
+    const { data: pkg, error: pkgError } = await supabaseClient
+      .from("packages")
+      .insert({
+        student_id: studentId,
+        total_lessons: totalLessons,
+        price,
+        leave_limit: leaveLimit,
+        start_date: startDate,
+        weekly_day_of_week: weeklyDayOfWeek,
+        weekly_start_time: time,
+        status: "active",
+      })
+      .select()
+      .single();
+    if (pkgError) { alert("Save failed: " + pkgError.message); return; }
+
+    const studentName = students.find(s => s.id === studentId)?.contacts?.name ?? "";
+    const appointmentsToCreate = Array.from({ length: totalLessons }, (_, i) => {
+      const start = new Date(firstStart.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      const end = new Date(start.getTime() + 60 * 60 * 1000); // group class is always 1 hour
+      return {
+        type: "group_class",
+        lesson_format: "group",
+        student_id: studentId,
+        package_id: pkg.id,
+        scheduled_start: start.toISOString(),
+        scheduled_end: end.toISOString(),
+        status: "confirmed",
+        created_via: "manual_dashboard",
+        notes: studentName,
+      };
+    });
+
+    const { error: apptError } = await supabaseClient.from("appointments").insert(appointmentsToCreate);
+    if (apptError) { alert("Package saved, but generating lessons failed: " + apptError.message); return; }
+
+    packageDialog.close();
+    await loadPackages();
+  });
+
+  await loadStudents();
+  await loadPackages();
+})();
+</script>
+</body>
+</html>

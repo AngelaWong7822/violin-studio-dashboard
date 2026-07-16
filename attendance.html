@@ -15,6 +15,7 @@
   <a href="leads.html" data-i18n="nav.leads">Leads</a>
   <a href="attendance.html" class="active" data-i18n="nav.attendance">Attendance</a>
   <a href="payments.html" data-i18n="nav.payments">Payments</a>
+  <a href="packages.html" data-i18n="nav.packages">Packages</a>
   <span class="spacer"></span>
   <button data-lang-toggle onclick="toggleLang()">中文</button>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
@@ -26,9 +27,15 @@
       <select id="appt-select" style="width:100%; max-width:480px;"></select>
     </label>
 
+    <div id="leave-warning" class="empty" style="display:none; color:#8a2e2e; font-style:normal;"></div>
+
     <div id="roster-section" style="margin-top:16px; display:none;">
       <table>
-        <thead><tr><th data-i18n="attendance.col_student">Student</th><th data-i18n="attendance.col_attended">Attended</th></tr></thead>
+        <thead><tr>
+          <th data-i18n="attendance.col_student">Student</th>
+          <th data-i18n="attendance.col_attended">Status</th>
+          <th data-i18n="attendance.col_makeup">Make-up</th>
+        </tr></thead>
         <tbody id="roster-rows"></tbody>
       </table>
 
@@ -55,6 +62,7 @@
   const rosterSection = document.getElementById("roster-section");
   const rosterRows = document.getElementById("roster-rows");
   const studentSelect = document.getElementById("student-select");
+  const leaveWarningEl = document.getElementById("leave-warning");
   let appointments = [];
   let students = [];
 
@@ -90,31 +98,119 @@
     studentSelect.innerHTML = data.map(s => `<option value="${s.id}">${s.contacts?.name ?? s.id}</option>`).join("");
   }
 
+  async function checkLeaveWarning(appointmentId) {
+    leaveWarningEl.style.display = "none";
+    const appt = appointments.find(a => a.id === appointmentId);
+    if (!appt?.package_id) return;
+
+    const { data: pkg } = await supabaseClient
+      .from("packages")
+      .select("leave_limit")
+      .eq("id", appt.package_id)
+      .single();
+    if (!pkg) return;
+
+    const { data: pkgAppts } = await supabaseClient
+      .from("appointments")
+      .select("id")
+      .eq("package_id", appt.package_id);
+    const apptIds = (pkgAppts ?? []).map(a => a.id);
+    if (!apptIds.length) return;
+
+    const { count } = await supabaseClient
+      .from("attendance")
+      .select("id", { count: "exact", head: true })
+      .in("appointment_id", apptIds)
+      .eq("status", "leave");
+
+    if ((count ?? 0) > pkg.leave_limit) {
+      leaveWarningEl.textContent = tf("attendance.leave_warning", { n: count, limit: pkg.leave_limit });
+      leaveWarningEl.style.display = "block";
+    }
+  }
+
+  function makeupOptionsHtml(currentAppointmentId, selectedId) {
+    const others = appointments.filter(a => a.type === "group_class" && a.id !== currentAppointmentId);
+    return others.map(a => `
+      <option value="${a.id}" ${a.id === selectedId ? "selected" : ""}>
+        ${new Date(a.scheduled_start).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}
+      </option>
+    `).join("");
+  }
+
   async function loadRoster(appointmentId) {
     if (!appointmentId) return;
     rosterSection.style.display = "block";
+    await checkLeaveWarning(appointmentId);
+
     const { data, error } = await supabaseClient
       .from("attendance")
-      .select("id, attended, student_id, students(contacts(name))")
+      .select("id, status, make_up_status, made_up_appointment_id, student_id, students(contacts(name))")
       .eq("appointment_id", appointmentId);
     if (error) { alert("Load failed: " + error.message); return; }
 
     if (!data.length) {
-      rosterRows.innerHTML = `<tr><td colspan="2" class="empty">${t("attendance.empty_roster")}</td></tr>`;
+      rosterRows.innerHTML = `<tr><td colspan="3" class="empty">${t("attendance.empty_roster")}</td></tr>`;
       return;
     }
     rosterRows.innerHTML = data.map(row => `
-      <tr>
+      <tr data-row-id="${row.id}">
         <td>${row.students?.contacts?.name ?? row.student_id}</td>
-        <td><input type="checkbox" data-attendance-id="${row.id}" ${row.attended ? "checked" : ""} /></td>
+        <td>
+          <select data-field="status" data-attendance-id="${row.id}">
+            <option value="" ${!row.status ? "selected" : ""} data-i18n="attstatus.unset">—</option>
+            <option value="attended" ${row.status === "attended" ? "selected" : ""} data-i18n="attstatus.attended">Attended</option>
+            <option value="leave" ${row.status === "leave" ? "selected" : ""} data-i18n="attstatus.leave">Leave</option>
+            <option value="no_show" ${row.status === "no_show" ? "selected" : ""} data-i18n="attstatus.no_show">No-show</option>
+          </select>
+        </td>
+        <td class="makeup-cell" style="${row.status === "leave" ? "" : "display:none;"}">
+          <select data-field="make_up_status" data-attendance-id="${row.id}" style="margin-bottom:4px;">
+            <option value="pending" ${row.make_up_status === "pending" ? "selected" : ""} data-i18n="makeup.pending">Pending</option>
+            <option value="made_up" ${row.make_up_status === "made_up" ? "selected" : ""} data-i18n="makeup.made_up">Made up</option>
+            <option value="deferred_to_next_package" ${row.make_up_status === "deferred_to_next_package" ? "selected" : ""} data-i18n="makeup.deferred_to_next_package">Deferred to next package</option>
+          </select>
+          <select data-field="made_up_appointment_id" data-attendance-id="${row.id}" style="${row.make_up_status === "made_up" ? "" : "display:none;"}">
+            <option value="">—</option>
+            ${makeupOptionsHtml(appointmentId, row.made_up_appointment_id)}
+          </select>
+        </td>
       </tr>
     `).join("");
-    rosterRows.querySelectorAll("input[data-attendance-id]").forEach(cb => {
-      cb.addEventListener("change", async () => {
+    applyI18n();
+
+    rosterRows.querySelectorAll('select[data-field="status"]').forEach(sel => {
+      sel.addEventListener("change", async () => {
+        const status = sel.value || null;
         const { error } = await supabaseClient
           .from("attendance")
-          .update({ attended: cb.checked, marked_at: new Date().toISOString() })
-          .eq("id", cb.dataset.attendanceId);
+          .update({ status, marked_at: new Date().toISOString() })
+          .eq("id", sel.dataset.attendanceId);
+        if (error) { alert("Update failed: " + error.message); return; }
+        await loadRoster(appointmentId);
+      });
+    });
+
+    rosterRows.querySelectorAll('select[data-field="make_up_status"]').forEach(sel => {
+      sel.addEventListener("change", async () => {
+        const make_up_status = sel.value;
+        const payload = { make_up_status };
+        if (make_up_status !== "made_up") payload.made_up_appointment_id = null;
+        const { error } = await supabaseClient
+          .from("attendance")
+          .update(payload)
+          .eq("id", sel.dataset.attendanceId);
+        if (error) { alert("Update failed: " + error.message); return; }
+        await loadRoster(appointmentId);
+      });
+    });
+
+    rosterRows.querySelectorAll('select[data-field="made_up_appointment_id"]').forEach(sel => {
+      sel.addEventListener("change", async () => {
+        const { error } = await supabaseClient
+          .from("attendance")
+          .update({ made_up_appointment_id: sel.value || null })
+          .eq("id", sel.dataset.attendanceId);
         if (error) alert("Update failed: " + error.message);
       });
     });
