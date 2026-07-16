@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Attendance</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand">🎻 Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="attendance.html" class="active" data-i18n="nav.attendance">Attendance</a>
+  <a href="payments.html" data-i18n="nav.payments">Payments</a>
+  <span class="spacer"></span>
+  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <h1 data-i18n="attendance.title">Attendance</h1>
+    <label><span data-i18n="attendance.session">Session</span>
+      <select id="appt-select" style="width:100%; max-width:480px;"></select>
+    </label>
+
+    <div id="roster-section" style="margin-top:16px; display:none;">
+      <table>
+        <thead><tr><th data-i18n="attendance.col_student">Student</th><th data-i18n="attendance.col_attended">Attended</th></tr></thead>
+        <tbody id="roster-rows"></tbody>
+      </table>
+
+      <form id="add-student-form" class="inline" style="margin-top:14px;">
+        <select id="student-select" style="min-width:220px;"></select>
+        <button type="submit" class="primary" data-i18n="attendance.add_to_roster">Add to roster</button>
+      </form>
+    </div>
+    <p id="empty-msg" class="empty" data-i18n="attendance.empty_sessions" style="display:none;">No upcoming/recent lessons or group classes yet — add one from the Schedule tab.</p>
+  </div>
+</main>
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  window.onLangChange = () => loadAppointments();
+
+  const apptSelect = document.getElementById("appt-select");
+  const rosterSection = document.getElementById("roster-section");
+  const rosterRows = document.getElementById("roster-rows");
+  const studentSelect = document.getElementById("student-select");
+  let appointments = [];
+  let students = [];
+
+  async function loadAppointments() {
+    const { data, error } = await supabaseClient
+      .from("appointments")
+      .select("*")
+      .in("type", ["lesson", "group_class"])
+      .order("scheduled_start", { ascending: false })
+      .limit(50);
+    if (error) { alert("Load failed: " + error.message); return; }
+    appointments = data;
+    if (!data.length) {
+      document.getElementById("empty-msg").style.display = "block";
+      return;
+    }
+    apptSelect.innerHTML = data.map(a => `
+      <option value="${a.id}">
+        ${new Date(a.scheduled_start).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}
+        — ${t("type." + a.type)}${a.notes ? " — " + a.notes : ""}
+      </option>
+    `).join("");
+    await loadRoster(apptSelect.value);
+  }
+
+  async function loadStudents() {
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("id, contacts(name)")
+      .eq("active", true);
+    if (error) return;
+    students = data;
+    studentSelect.innerHTML = data.map(s => `<option value="${s.id}">${s.contacts?.name ?? s.id}</option>`).join("");
+  }
+
+  async function loadRoster(appointmentId) {
+    if (!appointmentId) return;
+    rosterSection.style.display = "block";
+    const { data, error } = await supabaseClient
+      .from("attendance")
+      .select("id, attended, student_id, students(contacts(name))")
+      .eq("appointment_id", appointmentId);
+    if (error) { alert("Load failed: " + error.message); return; }
+
+    if (!data.length) {
+      rosterRows.innerHTML = `<tr><td colspan="2" class="empty">${t("attendance.empty_roster")}</td></tr>`;
+      return;
+    }
+    rosterRows.innerHTML = data.map(row => `
+      <tr>
+        <td>${row.students?.contacts?.name ?? row.student_id}</td>
+        <td><input type="checkbox" data-attendance-id="${row.id}" ${row.attended ? "checked" : ""} /></td>
+      </tr>
+    `).join("");
+    rosterRows.querySelectorAll("input[data-attendance-id]").forEach(cb => {
+      cb.addEventListener("change", async () => {
+        const { error } = await supabaseClient
+          .from("attendance")
+          .update({ attended: cb.checked, marked_at: new Date().toISOString() })
+          .eq("id", cb.dataset.attendanceId);
+        if (error) alert("Update failed: " + error.message);
+      });
+    });
+  }
+
+  apptSelect.addEventListener("change", () => loadRoster(apptSelect.value));
+
+  document.getElementById("add-student-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const appointmentId = apptSelect.value;
+    const studentId = studentSelect.value;
+    if (!appointmentId || !studentId) return;
+    const { error } = await supabaseClient
+      .from("attendance")
+      .insert({ appointment_id: appointmentId, student_id: studentId });
+    if (error) { alert("Add failed (maybe already on roster): " + error.message); return; }
+    await loadRoster(appointmentId);
+  });
+
+  await loadStudents();
+  await loadAppointments();
+})();
+</script>
+</body>
+</html>

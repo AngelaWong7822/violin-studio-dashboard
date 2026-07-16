@@ -1,0 +1,73 @@
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  margin: 0;
+  background: #f7f5f2;
+  color: #2a2420;
+}
+header.topnav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 20px;
+  background: #3d2b1f;
+  color: #fff;
+  flex-wrap: wrap;
+}
+header.topnav .brand { font-weight: 600; margin-right: 20px; }
+header.topnav a {
+  color: #eee2d6;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+header.topnav a.active, header.topnav a:hover { background: #5a4433; color: #fff; }
+header.topnav .spacer { flex: 1; }
+header.topnav button {
+  background: transparent;
+  border: 1px solid #8a6f56;
+  color: #eee2d6;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+main { padding: 20px; max-width: 1000px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 16px; }
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+}
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+th { color: #6b5c4f; font-weight: 600; }
+button, input, select {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #d8cfc4;
+}
+button.primary {
+  background: #7a3b2e;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+button.primary:hover { background: #62301f; }
+button.link { background: none; border: none; color: #7a3b2e; cursor: pointer; padding: 4px; }
+form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.status-pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-confirmed { background: #e3f3e6; color: #1e6b34; }
+.status-pending_confirmation { background: #fdf1d6; color: #8a6314; }
+.status-completed { background: #e5e9f5; color: #2e3f8a; }
+.status-cancelled, .status-no_show { background: #f5e3e3; color: #8a2e2e; }
+.empty { color: #8a8074; font-style: italic; padding: 12px 0; }

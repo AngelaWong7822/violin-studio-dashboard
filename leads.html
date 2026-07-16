@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Leads</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  #board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: start; }
+  .col-head { font-weight: 600; font-size: 13px; color: #6b5c4f; margin-bottom: 8px; }
+  .lead-card { background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.08); font-size: 13px; }
+  .lead-card .name { font-weight: 600; }
+  .lead-card select { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
+  @media (max-width: 800px) { #board { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand">🎻 Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" class="active" data-i18n="nav.leads">Leads</a>
+  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
+  <a href="payments.html" data-i18n="nav.payments">Payments</a>
+  <span class="spacer"></span>
+  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main style="max-width:1200px;">
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="leads.title">Leads pipeline</h1>
+      <button class="primary" id="new-lead-btn" data-i18n="leads.new">+ New lead</button>
+    </div>
+    <div id="board"></div>
+  </div>
+</main>
+
+<dialog id="lead-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
+  <form id="lead-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="dialog.new_lead">New lead</h1>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="lead.name">Name</span> <input type="text" id="lead-name" required /></label>
+      <label><span data-i18n="lead.phone">WhatsApp number</span> <input type="text" id="lead-phone" data-i18n-placeholder="lead.phone_placeholder" placeholder="+852 9123 4567" /></label>
+      <label><span data-i18n="lead.source">Source</span>
+        <select id="lead-source">
+          <option value="facebook_ad" data-i18n="source.facebook_ad">Facebook ad</option>
+          <option value="whatsapp_direct" data-i18n="source.whatsapp_direct">WhatsApp direct</option>
+          <option value="referral" data-i18n="source.referral">Referral</option>
+          <option value="existing_student" data-i18n="source.existing_student">Existing student</option>
+        </select>
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="lead-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  window.onLangChange = loadBoard;
+
+  const STATUSES = ["inquired", "consultation_booked", "attended", "converted", "lost"];
+
+  async function loadBoard() {
+    const { data, error } = await supabaseClient
+      .from("leads")
+      .select("id, status, created_at, contacts(name, whatsapp_number, source)")
+      .order("created_at", { ascending: false });
+
+    const board = document.getElementById("board");
+    board.innerHTML = "";
+    if (error) {
+      board.innerHTML = `<p class="empty">Error: ${error.message}</p>`;
+      return;
+    }
+
+    STATUSES.forEach(status => {
+      const col = document.createElement("div");
+      const head = document.createElement("div");
+      head.className = "col-head";
+      const leadsInCol = data.filter(l => l.status === status);
+      head.textContent = `${t("leadstatus." + status)} (${leadsInCol.length})`;
+      col.appendChild(head);
+
+      if (!leadsInCol.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.style.fontSize = "12px";
+        empty.textContent = "—";
+        col.appendChild(empty);
+      }
+
+      leadsInCol.forEach(lead => {
+        const card = document.createElement("div");
+        card.className = "lead-card";
+        card.innerHTML = `
+          <div class="name">${lead.contacts?.name ?? "(no name)"}</div>
+          <div>${lead.contacts?.whatsapp_number ?? ""}</div>
+          <div style="color:#8a8074;">${lead.contacts?.source ? t("source." + lead.contacts.source) : ""}</div>
+        `;
+        const select = document.createElement("select");
+        STATUSES.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = t("leadstatus." + s);
+          if (s === status) opt.selected = true;
+          select.appendChild(opt);
+        });
+        select.addEventListener("change", async () => {
+          const { error } = await supabaseClient
+            .from("leads")
+            .update({ status: select.value, updated_at: new Date().toISOString() })
+            .eq("id", lead.id);
+          if (error) { alert("Update failed: " + error.message); return; }
+          await loadBoard();
+        });
+        card.appendChild(select);
+        col.appendChild(card);
+      });
+
+      board.appendChild(col);
+    });
+  }
+
+  const dialog = document.getElementById("lead-dialog");
+  document.getElementById("new-lead-btn").addEventListener("click", () => {
+    document.getElementById("lead-form").reset();
+    dialog.showModal();
+  });
+  document.getElementById("lead-cancel-btn").addEventListener("click", () => dialog.close());
+
+  document.getElementById("lead-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("lead-name").value;
+    const whatsapp_number = document.getElementById("lead-phone").value || null;
+    const source = document.getElementById("lead-source").value;
+
+    const { data: contact, error: contactError } = await supabaseClient
+      .from("contacts")
+      .insert({ name, whatsapp_number, source })
+      .select()
+      .single();
+    if (contactError) { alert("Save failed: " + contactError.message); return; }
+
+    const { error: leadError } = await supabaseClient
+      .from("leads")
+      .insert({ contact_id: contact.id, status: "inquired" });
+    if (leadError) { alert("Save failed: " + leadError.message); return; }
+
+    dialog.close();
+    await loadBoard();
+  });
+
+  await loadBoard();
+})();
+</script>
+</body>
+</html>

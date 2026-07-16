@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Availability</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  #grid { display: grid; grid-template-columns: 60px repeat(7, 1fr); gap: 2px; font-size: 12px; }
+  #grid .head { text-align: center; font-weight: 600; padding: 6px 0; color: #6b5c4f; }
+  #grid .time-label { text-align: right; padding-right: 6px; color: #8a8074; }
+  .cell {
+    height: 22px;
+    background: #f0ece5;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .cell.on { background: #7a3b2e; }
+  .cell:hover { outline: 2px solid #c9a98c; }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand">🎻 Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" class="active" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
+  <a href="payments.html" data-i18n="nav.payments">Payments</a>
+  <span class="spacer"></span>
+  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="availability.title">Weekly availability</h1>
+      <button class="primary" id="save-btn" data-i18n="availability.save">Save</button>
+    </div>
+    <p data-i18n="availability.description" style="font-size:13px; color:#8a8074; margin-top:0;">
+      Tap a cell to mark yourself free at that time every week. Bookmark this page to your phone's
+      home screen — this is the one thing worth keeping up to date so Angela can quote you a slot instantly.
+    </p>
+    <div id="grid"></div>
+    <p id="save-msg" data-i18n="availability.saved" style="font-size:13px; color:#1e6b34; display:none; margin-top:10px;">Saved ✓</p>
+  </div>
+</main>
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  window.onLangChange = render;
+
+  const DAY_KEYS = [0, 1, 2, 3, 4, 5, 6];
+  const START_HOUR = 9, END_HOUR = 21; // 9am - 9pm, half-hour slots
+  const SLOTS_PER_DAY = (END_HOUR - START_HOUR) * 2;
+
+  const grid = document.getElementById("grid");
+  const state = Array.from({ length: 7 }, () => new Array(SLOTS_PER_DAY).fill(false));
+
+  function slotToTime(slot) {
+    const totalMin = START_HOUR * 60 + slot * 30;
+    const h = Math.floor(totalMin / 60), m = totalMin % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  function render() {
+    grid.innerHTML = "";
+    grid.appendChild(document.createElement("div"));
+    DAY_KEYS.forEach(d => {
+      const el = document.createElement("div");
+      el.className = "head";
+      el.textContent = t("day." + d);
+      grid.appendChild(el);
+    });
+    for (let slot = 0; slot < SLOTS_PER_DAY; slot++) {
+      const label = document.createElement("div");
+      label.className = "time-label";
+      label.textContent = slot % 2 === 0 ? slotToTime(slot) : "";
+      grid.appendChild(label);
+      for (let day = 0; day < 7; day++) {
+        const cell = document.createElement("div");
+        cell.className = "cell" + (state[day][slot] ? " on" : "");
+        cell.addEventListener("click", () => {
+          state[day][slot] = !state[day][slot];
+          cell.classList.toggle("on");
+        });
+        grid.appendChild(cell);
+      }
+    }
+  }
+
+  function blocksToState(blocks) {
+    for (const b of blocks) {
+      if (b.day_of_week == null) continue;
+      const startSlot = timeToSlot(b.start_time);
+      const endSlot = timeToSlot(b.end_time);
+      for (let s = startSlot; s < endSlot; s++) {
+        if (s >= 0 && s < SLOTS_PER_DAY) state[b.day_of_week][s] = true;
+      }
+    }
+  }
+
+  function timeToSlot(t) {
+    const [h, m] = t.split(":").map(Number);
+    return Math.round(((h * 60 + m) - START_HOUR * 60) / 30);
+  }
+
+  function stateToBlocks() {
+    const blocks = [];
+    for (let day = 0; day < 7; day++) {
+      let runStart = null;
+      for (let slot = 0; slot <= SLOTS_PER_DAY; slot++) {
+        const on = slot < SLOTS_PER_DAY && state[day][slot];
+        if (on && runStart === null) runStart = slot;
+        if (!on && runStart !== null) {
+          blocks.push({
+            day_of_week: day,
+            start_time: slotToTime(runStart),
+            end_time: slotToTime(slot),
+            is_recurring: true,
+            source: "boyfriend_grid",
+            active: true,
+          });
+          runStart = null;
+        }
+      }
+    }
+    return blocks;
+  }
+
+  async function load() {
+    const { data, error } = await supabaseClient
+      .from("availability_blocks")
+      .select("*")
+      .eq("source", "boyfriend_grid")
+      .eq("active", true);
+    if (error) { alert("Load failed: " + error.message); return; }
+    blocksToState(data);
+    render();
+  }
+
+  document.getElementById("save-btn").addEventListener("click", async () => {
+    // Replace all boyfriend_grid blocks wholesale — simplest correct approach
+    // for a small weekly grid with no long edit history to preserve.
+    const { error: delError } = await supabaseClient
+      .from("availability_blocks")
+      .delete()
+      .eq("source", "boyfriend_grid");
+    if (delError) { alert("Save failed: " + delError.message); return; }
+
+    const blocks = stateToBlocks();
+    if (blocks.length) {
+      const { error: insError } = await supabaseClient.from("availability_blocks").insert(blocks);
+      if (insError) { alert("Save failed: " + insError.message); return; }
+    }
+    const msg = document.getElementById("save-msg");
+    msg.style.display = "block";
+    setTimeout(() => (msg.style.display = "none"), 2000);
+  });
+
+  render();
+  await load();
+})();
+</script>
+</body>
+</html>

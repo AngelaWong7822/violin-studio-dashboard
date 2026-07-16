@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Schedule</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand">🎻 Violin Studio</span>
+  <a href="index.html" class="active" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
+  <a href="payments.html" data-i18n="nav.payments">Payments</a>
+  <span class="spacer"></span>
+  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="schedule.title">This Week</h1>
+      <button class="primary" id="new-appt-btn" data-i18n="schedule.new_appt">+ New appointment</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="schedule.col_when">When</th>
+          <th data-i18n="schedule.col_type">Type</th>
+          <th data-i18n="schedule.col_with">With</th>
+          <th data-i18n="schedule.col_status">Status</th>
+          <th data-i18n="schedule.col_paid">Paid</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="appt-rows">
+        <tr><td colspan="6" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h1 data-i18n="schedule.calendar_title">Shared Google Calendar</h1>
+    <div id="calendar-embed"></div>
+  </div>
+</main>
+
+<!-- New/Edit appointment dialog -->
+<dialog id="appt-dialog" style="border:none; border-radius:10px; padding:0; width:360px;">
+  <form id="appt-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 id="appt-dialog-title" data-i18n="dialog.new_title">New appointment</h1>
+    <input type="hidden" id="appt-id" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="dialog.type">Type</span>
+        <select id="appt-type" required>
+          <option value="consultation" data-i18n="type.consultation">Consultation</option>
+          <option value="lesson" data-i18n="type.lesson">Lesson</option>
+          <option value="group_class" data-i18n="type.group_class">Group class</option>
+        </select>
+      </label>
+      <label><span data-i18n="dialog.contact">Contact name / phone</span>
+        <input type="text" id="appt-contact" data-i18n-placeholder="dialog.contact_placeholder" placeholder="e.g. Chan Tai Man / 9123 4567" required />
+      </label>
+      <label><span data-i18n="dialog.start">Start</span>
+        <input type="datetime-local" id="appt-start" required />
+      </label>
+      <label><span data-i18n="dialog.end">End</span>
+        <input type="datetime-local" id="appt-end" required />
+      </label>
+      <label><span data-i18n="dialog.status">Status</span>
+        <select id="appt-status">
+          <option value="confirmed" data-i18n="status.confirmed">Confirmed</option>
+          <option value="pending_confirmation" data-i18n="status.pending_confirmation">Pending confirmation</option>
+          <option value="completed" data-i18n="status.completed">Completed</option>
+          <option value="cancelled" data-i18n="status.cancelled">Cancelled</option>
+          <option value="no_show" data-i18n="status.no_show">No show</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="appt-paid" /> <span data-i18n="dialog.paid">Paid</span></label>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+        <button type="button" class="link" id="appt-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  window.onLangChange = loadAppointments;
+
+  // Google Calendar embed — replace GOOGLE_CALENDAR_EMBED_ID in supabase-config.js
+  document.getElementById("calendar-embed").innerHTML =
+    `<iframe src="https://calendar.google.com/calendar/embed?src=${encodeURIComponent(GOOGLE_CALENDAR_EMBED_ID)}&ctz=Asia%2FHong_Kong"
+      style="border:0" width="100%" height="500" frameborder="0" scrolling="no"></iframe>`;
+
+  const dialog = document.getElementById("appt-dialog");
+  const form = document.getElementById("appt-form");
+
+  document.getElementById("new-appt-btn").addEventListener("click", () => {
+    form.reset();
+    document.getElementById("appt-id").value = "";
+    document.getElementById("appt-dialog-title").textContent = t("dialog.new_title");
+    dialog.showModal();
+  });
+  document.getElementById("appt-cancel-btn").addEventListener("click", () => dialog.close());
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("appt-id").value;
+    const payload = {
+      type: document.getElementById("appt-type").value,
+      scheduled_start: new Date(document.getElementById("appt-start").value).toISOString(),
+      scheduled_end: new Date(document.getElementById("appt-end").value).toISOString(),
+      status: document.getElementById("appt-status").value,
+      paid: document.getElementById("appt-paid").checked,
+      notes: document.getElementById("appt-contact").value,
+      created_via: "manual_dashboard",
+    };
+    let error;
+    if (id) {
+      ({ error } = await supabaseClient.from("appointments").update(payload).eq("id", id));
+    } else {
+      ({ error } = await supabaseClient.from("appointments").insert(payload));
+    }
+    if (error) { alert("Save failed: " + error.message); return; }
+    dialog.close();
+    await loadAppointments();
+  });
+
+  async function loadAppointments() {
+    const tbody = document.getElementById("appt-rows");
+    const { data, error } = await supabaseClient
+      .from("appointments")
+      .select("*")
+      .order("scheduled_start", { ascending: true });
+
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`;
+      return;
+    }
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">${t("schedule.empty")}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map(a => `
+      <tr>
+        <td>${new Date(a.scheduled_start).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
+        <td>${t("type." + a.type)}</td>
+        <td>${a.notes ?? ""}</td>
+        <td><span class="status-pill status-${a.status}">${t("status." + a.status)}</span></td>
+        <td>${a.paid ? "✅" : "—"}</td>
+        <td><button class="link" data-id="${a.id}">${t("schedule.edit")}</button></td>
+      </tr>
+    `).join("");
+
+    tbody.querySelectorAll("button[data-id]").forEach(btn => {
+      btn.addEventListener("click", () => openEdit(data.find(a => a.id === btn.dataset.id)));
+    });
+  }
+
+  function openEdit(a) {
+    document.getElementById("appt-id").value = a.id;
+    document.getElementById("appt-dialog-title").textContent = t("dialog.edit_title");
+    document.getElementById("appt-type").value = a.type;
+    document.getElementById("appt-contact").value = a.notes ?? "";
+    document.getElementById("appt-start").value = toLocalInput(a.scheduled_start);
+    document.getElementById("appt-end").value = toLocalInput(a.scheduled_end);
+    document.getElementById("appt-status").value = a.status;
+    document.getElementById("appt-paid").checked = a.paid;
+    dialog.showModal();
+  }
+
+  function toLocalInput(iso) {
+    const d = new Date(iso);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }
+
+  await loadAppointments();
+})();
+</script>
+</body>
+</html>

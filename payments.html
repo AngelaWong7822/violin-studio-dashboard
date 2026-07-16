@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Payments</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand">🎻 Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
+  <a href="payments.html" class="active" data-i18n="nav.payments">Payments</a>
+  <span class="spacer"></span>
+  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="payments.title">Payments</h1>
+      <label style="font-size:13px;"><input type="checkbox" id="unpaid-only" checked /> <span data-i18n="payments.unpaid_only">Show unpaid only</span></label>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="schedule.col_when">When</th>
+        <th data-i18n="schedule.col_type">Type</th>
+        <th data-i18n="schedule.col_with">With</th>
+        <th data-i18n="schedule.col_paid">Paid</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  window.onLangChange = load;
+
+  const unpaidOnly = document.getElementById("unpaid-only");
+  const rows = document.getElementById("rows");
+
+  async function load() {
+    let query = supabaseClient
+      .from("appointments")
+      .select("*")
+      .in("status", ["confirmed", "completed"])
+      .order("scheduled_start", { ascending: false });
+    if (unpaidOnly.checked) query = query.eq("paid", false);
+
+    const { data, error } = await query;
+    if (error) { rows.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (!data.length) { rows.innerHTML = `<tr><td colspan="4" class="empty">${t("payments.empty")}</td></tr>`; return; }
+
+    rows.innerHTML = data.map(a => `
+      <tr>
+        <td>${new Date(a.scheduled_start).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
+        <td>${t("type." + a.type)}</td>
+        <td>${a.notes ?? ""}</td>
+        <td><input type="checkbox" data-id="${a.id}" ${a.paid ? "checked" : ""} /></td>
+      </tr>
+    `).join("");
+
+    rows.querySelectorAll("input[data-id]").forEach(cb => {
+      cb.addEventListener("change", async () => {
+        const { error } = await supabaseClient
+          .from("appointments")
+          .update({ paid: cb.checked })
+          .eq("id", cb.dataset.id);
+        if (error) { alert("Update failed: " + error.message); return; }
+        await load();
+      });
+    });
+  }
+
+  unpaidOnly.addEventListener("change", load);
+  await load();
+})();
+</script>
+</body>
+</html>

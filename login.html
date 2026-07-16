@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Login</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<main style="max-width:360px; margin-top:80px; position:relative;">
+  <button data-lang-toggle onclick="toggleLang()" style="position:absolute; top:-40px; right:0;">中文</button>
+  <div class="card">
+    <h1 data-i18n="login.title">Violin Studio Login</h1>
+    <form id="login-form" style="display:flex; flex-direction:column; gap:10px;">
+      <input type="email" id="email" data-i18n-placeholder="login.email_placeholder" placeholder="Email" required autocomplete="username" />
+      <input type="password" id="password" data-i18n-placeholder="login.password_placeholder" placeholder="Password" required autocomplete="current-password" />
+      <button type="submit" class="primary" data-i18n="login.button">Log in</button>
+      <p id="error-msg" style="color:#8a2e2e; font-size:13px; display:none;"></p>
+    </form>
+    <p data-i18n="login.help" style="font-size:12px; color:#8a8074; margin-top:10px;">
+      Accounts are created in the Supabase dashboard (Authentication &gt; Users) —
+      one for Angela, one for the boyfriend.
+    </p>
+  </div>
+</main>
+<script src="supabase-config.js"></script>
+<script src="i18n.js"></script>
+<script>
+  applyI18n();
+  (async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) window.location.href = "index.html";
+  })();
+
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const errorEl = document.getElementById("error-msg");
+    errorEl.style.display = "none";
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      errorEl.textContent = error.message;
+      errorEl.style.display = "block";
+      return;
+    }
+    window.location.href = "index.html";
+  });
+</script>
+</body>
+</html>
