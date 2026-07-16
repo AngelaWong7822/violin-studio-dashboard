@@ -22,9 +22,29 @@
 </header>
 <main>
   <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <h1 style="margin:0 0 10px;" data-i18n="schedule.followup_title">Needs Follow-up</h1>
+    <table>
+      <thead><tr>
+        <th data-i18n="lead.name">Name</th>
+        <th data-i18n="lead.phone">WhatsApp number</th>
+        <th data-i18n="schedule.followup_col_status">Status</th>
+      </tr></thead>
+      <tbody id="followup-rows"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
       <h1 style="margin:0;" data-i18n="schedule.title">This Week</h1>
-      <button class="primary" id="new-appt-btn" data-i18n="schedule.new_appt">+ New appointment</button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select id="type-filter">
+          <option value="all" data-i18n="schedule.filter_all">All types</option>
+          <option value="consultation" data-i18n="type.consultation">Consultation</option>
+          <option value="lesson" data-i18n="type.lesson">Lesson</option>
+          <option value="group_class" data-i18n="type.group_class">Group class</option>
+        </select>
+        <button class="primary" id="new-appt-btn" data-i18n="schedule.new_appt">+ New appointment</button>
+      </div>
     </div>
     <table>
       <thead>
@@ -63,10 +83,7 @@
         </select>
       </label>
       <label id="appt-format-row"><span data-i18n="dialog.lesson_format">Lesson format</span>
-        <select id="appt-format">
-          <option value="1on1" data-i18n="format.1on1">1-on-1</option>
-          <option value="1on2" data-i18n="format.1on2">1-on-2</option>
-        </select>
+        <select id="appt-format"></select>
       </label>
       <label><span data-i18n="dialog.contact">Contact name / phone</span>
         <input type="text" id="appt-contact" data-i18n-placeholder="dialog.contact_placeholder" placeholder="e.g. Chan Tai Man / 9123 4567" required />
@@ -107,7 +124,7 @@
   if (!session) return;
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
-  window.onLangChange = loadAppointments;
+  window.onLangChange = () => { loadFollowUps(); loadAppointments(); };
 
   // Google Calendar embed — replace GOOGLE_CALENDAR_EMBED_ID in supabase-config.js
   document.getElementById("calendar-embed").innerHTML =
@@ -120,9 +137,34 @@
   const formatRow = document.getElementById("appt-format-row");
 
   function syncFormatRowVisibility() {
-    formatRow.style.display = typeSelect.value === "lesson" ? "" : "none";
+    // Group class is inherently "group" format — no need to ask. Consultations
+    // also need this (Angela wants to know upfront whether it's a 1-on-1 or
+    // group-class inquiry), so show it for both lesson and consultation —
+    // consultations get an extra "group" option since that's a valid inquiry type.
+    const type = typeSelect.value;
+    formatRow.style.display = type === "group_class" ? "none" : "";
+    const formatSelect = document.getElementById("appt-format");
+    const options = type === "consultation" ? ["1on1", "1on2", "group"] : ["1on1", "1on2"];
+    const prevValue = formatSelect.value;
+    formatSelect.innerHTML = options.map(f => `<option value="${f}">${t("format." + f)}</option>`).join("");
+    if (options.includes(prevValue)) formatSelect.value = prevValue;
   }
   typeSelect.addEventListener("change", syncFormatRowVisibility);
+
+  // Smart default duration so Angela only has to pick a start time —
+  // consultations are always 20min, group class is always 1hr, lessons
+  // default to 45min (she can still manually override for the odd 1hr lesson).
+  const DEFAULT_DURATION_MINUTES = { consultation: 20, lesson: 45, group_class: 60 };
+  function autoFillEnd() {
+    const startVal = document.getElementById("appt-start").value;
+    if (!startVal) return;
+    const minutes = DEFAULT_DURATION_MINUTES[typeSelect.value] ?? 45;
+    const start = new Date(startVal);
+    const end = new Date(start.getTime() + minutes * 60000);
+    document.getElementById("appt-end").value = toLocalInput(end.toISOString());
+  }
+  document.getElementById("appt-start").addEventListener("change", autoFillEnd);
+  typeSelect.addEventListener("change", autoFillEnd);
 
   document.getElementById("new-appt-btn").addEventListener("click", () => {
     form.reset();
@@ -132,6 +174,7 @@
     dialog.showModal();
   });
   document.getElementById("appt-cancel-btn").addEventListener("click", () => dialog.close());
+  document.getElementById("type-filter").addEventListener("change", loadAppointments);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -140,8 +183,7 @@
     const priceValue = document.getElementById("appt-price").value;
     const payload = {
       type,
-      lesson_format: type === "lesson" ? document.getElementById("appt-format").value
-        : type === "group_class" ? "group" : null,
+      lesson_format: type === "group_class" ? "group" : document.getElementById("appt-format").value,
       price: priceValue === "" ? null : parseFloat(priceValue),
       scheduled_start: new Date(document.getElementById("appt-start").value).toISOString(),
       scheduled_end: new Date(document.getElementById("appt-end").value).toISOString(),
@@ -161,12 +203,49 @@
     await loadAppointments();
   });
 
+  async function loadFollowUps() {
+    const tbody = document.getElementById("followup-rows");
+    const { data, error } = await supabaseClient
+      .from("leads")
+      .select("id, status, contacts(name, whatsapp_number)")
+      .in("status", ["inquired", "consultation_booked", "attended"])
+      .order("updated_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="3" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (!data.length) { tbody.innerHTML = `<tr><td colspan="3" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
+    tbody.innerHTML = data.map(l => `
+      <tr>
+        <td>${l.contacts?.name ?? ""}</td>
+        <td>${l.contacts?.whatsapp_number ?? ""}</td>
+        <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span></td>
+      </tr>
+    `).join("");
+  }
+
+  function apptRowHtml(a) {
+    // Show the lesson format alongside the type for consultations/lessons
+    // (e.g. "諮詢 (小組班)") so Angela can tell at a glance whether a
+    // consultation is a 1-on-1 or group-class inquiry. Redundant for group
+    // class appointments (type already says so), so skip there.
+    const typeLabel = a.lesson_format && a.type !== "group_class"
+      ? `${t("type." + a.type)} (${t("format." + a.lesson_format)})`
+      : t("type." + a.type);
+    return `
+      <tr>
+        <td>${new Date(a.scheduled_start).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
+        <td>${typeLabel}</td>
+        <td>${a.notes ?? ""}</td>
+        <td><span class="status-pill status-${a.status}">${t("status." + a.status)}</span></td>
+        <td>${a.paid ? "✅" : "—"}</td>
+        <td><button class="link" data-id="${a.id}">${t("schedule.edit")}</button></td>
+      </tr>`;
+  }
+
   async function loadAppointments() {
     const tbody = document.getElementById("appt-rows");
-    const { data, error } = await supabaseClient
-      .from("appointments")
-      .select("*")
-      .order("scheduled_start", { ascending: true });
+    const filter = document.getElementById("type-filter").value;
+    let query = supabaseClient.from("appointments").select("*").order("scheduled_start", { ascending: true });
+    if (filter !== "all") query = query.eq("type", filter);
+    const { data, error } = await query;
 
     if (error) {
       tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`;
@@ -176,19 +255,52 @@
       tbody.innerHTML = `<tr><td colspan="6" class="empty">${t("schedule.empty")}</td></tr>`;
       return;
     }
-    tbody.innerHTML = data.map(a => `
-      <tr>
-        <td>${new Date(a.scheduled_start).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
-        <td>${t("type." + a.type)}</td>
-        <td>${a.notes ?? ""}</td>
-        <td><span class="status-pill status-${a.status}">${t("status." + a.status)}</span></td>
-        <td>${a.paid ? "✅" : "—"}</td>
-        <td><button class="link" data-id="${a.id}">${t("schedule.edit")}</button></td>
-      </tr>
-    `).join("");
+
+    // Group-class lessons that belong to the same package are collapsed into one
+    // summary row (weekly day/time + lesson count) — clicking it expands the
+    // individual lessons, since a full 8-week package otherwise buries the
+    // consultations Angela actually needs to keep an eye on.
+    const rowsHtml = [];
+    const renderedPackages = new Set();
+    for (const a of data) {
+      if (a.package_id) {
+        if (renderedPackages.has(a.package_id)) continue;
+        renderedPackages.add(a.package_id);
+        const group = data
+          .filter(x => x.package_id === a.package_id)
+          .sort((x, y) => new Date(x.scheduled_start) - new Date(y.scheduled_start));
+        const first = group[0];
+        const d = new Date(first.scheduled_start);
+        const dayLabel = t("day." + d.getDay());
+        const timeLabel = d.toLocaleTimeString(localeForDates(), { hour: "2-digit", minute: "2-digit" });
+        const summaryLabel = `${dayLabel} ${timeLabel} — ${first.notes ?? ""} (${tf("schedule.group_lessons_count", { n: group.length })})`;
+        rowsHtml.push(`
+          <tr class="pkg-summary-row" data-pkg-toggle="${a.package_id}" style="cursor:pointer; background:#faf7f3;">
+            <td colspan="2"><span class="pkg-arrow">▶</span> ${t("type.group_class")}</td>
+            <td colspan="4">${summaryLabel}</td>
+          </tr>
+        `);
+        group.forEach(g => {
+          rowsHtml.push(apptRowHtml(g).replace("<tr>", `<tr class="pkg-child-row" data-pkg-child="${a.package_id}" style="display:none;">`));
+        });
+      } else {
+        rowsHtml.push(apptRowHtml(a));
+      }
+    }
+    tbody.innerHTML = rowsHtml.join("");
 
     tbody.querySelectorAll("button[data-id]").forEach(btn => {
       btn.addEventListener("click", () => openEdit(data.find(a => a.id === btn.dataset.id)));
+    });
+
+    tbody.querySelectorAll("tr[data-pkg-toggle]").forEach(row => {
+      row.addEventListener("click", () => {
+        const pkgId = row.dataset.pkgToggle;
+        const childRows = tbody.querySelectorAll(`tr[data-pkg-child="${pkgId}"]`);
+        const isHidden = childRows[0]?.style.display === "none";
+        childRows.forEach(r => { r.style.display = isHidden ? "" : "none"; });
+        row.querySelector(".pkg-arrow").textContent = isHidden ? "▼" : "▶";
+      });
     });
   }
 
@@ -197,8 +309,10 @@
     document.getElementById("appt-dialog-title").textContent = t("dialog.edit_title");
     document.getElementById("appt-type").value = a.type;
     syncFormatRowVisibility();
-    if (a.lesson_format === "1on1" || a.lesson_format === "1on2") {
+    if (a.lesson_format && a.lesson_format !== "group") {
       document.getElementById("appt-format").value = a.lesson_format;
+    } else if (a.type === "consultation" && a.lesson_format === "group") {
+      document.getElementById("appt-format").value = "group";
     }
     document.getElementById("appt-price").value = a.price ?? "";
     document.getElementById("appt-contact").value = a.notes ?? "";
@@ -215,6 +329,7 @@
     return d.toISOString().slice(0, 16);
   }
 
+  await loadFollowUps();
   await loadAppointments();
 })();
 </script>

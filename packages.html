@@ -47,8 +47,9 @@
         <th data-i18n="packages.col_lessons">Lessons used</th>
         <th data-i18n="packages.col_leaves">Leaves used</th>
         <th data-i18n="packages.col_status">Status</th>
+        <th></th>
       </tr></thead>
-      <tbody id="package-rows"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+      <tbody id="package-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
@@ -65,6 +66,9 @@
           <option value="adult" data-i18n="agegroup.adult">Adult</option>
         </select>
       </label>
+      <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
+      <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span data-i18n="lead.age">Age</span> <input type="text" id="student-age" data-i18n-placeholder="lead.age_placeholder" placeholder="e.g. 6, or 4.5 (K2)" /></label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -145,15 +149,18 @@
     select.innerHTML = students.map(s => `<option value="${s.id}">${s.contacts?.name ?? s.id}</option>`).join("");
   }
 
+  let loadedPackages = [];
+
   async function loadPackages() {
     const tbody = document.getElementById("package-rows");
     const { data: packages, error } = await supabaseClient
       .from("packages")
-      .select("id, total_lessons, leave_limit, status, students(contacts(name))")
+      .select("id, student_id, total_lessons, price, leave_limit, status, students(contacts(name))")
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    loadedPackages = packages;
     if (!packages.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="empty">${t("packages.empty_packages")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("packages.empty_packages")}</td></tr>`;
       return;
     }
 
@@ -186,10 +193,85 @@
           <td>${lessonsUsed ?? 0} / ${pkg.total_lessons}</td>
           <td>${overLimit ? "⚠️ " : ""}${leavesUsed} / ${pkg.leave_limit}</td>
           <td><span class="status-pill status-confirmed">${t("pkgstatus." + pkg.status)}</span></td>
+          <td><button class="link" data-renew-id="${pkg.id}">${t("package.renew")}</button></td>
         </tr>
       `;
     }));
     tbody.innerHTML = rows.join("");
+
+    tbody.querySelectorAll("button[data-renew-id]").forEach(btn => {
+      btn.addEventListener("click", () => renewPackage(loadedPackages.find(p => p.id === btn.dataset.renewId)));
+    });
+  }
+
+  function toTimeString(date) {
+    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+
+  // Shared by "New package" and "Renew" — inserts the package row, then
+  // generates the weekly group-class appointments in one go.
+  async function createPackageAndLessons({ studentId, firstStart, totalLessons, price, leaveLimit }) {
+    const { data: pkg, error: pkgError } = await supabaseClient
+      .from("packages")
+      .insert({
+        student_id: studentId,
+        total_lessons: totalLessons,
+        price,
+        leave_limit: leaveLimit,
+        start_date: firstStart.toISOString().slice(0, 10),
+        weekly_day_of_week: firstStart.getDay(),
+        weekly_start_time: toTimeString(firstStart),
+        status: "active",
+      })
+      .select()
+      .single();
+    if (pkgError) { alert("Save failed: " + pkgError.message); return null; }
+
+    const studentName = students.find(s => s.id === studentId)?.contacts?.name ?? "";
+    const appointmentsToCreate = Array.from({ length: totalLessons }, (_, i) => {
+      const start = new Date(firstStart.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      const end = new Date(start.getTime() + 60 * 60 * 1000); // group class is always 1 hour
+      return {
+        type: "group_class",
+        lesson_format: "group",
+        student_id: studentId,
+        package_id: pkg.id,
+        scheduled_start: start.toISOString(),
+        scheduled_end: end.toISOString(),
+        status: "confirmed",
+        created_via: "manual_dashboard",
+        notes: studentName,
+      };
+    });
+
+    const { error: apptError } = await supabaseClient.from("appointments").insert(appointmentsToCreate);
+    if (apptError) { alert("Package saved, but generating lessons failed: " + apptError.message); return null; }
+    return pkg;
+  }
+
+  async function renewPackage(pkg) {
+    if (!pkg) return;
+    const { data: lastAppt, error } = await supabaseClient
+      .from("appointments")
+      .select("scheduled_start")
+      .eq("package_id", pkg.id)
+      .order("scheduled_start", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !lastAppt) { alert("Could not find this package's lessons to continue from."); return; }
+
+    const nextStart = new Date(new Date(lastAppt.scheduled_start).getTime() + 7 * 24 * 60 * 60 * 1000);
+    const dateLabel = nextStart.toLocaleDateString(localeForDates(), { dateStyle: "medium" });
+    if (!confirm(tf("package.renew_confirm", { n: pkg.total_lessons, date: dateLabel }))) return;
+
+    await createPackageAndLessons({
+      studentId: pkg.student_id,
+      firstStart: nextStart,
+      totalLessons: pkg.total_lessons,
+      price: pkg.price,
+      leaveLimit: pkg.leave_limit,
+    });
+    await loadPackages();
   }
 
   // Student dialog
@@ -205,10 +287,13 @@
     const name = document.getElementById("student-name").value;
     const whatsapp_number = document.getElementById("student-phone").value || null;
     const age_group = document.getElementById("student-age-group").value;
+    const social_media_name = document.getElementById("student-social").value || null;
+    const level = document.getElementById("student-level").value || null;
+    const age = document.getElementById("student-age").value || null;
 
     const { data: contact, error: contactError } = await supabaseClient
       .from("contacts")
-      .insert({ name, whatsapp_number, age_group, source: "existing_student" })
+      .insert({ name, whatsapp_number, age_group, social_media_name, level, age, source: "existing_student" })
       .select()
       .single();
     if (contactError) { alert("Save failed: " + contactError.message); return; }
@@ -250,43 +335,8 @@
     if (!studentId || !startDate || !time) return;
 
     const firstStart = new Date(`${startDate}T${time}:00`);
-    const weeklyDayOfWeek = firstStart.getDay();
-
-    const { data: pkg, error: pkgError } = await supabaseClient
-      .from("packages")
-      .insert({
-        student_id: studentId,
-        total_lessons: totalLessons,
-        price,
-        leave_limit: leaveLimit,
-        start_date: startDate,
-        weekly_day_of_week: weeklyDayOfWeek,
-        weekly_start_time: time,
-        status: "active",
-      })
-      .select()
-      .single();
-    if (pkgError) { alert("Save failed: " + pkgError.message); return; }
-
-    const studentName = students.find(s => s.id === studentId)?.contacts?.name ?? "";
-    const appointmentsToCreate = Array.from({ length: totalLessons }, (_, i) => {
-      const start = new Date(firstStart.getTime() + i * 7 * 24 * 60 * 60 * 1000);
-      const end = new Date(start.getTime() + 60 * 60 * 1000); // group class is always 1 hour
-      return {
-        type: "group_class",
-        lesson_format: "group",
-        student_id: studentId,
-        package_id: pkg.id,
-        scheduled_start: start.toISOString(),
-        scheduled_end: end.toISOString(),
-        status: "confirmed",
-        created_via: "manual_dashboard",
-        notes: studentName,
-      };
-    });
-
-    const { error: apptError } = await supabaseClient.from("appointments").insert(appointmentsToCreate);
-    if (apptError) { alert("Package saved, but generating lessons failed: " + apptError.message); return; }
+    const pkg = await createPackageAndLessons({ studentId, firstStart, totalLessons, price, leaveLimit });
+    if (!pkg) return;
 
     packageDialog.close();
     await loadPackages();

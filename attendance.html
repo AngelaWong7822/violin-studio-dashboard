@@ -170,7 +170,7 @@
             <option value="made_up" ${row.make_up_status === "made_up" ? "selected" : ""} data-i18n="makeup.made_up">Made up</option>
             <option value="deferred_to_next_package" ${row.make_up_status === "deferred_to_next_package" ? "selected" : ""} data-i18n="makeup.deferred_to_next_package">Deferred to next package</option>
           </select>
-          <select data-field="made_up_appointment_id" data-attendance-id="${row.id}" style="${row.make_up_status === "made_up" ? "" : "display:none;"}">
+          <select data-field="made_up_appointment_id" data-attendance-id="${row.id}" data-student-id="${row.student_id}" style="${row.make_up_status === "made_up" ? "" : "display:none;"}">
             <option value="">—</option>
             ${makeupOptionsHtml(appointmentId, row.made_up_appointment_id)}
           </select>
@@ -207,11 +207,38 @@
 
     rosterRows.querySelectorAll('select[data-field="made_up_appointment_id"]').forEach(sel => {
       sel.addEventListener("change", async () => {
+        const targetAppointmentId = sel.value || null;
         const { error } = await supabaseClient
           .from("attendance")
-          .update({ made_up_appointment_id: sel.value || null })
+          .update({ made_up_appointment_id: targetAppointmentId })
           .eq("id", sel.dataset.attendanceId);
-        if (error) alert("Update failed: " + error.message);
+        if (error) { alert("Update failed: " + error.message); return; }
+
+        // Also put the student on the other session's roster as attended —
+        // saves having to separately open that session and add them by hand.
+        if (targetAppointmentId) {
+          const { data: existing } = await supabaseClient
+            .from("attendance")
+            .select("id")
+            .eq("appointment_id", targetAppointmentId)
+            .eq("student_id", sel.dataset.studentId)
+            .maybeSingle();
+          if (existing) {
+            await supabaseClient
+              .from("attendance")
+              .update({ status: "attended", marked_at: new Date().toISOString() })
+              .eq("id", existing.id);
+          } else {
+            await supabaseClient
+              .from("attendance")
+              .insert({
+                appointment_id: targetAppointmentId,
+                student_id: sel.dataset.studentId,
+                status: "attended",
+                marked_at: new Date().toISOString(),
+              });
+          }
+        }
       });
     });
   }

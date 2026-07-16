@@ -11,7 +11,8 @@
   .col-head { font-weight: 600; font-size: 13px; color: #6b5c4f; margin-bottom: 8px; }
   .lead-card { background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.08); font-size: 13px; }
   .lead-card .name { font-weight: 600; }
-  .lead-card select { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
+  .lead-card .meta { color: #8a8074; font-size: 12px; margin-top: 2px; }
+  .lead-card select, .lead-card input { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
   @media (max-width: 800px) { #board { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -44,14 +45,20 @@
     <div style="display:flex; flex-direction:column; gap:10px;">
       <label><span data-i18n="lead.name">Name</span> <input type="text" id="lead-name" required /></label>
       <label><span data-i18n="lead.phone">WhatsApp number</span> <input type="text" id="lead-phone" data-i18n-placeholder="lead.phone_placeholder" placeholder="+852 9123 4567" /></label>
+      <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="lead-social" /></label>
+      <label><span data-i18n="lead.level">Level</span> <input type="text" id="lead-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span data-i18n="lead.age">Age</span> <input type="text" id="lead-age" data-i18n-placeholder="lead.age_placeholder" placeholder="e.g. 6, or 4.5 (K2)" /></label>
       <label><span data-i18n="lead.source">Source</span>
         <select id="lead-source">
           <option value="facebook_ad" data-i18n="source.facebook_ad">Facebook ad</option>
           <option value="whatsapp_direct" data-i18n="source.whatsapp_direct">WhatsApp direct</option>
           <option value="referral" data-i18n="source.referral">Referral</option>
           <option value="existing_student" data-i18n="source.existing_student">Existing student</option>
+          <option value="rednote" data-i18n="source.rednote">Rednote (小紅書)</option>
+          <option value="instagram" data-i18n="source.instagram">Instagram</option>
         </select>
       </label>
+      <label><span data-i18n="lead.preferred_times">Preferred times</span> <input type="text" id="lead-preferred-times" data-i18n-placeholder="lead.preferred_times_placeholder" placeholder="e.g. Sat morning, Fri after 5pm" /></label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="lead-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -76,7 +83,7 @@
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, created_at, contacts(name, whatsapp_number, source)")
+      .select("id, status, created_at, lost_reason, preferred_times, contacts(name, whatsapp_number, source, level, age, social_media_name)")
       .order("created_at", { ascending: false });
 
     const board = document.getElementById("board");
@@ -103,13 +110,21 @@
       }
 
       leadsInCol.forEach(lead => {
+        const c = lead.contacts;
+        const metaParts = [];
+        if (c?.level) metaParts.push(c.level);
+        if (c?.age) metaParts.push(c.age);
+        if (c?.social_media_name) metaParts.push(c.social_media_name);
+
         const card = document.createElement("div");
         card.className = "lead-card";
         card.innerHTML = `
-          <div class="name">${lead.contacts?.name ?? "(no name)"}</div>
-          <div>${lead.contacts?.whatsapp_number ?? ""}</div>
-          <div style="color:#8a8074;">${lead.contacts?.source ? t("source." + lead.contacts.source) : ""}</div>
+          <div class="name">${c?.name ?? "(no name)"}</div>
+          <div class="meta">${c?.whatsapp_number ?? ""}</div>
+          ${metaParts.length ? `<div class="meta">${metaParts.join(" · ")}</div>` : ""}
+          <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
         `;
+
         const select = document.createElement("select");
         STATUSES.forEach(s => {
           const opt = document.createElement("option");
@@ -127,6 +142,35 @@
           await loadBoard();
         });
         card.appendChild(select);
+
+        const preferredTimesInput = document.createElement("input");
+        preferredTimesInput.type = "text";
+        preferredTimesInput.placeholder = t("lead.preferred_times_placeholder");
+        preferredTimesInput.value = lead.preferred_times ?? "";
+        preferredTimesInput.addEventListener("change", async () => {
+          const { error } = await supabaseClient
+            .from("leads")
+            .update({ preferred_times: preferredTimesInput.value || null })
+            .eq("id", lead.id);
+          if (error) alert("Update failed: " + error.message);
+        });
+        card.appendChild(preferredTimesInput);
+
+        if (status === "lost") {
+          const lostReasonInput = document.createElement("input");
+          lostReasonInput.type = "text";
+          lostReasonInput.placeholder = t("lead.lost_reason_placeholder");
+          lostReasonInput.value = lead.lost_reason ?? "";
+          lostReasonInput.addEventListener("change", async () => {
+            const { error } = await supabaseClient
+              .from("leads")
+              .update({ lost_reason: lostReasonInput.value || null })
+              .eq("id", lead.id);
+            if (error) alert("Update failed: " + error.message);
+          });
+          card.appendChild(lostReasonInput);
+        }
+
         col.appendChild(card);
       });
 
@@ -145,18 +189,22 @@
     e.preventDefault();
     const name = document.getElementById("lead-name").value;
     const whatsapp_number = document.getElementById("lead-phone").value || null;
+    const social_media_name = document.getElementById("lead-social").value || null;
+    const level = document.getElementById("lead-level").value || null;
+    const age = document.getElementById("lead-age").value || null;
     const source = document.getElementById("lead-source").value;
+    const preferred_times = document.getElementById("lead-preferred-times").value || null;
 
     const { data: contact, error: contactError } = await supabaseClient
       .from("contacts")
-      .insert({ name, whatsapp_number, source })
+      .insert({ name, whatsapp_number, social_media_name, level, age, source })
       .select()
       .single();
     if (contactError) { alert("Save failed: " + contactError.message); return; }
 
     const { error: leadError } = await supabaseClient
       .from("leads")
-      .insert({ contact_id: contact.id, status: "inquired" });
+      .insert({ contact_id: contact.id, status: "inquired", preferred_times });
     if (leadError) { alert("Save failed: " + leadError.message); return; }
 
     dialog.close();
