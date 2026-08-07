@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="shared.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+  .toggle-btn-group { display: flex; gap: 8px; }
+  .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d9d0c3; border-radius: 6px; background: #fff; color: #6b5c4f; cursor: pointer; font-size: 14px; }
+  .toggle-btn.active { background: #7a3b2e; border-color: #7a3b2e; color: #fff; }
   tr.row-withdrawn { color: #b0a89c; background: #faf8f4; }
   tr.row-withdrawn a { color: #b0a89c; }
   #grid-wrap { overflow-x: auto; }
@@ -33,6 +36,7 @@
   .makeup-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0ece5; font-size: 13px; }
   .makeup-row select { font-size: 13px; padding: 4px 6px; }
   #grid-table.hide-withdrawn .withdrawn-col { display: none; }
+  #grid-table.hide-visitors .visitor-col { display: none; }
   .reschedule-icon-btn { padding: 2px; vertical-align: -2px; color: #b0a89c; }
   .reschedule-icon-btn:hover { color: #7a3b2e; }
   .student-row { cursor: pointer; }
@@ -132,10 +136,14 @@
         <input type="checkbox" id="show-withdrawn-toggle" />
         <span data-i18n="attendance.show_withdrawn">Show withdrawn students</span>
       </label>
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="show-visitors-toggle" />
+        <span data-i18n="attendance.show_visitors">Show make-up visitors</span>
+      </label>
     </div>
     <div id="grid-section" style="margin-top:16px; display:none;">
       <div id="grid-wrap">
-        <table id="grid-table" class="hide-withdrawn"></table>
+        <table id="grid-table" class="hide-withdrawn hide-visitors"></table>
       </div>
 
       <h1 style="font-size:16px; margin-top:24px;" data-i18n="attendance.pending_makeups_title">Leave requests needing a decision</h1>
@@ -182,6 +190,13 @@
       <label><span data-i18n="student.age">Age</span> <input type="number" id="student-age" min="0" step="1" /></label>
       <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
       <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span data-i18n="student.needs_violin">Needs to buy a violin?</span>
+        <div class="toggle-btn-group" id="student-needs-violin-group">
+          <button type="button" class="toggle-btn" data-value="true" data-i18n="common.yes">Yes</button>
+          <button type="button" class="toggle-btn active" data-value="false" data-i18n="common.no">No</button>
+        </div>
+        <input type="hidden" id="student-needs-violin" value="false" />
+      </label>
       <div id="student-edit-class-field" style="display:none; flex-direction:column; gap:10px; border-top:1px solid #e5ddd0; padding-top:10px;">
         <label><span data-i18n="enroll.col_class">Class</span>
           <select id="student-edit-class"></select>
@@ -727,7 +742,9 @@
     if (!row || row.status !== "leave") return "";
     if (row.make_up_status === "made_up" && row.made_up_appointment_id) {
       const target = allGroupAppts.find(a => a.id === row.made_up_appointment_id);
-      const dateLabel = target ? new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" }) : "?";
+      const dateLabel = target
+        ? `${new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" })} (${t("day." + new Date(target.scheduled_start).getDay())})`
+        : "?";
       return `<div style="font-size:10px; color:#1e6b34;">→${dateLabel}</div>`;
     }
     if (row.make_up_status === "deferred_to_next_package") {
@@ -758,9 +775,17 @@
       ...visitorRoster.map(([studentId, name]) => ({ studentId, name, isVisitor: true, isWithdrawn: false })),
     ];
     const totalCols = columns.length + 1;
+    // Withdrawn and visitor columns each have their own show/hide toggle
+    // ("顯示已退出學生" / "顯示已補堂學生") — both default to hidden so a
+    // one-off make-up slot doesn't sit there cluttering the grid forever.
+    function colClass(isWithdrawn, isVisitor) {
+      if (isWithdrawn) return ' class="withdrawn-col"';
+      if (isVisitor) return ' class="visitor-col"';
+      return "";
+    }
     const headRow = `<tr><th class="date-col" data-i18n="attendance.grid_col_date">Date</th>${columns.map(c => {
       const badge = c.isWithdrawn ? t("attendance.withdrawn_student") : c.isVisitor ? t("attendance.makeup_visitor") : "";
-      return `<th${c.isWithdrawn ? ' class="withdrawn-col"' : ""}>${c.name}${badge ? ` <span class="visitor-badge">(${badge})</span>` : ""}</th>`;
+      return `<th${colClass(c.isWithdrawn, c.isVisitor)}>${c.name}${badge ? ` <span class="visitor-badge">(${badge})</span>` : ""}</th>`;
     }).join("")}</tr>`;
 
     // Shared by the per-date cells and the divider row's per-student "mark
@@ -781,10 +806,10 @@
         : "";
       const cells = columns.map(({ studentId, isVisitor, isWithdrawn }) => {
         const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
-        const withdrawnClass = isWithdrawn ? "withdrawn-col " : "";
+        const colCls = isWithdrawn ? "withdrawn-col " : isVisitor ? "visitor-col " : "";
 
         if ((isVisitor || isWithdrawn) && !row) {
-          return `<td class="${withdrawnClass}visitor-locked">-</td>`;
+          return `<td class="${colCls}visitor-locked">-</td>`;
         }
 
         const joinDate = joinDateMap?.get(studentId);
@@ -793,7 +818,7 @@
         }
         const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
         return `
-          <td${isWithdrawn ? ' class="withdrawn-col"' : ""}>
+          <td${colClass(isWithdrawn, isVisitor)}>
             <button type="button" class="att-toggle att-${row?.status || "unset"}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
             ${makeupNoteHtml(row, allGroupAppts)}
             ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#8a2e2e; font-size:10px;">${t("student.delete")}</button>` : ""}
@@ -820,10 +845,10 @@
             ${tf("attendance.term_divider", { n: batchIndex + 1, count: batch.length })}
           </td>
           ${columns.map(({ studentId, isVisitor, isWithdrawn }) => {
-            if (!isOpen) return `<td${isWithdrawn ? ' class="withdrawn-col"' : ""}></td>`;
+            if (!isOpen) return `<td${colClass(isWithdrawn, isVisitor)}></td>`;
             const eligible = batch.some(a => isEligibleCell(a, studentId, isVisitor, isWithdrawn));
-            if (!eligible) return `<td${isWithdrawn ? ' class="withdrawn-col"' : ""}></td>`;
-            return `<td${isWithdrawn ? ' class="withdrawn-col"' : ""}><button type="button" class="link mark-all-attended-btn" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.mark_all_attended_title")}">${t("attendance.mark_all_attended")}</button></td>`;
+            if (!eligible) return `<td${colClass(isWithdrawn, isVisitor)}></td>`;
+            return `<td${colClass(isWithdrawn, isVisitor)}><button type="button" class="link mark-all-attended-btn" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.mark_all_attended_title")}">${t("attendance.mark_all_attended")}</button></td>`;
           }).join("")}
         </tr>`;
       return isOpen ? dividerRow + batch.map(dateRowHtml).join("") : dividerRow;
@@ -1166,6 +1191,9 @@
   attendanceClassSelect.addEventListener("change", () => loadClassGrid(attendanceClassSelect.value));
   document.getElementById("show-withdrawn-toggle").addEventListener("change", (e) => {
     document.getElementById("grid-table").classList.toggle("hide-withdrawn", !e.target.checked);
+  });
+  document.getElementById("show-visitors-toggle").addEventListener("change", (e) => {
+    document.getElementById("grid-table").classList.toggle("hide-visitors", !e.target.checked);
   });
   document.getElementById("show-cancelled-classes-toggle").addEventListener("change", () => refreshAttendanceSection());
   document.getElementById("show-processed-leaves-toggle").addEventListener("change", () => loadClassGrid(attendanceClassSelect.value));
@@ -1755,7 +1783,7 @@
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, contacts(name, whatsapp_number, gender, social_media_name, level, age)")
+      .select("id, contact_id, contacts(name, whatsapp_number, gender, social_media_name, level, age, needs_violin)")
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
@@ -1835,7 +1863,7 @@
 
       const html = `
         <tr${isWithdrawn ? ' class="row-withdrawn"' : ""}>
-          <td>${s.contacts?.name ?? ""}</td>
+          <td>${s.contacts?.name ?? ""}${s.contacts?.needs_violin ? ' <span title="' + t("student.needs_violin") + '">🎻</span>' : ""}</td>
           <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
           <td>${s.contacts?.age ?? "—"}</td>
           <td>${classCell}</td>
@@ -1923,6 +1951,16 @@
     await loadClasses();
   }
 
+  function setNeedsViolinToggle(value) {
+    document.getElementById("student-needs-violin").value = String(value);
+    document.querySelectorAll("#student-needs-violin-group .toggle-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.value === String(value));
+    });
+  }
+  document.querySelectorAll("#student-needs-violin-group .toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => setNeedsViolinToggle(btn.dataset.value === "true"));
+  });
+
   function openEditStudent(student) {
     if (!student) return;
     const c = student.contacts ?? {};
@@ -1934,6 +1972,7 @@
     document.getElementById("student-gender").value = c.gender ?? "male";
     document.getElementById("student-social").value = c.social_media_name ?? "";
     document.getElementById("student-level").value = c.level ?? "";
+    setNeedsViolinToggle(c.needs_violin === true);
     document.getElementById("student-age").value = c.age ?? "";
 
     const pkg = student.currentPkg;
@@ -1956,6 +1995,7 @@
     document.getElementById("student-contact-id").value = "";
     document.getElementById("student-edit-class-field").style.display = "none";
     document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
+    setNeedsViolinToggle(false);
     studentDialog.showModal();
   });
   document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());
@@ -1992,6 +2032,7 @@
       social_media_name: document.getElementById("student-social").value || null,
       level: document.getElementById("student-level").value || null,
       age: document.getElementById("student-age").value || null,
+      needs_violin: document.getElementById("student-needs-violin").value === "true",
     };
 
     if (studentId && contactId) {
