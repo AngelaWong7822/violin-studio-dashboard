@@ -414,16 +414,31 @@
   // A "deferred to next package" leave never touches packages.price at all
   // — it just links this attendance row to whichever package absorbs the
   // credit, and effectivePrice()/the students-page totals subtract for it
-  // live every time they're computed (see getIncomingCreditCounts). That
+  // live every time they're computed (see getIncomingCreditAmounts). That
   // keeps it fully reversible: change the leave's status or make-up
   // decision later, and the discount disappears on its own, no separate
-  // "undo" step needed. If that next package already exists (student
-  // marked it after the fact, not right when renewing), link it now
-  // instead of waiting for createEnrollment to catch it on some future
-  // renewal that may never come for this particular gap.
+  // "undo" step needed. The dollar amount is locked in at link time using
+  // *this* leave's own original package's per-lesson rate (not whatever
+  // the receiving package happens to cost) — a $1800/8-lesson term's leave
+  // is always worth $225, even if it lands on a $2000/8-lesson term.
+  async function findPackageContainingAppointment(classId, appointmentId, candidatePkgs) {
+    for (const p of candidatePkgs) {
+      const lessonAppts = await getPackageLessonAppointments(classId, p.start_date, p.total_lessons);
+      if (lessonAppts.some(a => a.id === appointmentId)) return p;
+    }
+    return null;
+  }
+
+  // If that next package already exists (student marked it after the
+  // fact, not right when renewing), link it now instead of waiting for
+  // createEnrollment to catch it on some future renewal that may never
+  // come for this particular gap. Idempotent and safe to call any time a
+  // leave is (re)confirmed as "deferred_to_next_package" — always
+  // recomputes from scratch rather than trusting a possibly-stale guard,
+  // so it also self-heals rows whose link never took the first time.
   async function applyDeferredCreditToExistingNextPackage(attendanceRowId, studentId, classId, appointmentId) {
     const { data: pkgs } = await supabaseClient
-      .from("packages").select("id, start_date, total_lessons")
+      .from("packages").select("id, start_date, total_lessons, price")
       .eq("student_id", studentId).eq("class_id", classId).order("start_date", { ascending: true });
     if (!pkgs || pkgs.length < 2) return;
 
@@ -432,25 +447,28 @@
       const lessonAppts = await getPackageLessonAppointments(classId, pkgs[i].start_date, pkgs[i].total_lessons);
       if (lessonAppts.some(a => a.id === appointmentId)) { currentIdx = i; break; }
     }
-    const nextPkg = currentIdx !== -1 ? pkgs[currentIdx + 1] : undefined;
+    if (currentIdx === -1) return;
+    const originPkg = pkgs[currentIdx];
+    const nextPkg = pkgs[currentIdx + 1];
     if (!nextPkg) return; // no later package yet — createEnrollment will pick this credit up whenever one is created
 
+    const amount = originPkg.total_lessons ? originPkg.price / originPkg.total_lessons : 0;
     const { error } = await supabaseClient.from("attendance")
-      .update({ deferred_credit_used_in_package_id: nextPkg.id }).eq("id", attendanceRowId);
+      .update({ deferred_credit_used_in_package_id: nextPkg.id, deferred_credit_amount: amount }).eq("id", attendanceRowId);
     if (error) alert("Update failed: " + error.message);
   }
 
-  // How many unresolved "deferred to next package" credits currently point
-  // at each of the given packages — subtracted live from that package's
-  // effective price, one lesson's worth per credit, rather than ever being
-  // baked into packages.price itself.
-  async function getIncomingCreditCounts(packageIds) {
-    const counts = new Map();
-    if (!packageIds.length) return counts;
+  // Total dollar amount of unresolved "deferred to next package" credits
+  // currently pointing at each of the given packages — subtracted live from
+  // that package's effective price rather than ever being baked into
+  // packages.price itself.
+  async function getIncomingCreditAmounts(packageIds) {
+    const amounts = new Map();
+    if (!packageIds.length) return amounts;
     const { data } = await supabaseClient
-      .from("attendance").select("deferred_credit_used_in_package_id").in("deferred_credit_used_in_package_id", packageIds);
-    (data ?? []).forEach(r => counts.set(r.deferred_credit_used_in_package_id, (counts.get(r.deferred_credit_used_in_package_id) ?? 0) + 1));
-    return counts;
+      .from("attendance").select("deferred_credit_used_in_package_id, deferred_credit_amount").in("deferred_credit_used_in_package_id", packageIds);
+    (data ?? []).forEach(r => amounts.set(r.deferred_credit_used_in_package_id, (amounts.get(r.deferred_credit_used_in_package_id) ?? 0) + (r.deferred_credit_amount ?? 0)));
+    return amounts;
   }
 
   // Long lists default to showing just the first few rows, with a toggle to
@@ -643,9 +661,20 @@
     if (apptIds.length) {
       const { data } = await supabaseClient
         .from("attendance")
-        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, deferred_credit_used_in_package_id, students(contacts(name))")
+        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, deferred_credit_used_in_package_id, deferred_credit_amount, students(contacts(name))")
         .in("appointment_id", apptIds);
       attendanceRows = data ?? [];
+    }
+
+    // Self-heal: any leave already marked "deferred to next package" that
+    // never actually got linked to a package (e.g. set before this credit
+    // mechanism existed, or before a next package was created) gets linked
+    // here on every load — so fixing it never depends on catching a
+    // specific dropdown change event.
+    for (const row of attendanceRows) {
+      if (row.status === "leave" && row.make_up_status === "deferred_to_next_package" && !row.deferred_credit_used_in_package_id) {
+        await applyDeferredCreditToExistingNextPackage(row.id, row.student_id, classId, row.appointment_id);
+      }
     }
 
     // Distinguish three kinds of column: formally-enrolled students, students
@@ -748,7 +777,7 @@
     function dateRowHtml(a) {
       const dateLabel = new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" });
       const rescheduleNote = a.rescheduled_from
-        ? ` <span style="font-size:10px; color:#8a6314;">(補回${new Date(a.rescheduled_from).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}${a.reschedule_reason ? " " + a.reschedule_reason : ""})</span>`
+        ? `<div style="font-size:10px; color:#8a6314; white-space:normal;">(補回${new Date(a.rescheduled_from).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}${a.reschedule_reason ? " " + a.reschedule_reason : ""})</div>`
         : "";
       const cells = columns.map(({ studentId, isVisitor, isWithdrawn }) => {
         const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
@@ -770,7 +799,7 @@
             ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#8a2e2e; font-size:10px;">${t("student.delete")}</button>` : ""}
           </td>`;
       }).join("");
-      return `<tr><td class="date-col">${dateLabel}${rescheduleNote} <button type="button" class="link reschedule-icon-btn" data-reschedule-appt="${a.id}" data-current-start="${a.scheduled_start}" title="${t("attendance.reschedule")}" aria-label="${t("attendance.reschedule")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button></td>${cells}</tr>`;
+      return `<tr><td class="date-col"><div style="display:flex; align-items:center; gap:2px; white-space:nowrap;">${dateLabel} <button type="button" class="link reschedule-icon-btn" data-reschedule-appt="${a.id}" data-current-start="${a.scheduled_start}" title="${t("attendance.reschedule")}" aria-label="${t("attendance.reschedule")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button></div>${rescheduleNote}</td>${cells}</tr>`;
     }
 
     // Group the class's dates into 8-lesson terms with a divider between
@@ -840,6 +869,7 @@
         const previousMadeUpApptId = row ? row.made_up_appointment_id : null;
         const previousMakeUpRemark = row ? row.make_up_remark : null;
         const previousDeferredLink = row ? row.deferred_credit_used_in_package_id : null;
+        const previousDeferredAmount = row ? row.deferred_credit_amount : null;
         // make_up_status/made_up_appointment_id/deferred_credit_used_in_package_id
         // only ever mean something while status is "leave" — cycling INTO
         // leave starts make_up_status fresh as "unprocessed" (no decision
@@ -857,15 +887,17 @@
             row.made_up_appointment_id = null;
             row.make_up_remark = null;
             row.deferred_credit_used_in_package_id = null;
+            row.deferred_credit_amount = null;
           } else if (leavingLeave) {
             row.make_up_status = "not_needed";
             row.made_up_appointment_id = null;
             row.make_up_remark = null;
             row.deferred_credit_used_in_package_id = null;
+            row.deferred_credit_amount = null;
           }
         } else {
           const col = columns.find(c => c.studentId === studentId);
-          row = { id: null, appointment_id: apptId, student_id: studentId, status, make_up_status: null, made_up_appointment_id: null, make_up_remark: null, deferred_credit_used_in_package_id: null, students: { contacts: { name: col?.name ?? "" } } };
+          row = { id: null, appointment_id: apptId, student_id: studentId, status, make_up_status: null, made_up_appointment_id: null, make_up_remark: null, deferred_credit_used_in_package_id: null, deferred_credit_amount: null, students: { contacts: { name: col?.name ?? "" } } };
           attendanceRows.push(row);
         }
         pendingAttendanceWrites.add(pendingKey);
@@ -879,11 +911,13 @@
             updatePayload.made_up_appointment_id = null;
             updatePayload.make_up_remark = null;
             updatePayload.deferred_credit_used_in_package_id = null;
+            updatePayload.deferred_credit_amount = null;
           } else if (leavingLeave) {
             updatePayload.make_up_status = "not_needed";
             updatePayload.made_up_appointment_id = null;
             updatePayload.make_up_remark = null;
             updatePayload.deferred_credit_used_in_package_id = null;
+            updatePayload.deferred_credit_amount = null;
           }
           ({ error } = await supabaseClient.from("attendance").update(updatePayload).eq("id", attendanceId));
         } else {
@@ -905,6 +939,7 @@
               row.made_up_appointment_id = previousMadeUpApptId;
               row.make_up_remark = previousMakeUpRemark;
               row.deferred_credit_used_in_package_id = previousDeferredLink;
+              row.deferred_credit_amount = previousDeferredAmount;
             }
           }
           alert("Update failed: " + error.message);
@@ -1019,8 +1054,24 @@
     container.innerHTML = leaveRows.map(row => {
       const appt = appts.find(a => a.id === row.appointment_id);
       const dateLabel = appt ? new Date(appt.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "";
-      const otherAppts = allGroupAppts.filter(a => a.class_id !== currentClassId
-        && (!appt || new Date(a.scheduled_start) >= new Date(appt.scheduled_start)));
+      // Make-up target window: 14 days before the missed lesson (a make-up
+      // slot in another class can land slightly earlier in the calendar
+      // even though it's "later" in that class's own sequence) through 1
+      // calendar month after. Whatever was already picked stays selectable
+      // even if it now falls outside the window, so an existing choice
+      // never silently disappears from the dropdown.
+      let rangeStart = null, rangeEnd = null;
+      if (appt) {
+        rangeStart = new Date(appt.scheduled_start);
+        rangeStart.setDate(rangeStart.getDate() - 14);
+        rangeEnd = new Date(appt.scheduled_start);
+        rangeEnd.setMonth(rangeEnd.getMonth() + 1);
+      }
+      const otherAppts = allGroupAppts.filter(a => a.class_id !== currentClassId && (
+        a.id === row.made_up_appointment_id
+        || !appt
+        || (new Date(a.scheduled_start) >= rangeStart && new Date(a.scheduled_start) <= rangeEnd)
+      ));
       const targetOptions = otherAppts.map(a => `
         <option value="${a.id}" ${a.id === row.made_up_appointment_id ? "selected" : ""}>
           ${a.classes?.name ?? ""} — ${new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })} (${t("day." + new Date(a.scheduled_start).getDay())}) ${new Date(a.scheduled_start).toLocaleTimeString(localeForDates(), { timeStyle: "short" })}
@@ -1056,16 +1107,19 @@
         // Switching away from "deferred to next package" releases whatever
         // credit link it may have already claimed — otherwise that package
         // keeps a discount for a leave that no longer qualifies for one.
-        if (make_up_status !== "deferred_to_next_package" && row?.deferred_credit_used_in_package_id) {
+        if (make_up_status !== "deferred_to_next_package") {
           payload.deferred_credit_used_in_package_id = null;
+          payload.deferred_credit_amount = null;
         }
         const { error } = await supabaseClient.from("attendance").update(payload).eq("id", attendanceId);
         if (error) { alert("Update failed: " + error.message); return; }
 
         // If this student's next package (in this same class) already
-        // exists, apply the credit to it right now instead of waiting for
-        // a future enrollment/renewal to pick it up.
-        if (make_up_status === "deferred_to_next_package" && !row?.deferred_credit_used_in_package_id) {
+        // exists, (re)apply the credit to it right now instead of waiting
+        // for a future enrollment/renewal to pick it up. Always re-runs
+        // (not gated on "not already linked") so it self-heals a link that
+        // never took the first time, instead of trusting a stale guard.
+        if (make_up_status === "deferred_to_next_package") {
           await applyDeferredCreditToExistingNextPackage(attendanceId, rowEl.dataset.studentId, currentClassId, rowEl.dataset.appointmentId);
         }
 
@@ -1166,8 +1220,8 @@
 
   function effectivePrice(pkg, lessons) {
     const perLessonPrice = pkg.price / pkg.total_lessons;
-    const deduction = (lessons.filter(isDeductible).length + (pkg.incomingCreditCount ?? 0)) * perLessonPrice;
-    return Math.round(Math.max(0, pkg.price - deduction));
+    const ownDeduction = lessons.filter(isDeductible).length * perLessonPrice;
+    return Math.round(Math.max(0, pkg.price - ownDeduction - (pkg.incomingCreditAmount ?? 0)));
   }
 
   async function loadPayments() {
@@ -1181,10 +1235,10 @@
       .order("start_date", { ascending: false });
     if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
 
-    const incomingCreditCounts = await getIncomingCreditCounts(pkgs.map(p => p.id));
+    const incomingCreditAmounts = await getIncomingCreditAmounts(pkgs.map(p => p.id));
 
     paymentPackages = await Promise.all(pkgs.map(async (pkg) => {
-      pkg.incomingCreditCount = incomingCreditCounts.get(pkg.id) ?? 0;
+      pkg.incomingCreditAmount = incomingCreditAmounts.get(pkg.id) ?? 0;
       const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
       const apptIds = appts.map(a => a.id);
 
@@ -1744,7 +1798,7 @@
       // "已請假" and "累計已付" are both cumulative across every package this
       // student has ever had — not just the current one — and share the same
       // per-package attendance query, so they're computed together in one pass.
-      const ownIncomingCreditCounts = await getIncomingCreditCounts((allOwnPkgs ?? []).map(p => p.id));
+      const ownIncomingCreditAmounts = await getIncomingCreditAmounts((allOwnPkgs ?? []).map(p => p.id));
       let totalLeavesUsed = 0, totalDeduction = 0;
       for (const p of (allOwnPkgs ?? [])) {
         const pAppts = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
@@ -1755,9 +1809,9 @@
             .eq("student_id", s.id).in("appointment_id", pApptIds);
           const rows = pAtt ?? [];
           totalLeavesUsed += rows.filter(r => r.status === "leave").length;
-          const creditCount = ownIncomingCreditCounts.get(p.id) ?? 0;
-          totalDeduction += (rows.filter(isDeductible).length + creditCount) * (p.price / p.total_lessons);
+          totalDeduction += rows.filter(isDeductible).length * (p.price / p.total_lessons);
         }
+        totalDeduction += ownIncomingCreditAmounts.get(p.id) ?? 0;
       }
       const leavesCell = `${totalLeavesUsed}`;
       const totalPaid = Math.round(Math.max(0, (allOwnPkgs ?? []).reduce((sum, p) => sum + (p.price ?? 0), 0) - totalDeduction));
@@ -2023,12 +2077,22 @@
     // A leave marked "deferred to next package" (in this same class) didn't
     // deduct anything from the term it happened in — link any still-unused
     // ones to this new package so effectivePrice() subtracts for them live
-    // (packages.price itself is never touched — see getIncomingCreditCounts).
+    // (packages.price itself is never touched — see getIncomingCreditAmounts).
+    // Each credit's dollar amount is locked in using *its own* original
+    // package's rate, not this new package's rate.
     const { data: unusedCredits } = await supabaseClient
       .from("attendance")
-      .select("id, appointments!inner(class_id)")
+      .select("id, appointment_id, appointments!inner(class_id)")
       .eq("student_id", studentId).eq("status", "leave").eq("make_up_status", "deferred_to_next_package")
       .is("deferred_credit_used_in_package_id", null).eq("appointments.class_id", classId);
+
+    let priorPkgsForCredits = [];
+    if (unusedCredits?.length) {
+      const { data } = await supabaseClient
+        .from("packages").select("id, start_date, total_lessons, price")
+        .eq("student_id", studentId).eq("class_id", classId);
+      priorPkgsForCredits = data ?? [];
+    }
 
     const { data: pkg, error: pkgError } = await supabaseClient
       .from("packages")
@@ -2036,9 +2100,11 @@
       .select().single();
     if (pkgError) { alert("Save failed: " + pkgError.message); return null; }
 
-    if (unusedCredits?.length) {
+    for (const credit of (unusedCredits ?? [])) {
+      const originPkg = await findPackageContainingAppointment(classId, credit.appointment_id, priorPkgsForCredits);
+      const amount = originPkg && originPkg.total_lessons ? originPkg.price / originPkg.total_lessons : 0;
       await supabaseClient.from("attendance")
-        .update({ deferred_credit_used_in_package_id: pkg.id }).in("id", unusedCredits.map(c => c.id));
+        .update({ deferred_credit_used_in_package_id: pkg.id, deferred_credit_amount: amount }).eq("id", credit.id);
     }
 
     const appts = await getPackageLessonAppointments(classId, startDate, totalLessons);
