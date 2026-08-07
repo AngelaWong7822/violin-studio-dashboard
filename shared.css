@@ -14,7 +14,8 @@ header.topnav {
   color: #fff;
   flex-wrap: wrap;
 }
-header.topnav .brand { font-weight: 600; margin-right: 20px; }
+header.topnav .brand { font-weight: 600; margin-right: 20px; display: inline-flex; align-items: center; gap: 8px; }
+header.topnav .brand-logo { height: 28px; width: auto; display: block; }
 header.topnav a {
   color: #eee2d6;
   text-decoration: none;
@@ -32,6 +33,35 @@ header.topnav button {
   padding: 6px 12px;
   cursor: pointer;
 }
+.settings-wrap { position: relative; }
+.settings-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 120%;
+  background: #fff;
+  color: #2a2420;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  padding: 10px;
+  min-width: 220px;
+  z-index: 50;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-menu button {
+  width: 100%;
+  border: 1px solid #d8cfc2;
+  color: #2a2420;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: #fff;
+}
+.settings-menu button.danger { background: #8a2e2e; border-color: #8a2e2e; color: #fff; }
+#settings-lang-toggle { background: #7a3b2e; border-color: #7a3b2e; color: #fff; font-weight: 600; }
+#settings-lang-toggle:hover { background: #62301f; border-color: #62301f; }
+.settings-menu hr { border: none; border-top: 1px solid #eee; margin: 2px 0; width: 100%; }
 main { padding: 20px; max-width: 1000px; margin: 0 auto; }
 h1 { font-size: 20px; margin: 0 0 16px; }
 .card {

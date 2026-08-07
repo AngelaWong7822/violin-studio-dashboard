@@ -22,15 +22,21 @@
 </head>
 <body>
 <header class="topnav">
-  <span class="brand">🎻 Violin Studio</span>
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
   <a href="index.html" data-i18n="nav.schedule">Schedule</a>
   <a href="availability.html" class="active" data-i18n="nav.availability">Availability</a>
   <a href="leads.html" data-i18n="nav.leads">Leads</a>
-  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
-  <a href="payments.html" data-i18n="nav.payments">Payments</a>
   <a href="packages.html" data-i18n="nav.packages">Packages</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
   <span class="spacer"></span>
-  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
@@ -50,12 +56,14 @@
 <script src="supabase-config.js"></script>
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
+<script src="settings.js"></script>
 <script>
 (async () => {
   const session = await requireSession();
   if (!session) return;
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
+  initSettingsMenu();
   window.onLangChange = render;
 
   const DAY_KEYS = [0, 1, 2, 3, 4, 5, 6];

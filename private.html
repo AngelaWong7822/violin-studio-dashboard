@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Private Students</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .student-row { cursor: pointer; }
+  .student-row:hover { background: #faf8f4; }
+  .expand-arrow { display: inline-block; width: 14px; transition: transform 0.15s; }
+  .expand-arrow.open { transform: rotate(90deg); }
+  .student-detail td { padding: 0 0 14px 0; }
+  .lesson-table-wrap { margin: 6px 26px 0 26px; }
+  .detail-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  .detail-table th, .detail-table td { padding: 4px 8px; text-align: left; }
+  .detail-table th { color: #8a8074; font-weight: 500; }
+  .detail-table tr:nth-child(even) { background: #faf8f4; }
+  .detail-table input[type=number] { width: 80px; font-size: 13px; padding: 3px 5px; }
+  .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 14px; background: #ece7dd; color: #8a8074; cursor: pointer; font-weight: 600; }
+  .att-toggle.att-attended { background: #1e6b34; color: #fff; }
+  .att-toggle.att-leave { background: #b8863a; color: #fff; }
+  .att-toggle.att-no_show { background: #8a2e2e; color: #fff; }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="packages.html" data-i18n="nav.packages">Group Classes</a>
+  <a href="private.html" class="active" data-i18n="nav.private">Private Students</a>
+  <span class="spacer"></span>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="private.title">Private Students</h1>
+      <button class="primary" id="new-student-btn" data-i18n="private.new_student">+ New student</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th></th>
+        <th data-i18n="student.name">Name</th>
+        <th data-i18n="student.gender">Gender</th>
+        <th data-i18n="student.age">Age</th>
+        <th data-i18n="student.phone">WhatsApp number</th>
+        <th data-i18n="private.col_total_lessons">Lessons logged</th>
+        <th data-i18n="private.col_total_paid">Total paid</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="student-rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<dialog id="student-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
+  <form id="student-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 id="student-dialog-title" data-i18n="dialog.new_student">New student</h1>
+    <input type="hidden" id="student-contact-id" />
+    <input type="hidden" id="student-id" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="student.name">Name</span> <input type="text" id="student-name" required /></label>
+      <label><span data-i18n="student.phone">WhatsApp number</span> <input type="text" id="student-phone" /></label>
+      <label><span data-i18n="student.gender">Gender</span>
+        <select id="student-gender">
+          <option value="male" data-i18n="gender.male">Male</option>
+          <option value="female" data-i18n="gender.female">Female</option>
+        </select>
+      </label>
+      <label><span data-i18n="student.age">Age</span> <input type="number" id="student-age" min="0" step="1" /></label>
+      <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
+      <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="lesson-dialog" style="border:none; border-radius:10px; padding:0; width:320px;">
+  <form id="lesson-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="private.new_lesson">New lesson</h1>
+    <input type="hidden" id="lesson-student-id" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <p style="margin:0; font-size:13px; color:#8a8074;" id="lesson-student-name"></p>
+      <label><span data-i18n="private.lesson_when">Date &amp; time</span>
+        <input type="datetime-local" id="lesson-when" required />
+      </label>
+      <label><span data-i18n="private.lesson_format">Format</span>
+        <select id="lesson-format">
+          <option value="1on1" data-i18n="format.1on1">1-on-1</option>
+          <option value="1on2" data-i18n="format.1on2">1-on-2</option>
+        </select>
+      </label>
+      <label><span data-i18n="private.lesson_duration">Duration (min)</span>
+        <select id="lesson-duration">
+          <option value="45">45</option>
+          <option value="60">60</option>
+        </select>
+      </label>
+      <label><span data-i18n="private.lesson_price">Price ($)</span>
+        <input type="number" id="lesson-price" min="0" value="750" required />
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="lesson-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  initSettingsMenu();
+  window.onLangChange = load;
+
+  // Private (1-on-1 / 1-on-2) students: no package/batch concept, no
+  // auto-deduction — each lesson is logged and priced individually. This
+  // mirrors the Payments page's expandable-row pattern but per lesson
+  // instead of per term, and the click-to-cycle status toggle from Attendance.
+  const ATTENDANCE_CYCLE = ["", "attended", "leave", "no_show"];
+  function nextAttendanceStatus(current) {
+    const idx = ATTENDANCE_CYCLE.indexOf(current || "");
+    return ATTENDANCE_CYCLE[(idx + 1) % ATTENDANCE_CYCLE.length];
+  }
+  function attendanceSymbol(status) {
+    if (status === "attended") return "✓";
+    if (status === "leave") return t("attstatus.leave");
+    if (status === "no_show") return "✕";
+    return "-";
+  }
+
+  const expandedIds = new Set();
+  let students = []; // [{ id, contacts, lessons: [{apptId, attendanceId, when, format, price, status, paid}] }]
+
+  async function load() {
+    const tbody = document.getElementById("student-rows");
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("id, contact_id, contacts(name, whatsapp_number, gender, age)")
+      .eq("active", true)
+      .eq("is_group", false)
+      .order("created_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${error.message}</td></tr>`; return; }
+
+    students = await Promise.all(data.map(async (s) => {
+      const { data: appts } = await supabaseClient
+        .from("appointments")
+        .select("id, scheduled_start, lesson_format, price")
+        .eq("student_id", s.id).eq("type", "lesson").is("class_id", null)
+        .order("scheduled_start", { ascending: false });
+
+      const apptIds = (appts ?? []).map(a => a.id);
+      let attRows = [];
+      if (apptIds.length) {
+        const { data: att } = await supabaseClient
+          .from("attendance").select("id, appointment_id, status, paid")
+          .eq("student_id", s.id).in("appointment_id", apptIds);
+        attRows = att ?? [];
+      }
+
+      const lessons = (appts ?? []).map(a => {
+        const att = attRows.find(r => r.appointment_id === a.id);
+        return {
+          apptId: a.id, attendanceId: att?.id ?? null,
+          when: a.scheduled_start, format: a.lesson_format, price: a.price ?? 0,
+          status: att?.status ?? null, paid: att?.paid ?? false,
+        };
+      });
+      return { ...s, lessons };
+    }));
+
+    render();
+  }
+
+  function render() {
+    const tbody = document.getElementById("student-rows");
+    if (!students.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">${t("private.empty_students")}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = students.map((s) => {
+      const totalPaid = s.lessons.filter(l => l.paid).reduce((sum, l) => sum + (l.price ?? 0), 0);
+      const isOpen = expandedIds.has(s.id);
+      const rawPhone = s.contacts?.whatsapp_number ?? "";
+      const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
+      const whatsappCell = rawPhone && digitsOnly
+        ? `<a href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">${rawPhone}</a>`
+        : "—";
+
+      const lessonRows = s.lessons.map(l => `
+        <tr>
+          <td>${new Date(l.when).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
+          <td>${t("format." + l.format)}</td>
+          <td><input type="number" min="0" data-price-appt="${l.apptId}" value="${l.price}" /></td>
+          <td><button type="button" class="att-toggle att-${l.status || "unset"}" data-appt-id="${l.apptId}" data-student-id="${s.id}" data-attendance-id="${l.attendanceId ?? ""}" data-status="${l.status || ""}">${attendanceSymbol(l.status)}</button></td>
+          <td><input type="checkbox" data-paid-attendance-id="${l.attendanceId ?? ""}" data-paid-appt-id="${l.apptId}" data-paid-student-id="${s.id}" ${l.paid ? "checked" : ""} /></td>
+          <td><button type="button" class="link" data-delete-lesson="${l.apptId}" style="color:#8a2e2e;">${t("private.delete_lesson")}</button></td>
+        </tr>`).join("");
+
+      return `
+        <tr class="student-row" data-student-id="${s.id}">
+          <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
+          <td>${s.contacts?.name ?? ""}</td>
+          <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
+          <td>${s.contacts?.age ?? "—"}</td>
+          <td>${whatsappCell}</td>
+          <td>${s.lessons.length}</td>
+          <td>$${totalPaid}</td>
+          <td style="white-space:nowrap;">
+            <button class="link" data-edit-student="${s.id}">${t("student.edit")}</button>
+            <button class="link" data-add-lesson="${s.id}">${t("private.new_lesson")}</button>
+            <button class="link" data-delete-student="${s.id}" style="color:#8a2e2e;">${t("student.delete")}</button>
+          </td>
+        </tr>
+        <tr class="student-detail" data-student-detail="${s.id}" style="${isOpen ? "" : "display:none;"}">
+          <td></td>
+          <td colspan="7">
+            <div class="lesson-table-wrap">
+              ${s.lessons.length ? `
+                <table class="detail-table">
+                  <thead><tr>
+                    <th data-i18n="private.col_when">When</th>
+                    <th data-i18n="private.lesson_format">Format</th>
+                    <th data-i18n="private.lesson_price">Price ($)</th>
+                    <th data-i18n="attendance.col_attended">Status</th>
+                    <th data-i18n="schedule.col_paid">Paid</th>
+                    <th></th>
+                  </tr></thead>
+                  <tbody>${lessonRows}</tbody>
+                </table>` : `<p class="empty">${t("private.empty_lessons")}</p>`}
+            </div>
+          </td>
+        </tr>`;
+    }).join("");
+    applyI18n();
+
+    tbody.querySelectorAll(".student-row").forEach(tr => {
+      tr.addEventListener("click", () => {
+        const id = tr.dataset.studentId;
+        if (expandedIds.has(id)) expandedIds.delete(id); else expandedIds.add(id);
+        render();
+      });
+    });
+
+    tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
+      btn.addEventListener("click", (e) => { e.stopPropagation(); openEditStudent(students.find(s => s.id === btn.dataset.editStudent)); });
+    });
+    tbody.querySelectorAll("button[data-add-lesson]").forEach(btn => {
+      btn.addEventListener("click", (e) => { e.stopPropagation(); openLessonDialog(students.find(s => s.id === btn.dataset.addLesson)); });
+    });
+    tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
+      btn.addEventListener("click", (e) => { e.stopPropagation(); deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)); });
+    });
+
+    tbody.querySelectorAll("input[data-price-appt]").forEach(input => {
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("change", async () => {
+        const price = parseFloat(input.value) || 0;
+        const { error } = await supabaseClient.from("appointments").update({ price }).eq("id", input.dataset.priceAppt);
+        if (error) { alert("Update failed: " + error.message); return; }
+        await load();
+      });
+    });
+
+    tbody.querySelectorAll("button[data-appt-id]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const status = nextAttendanceStatus(btn.dataset.status) || null;
+        const attendanceId = btn.dataset.attendanceId;
+        let error;
+        if (attendanceId) {
+          ({ error } = await supabaseClient
+            .from("attendance").update({ status, marked_at: new Date().toISOString() }).eq("id", attendanceId));
+        } else {
+          ({ error } = await supabaseClient
+            .from("attendance").insert({ appointment_id: btn.dataset.apptId, student_id: btn.dataset.studentId, status, marked_at: new Date().toISOString() }));
+        }
+        if (error) { alert("Update failed: " + error.message); return; }
+        await load();
+      });
+    });
+
+    tbody.querySelectorAll("input[data-paid-appt-id]").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", async () => {
+        const paid = cb.checked;
+        let attendanceId = cb.dataset.paidAttendanceId;
+        let error;
+        if (attendanceId) {
+          ({ error } = await supabaseClient.from("attendance").update({ paid }).eq("id", attendanceId));
+        } else {
+          ({ error } = await supabaseClient
+            .from("attendance").insert({ appointment_id: cb.dataset.paidApptId, student_id: cb.dataset.paidStudentId, paid }));
+        }
+        if (error) { alert("Update failed: " + error.message); cb.checked = !paid; return; }
+        await load();
+      });
+    });
+
+    tbody.querySelectorAll("button[data-delete-lesson]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(t("private.delete_lesson_confirm"))) return;
+        const apptId = btn.dataset.deleteLesson;
+        await supabaseClient.from("attendance").delete().eq("appointment_id", apptId);
+        const { error } = await supabaseClient.from("appointments").delete().eq("id", apptId);
+        if (error) { alert("Delete failed: " + error.message); return; }
+        await load();
+      });
+    });
+  }
+
+  // ---------- Student create/edit ----------
+  const studentDialog = document.getElementById("student-dialog");
+  function openEditStudent(student) {
+    if (!student) return;
+    const c = student.contacts ?? {};
+    document.getElementById("student-dialog-title").textContent = t("dialog.edit_student");
+    document.getElementById("student-id").value = student.id;
+    document.getElementById("student-contact-id").value = student.contact_id;
+    document.getElementById("student-name").value = c.name ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number ?? "";
+    document.getElementById("student-gender").value = c.gender ?? "male";
+    document.getElementById("student-social").value = c.social_media_name ?? "";
+    document.getElementById("student-level").value = c.level ?? "";
+    document.getElementById("student-age").value = c.age ?? "";
+    studentDialog.showModal();
+  }
+  document.getElementById("new-student-btn").addEventListener("click", () => {
+    document.getElementById("student-form").reset();
+    document.getElementById("student-id").value = "";
+    document.getElementById("student-contact-id").value = "";
+    document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
+    studentDialog.showModal();
+  });
+  document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());
+
+  document.getElementById("student-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const studentId = document.getElementById("student-id").value;
+    const contactId = document.getElementById("student-contact-id").value;
+    const contactFields = {
+      name: document.getElementById("student-name").value,
+      whatsapp_number: document.getElementById("student-phone").value || null,
+      gender: document.getElementById("student-gender").value,
+      social_media_name: document.getElementById("student-social").value || null,
+      level: document.getElementById("student-level").value || null,
+      age: document.getElementById("student-age").value || null,
+    };
+
+    if (studentId && contactId) {
+      const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contactId);
+      if (error) { alert("Save failed: " + error.message); return; }
+      studentDialog.close();
+      await load();
+      return;
+    }
+
+    const { data: contact, error: contactError } = await supabaseClient
+      .from("contacts").insert({ ...contactFields, source: "existing_student" }).select().single();
+    if (contactError) { alert("Save failed: " + contactError.message); return; }
+
+    const { error: studentError } = await supabaseClient
+      .from("students").insert({ contact_id: contact.id, active: true, is_group: false });
+    if (studentError) { alert("Save failed: " + studentError.message); return; }
+
+    studentDialog.close();
+    await load();
+  });
+
+  async function deleteStudent(student) {
+    if (!student) return;
+    if (!confirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" }))) return;
+
+    const { data: appts } = await supabaseClient.from("appointments").select("id").eq("student_id", student.id).is("class_id", null);
+    const apptIds = (appts ?? []).map(a => a.id);
+    if (apptIds.length) {
+      await supabaseClient.from("attendance").delete().in("appointment_id", apptIds);
+      const { error } = await supabaseClient.from("appointments").delete().in("id", apptIds);
+      if (error) { alert("Delete failed: " + error.message); return; }
+    }
+    const { error: studentError } = await supabaseClient.from("students").delete().eq("id", student.id);
+    if (studentError) { alert("Delete failed: " + studentError.message); return; }
+    const { error: contactError } = await supabaseClient.from("contacts").delete().eq("id", student.contact_id);
+    if (contactError) { alert("Student deleted, but couldn't remove their contact record: " + contactError.message); }
+
+    await load();
+  }
+
+  // ---------- Add lesson ----------
+  const lessonDialog = document.getElementById("lesson-dialog");
+  function suggestedPrice(format, duration) {
+    if (format === "1on2") return "";
+    return duration >= 60 ? 900 : 750;
+  }
+  function updateLessonPriceSuggestion() {
+    const format = document.getElementById("lesson-format").value;
+    const duration = parseInt(document.getElementById("lesson-duration").value, 10);
+    document.getElementById("lesson-price").value = suggestedPrice(format, duration);
+  }
+  function openLessonDialog(student) {
+    if (!student) return;
+    document.getElementById("lesson-form").reset();
+    document.getElementById("lesson-student-id").value = student.id;
+    document.getElementById("lesson-student-name").textContent = student.contacts?.name ?? "";
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById("lesson-when").value = now.toISOString().slice(0, 16);
+    document.getElementById("lesson-format").value = "1on1";
+    document.getElementById("lesson-duration").value = "45";
+    updateLessonPriceSuggestion();
+    lessonDialog.showModal();
+  }
+  document.getElementById("lesson-cancel-btn").addEventListener("click", () => lessonDialog.close());
+  document.getElementById("lesson-format").addEventListener("change", updateLessonPriceSuggestion);
+  document.getElementById("lesson-duration").addEventListener("change", updateLessonPriceSuggestion);
+
+  document.getElementById("lesson-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const studentId = document.getElementById("lesson-student-id").value;
+    const whenStr = document.getElementById("lesson-when").value;
+    const format = document.getElementById("lesson-format").value;
+    const duration = parseInt(document.getElementById("lesson-duration").value, 10);
+    const price = parseFloat(document.getElementById("lesson-price").value) || 0;
+    if (!studentId || !whenStr) return;
+
+    const start = new Date(whenStr);
+    const end = new Date(start.getTime() + duration * 60 * 1000);
+    const { data: appt, error } = await supabaseClient
+      .from("appointments")
+      .insert({
+        type: "lesson", lesson_format: format, student_id: studentId,
+        scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+        status: "confirmed", created_via: "manual_dashboard", price,
+      })
+      .select().single();
+    if (error) { alert("Save failed: " + error.message); return; }
+
+    const { error: attError } = await supabaseClient
+      .from("attendance").insert({ appointment_id: appt.id, student_id: studentId });
+    if (attError) { alert("Lesson saved, but couldn't create its attendance row: " + attError.message); return; }
+
+    lessonDialog.close();
+    await load();
+  });
+
+  await load();
+})();
+</script>
+</body>
+</html>

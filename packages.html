@@ -6,21 +6,94 @@
 <title>Violin Studio — Packages</title>
 <link rel="stylesheet" href="shared.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  tr.row-withdrawn { color: #b0a89c; background: #faf8f4; }
+  tr.row-withdrawn a { color: #b0a89c; }
+  #grid-wrap { overflow-x: auto; }
+  /* Fixed column widths so re-rendering the grid (e.g. after ticking
+     attendance) never nudges columns sideways from content-width changes —
+     table-layout:auto would otherwise recompute widths from each render's
+     content and shift things by a few pixels. */
+  #grid-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; table-layout: fixed; }
+  #grid-table th, #grid-table td { border: 1px solid #eee; padding: 6px 8px; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+  #grid-table th.date-col, #grid-table td.date-col { text-align: left; font-weight: 600; color: #6b5c4f; width: 130px; }
+  #grid-table th:not(.date-col), #grid-table td:not(.date-col) { width: 100px; }
+  .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 14px; background: #ece7dd; color: #8a8074; cursor: pointer; font-weight: 600; }
+  .att-toggle:disabled { opacity: 0.55; cursor: default; }
+  .att-toggle.att-attended { background: #1e6b34; color: #fff; }
+  .att-toggle.att-leave { background: #b8863a; color: #fff; }
+  .att-toggle.att-no_show { background: #8a2e2e; color: #fff; }
+  .visitor-badge { color: #8a6314; font-weight: 600; }
+  #grid-table td.visitor-locked { color: #cfc7ba; background: #faf8f4; }
+  #grid-table tr.term-divider-row td { background: #f5f2ec; text-align: center; font-weight: 600; color: #6b5c4f; white-space: normal; }
+  #grid-table tr.term-divider-row td.date-col { text-align: left; }
+  #grid-table tr.term-divider-clickable td { cursor: pointer; color: #a89f92; font-weight: 500; }
+  #grid-table tr.term-divider-row .expand-arrow { display: inline-block; width: 10px; font-size: 11px; transition: transform 0.15s; }
+  #grid-table tr.term-divider-row .expand-arrow.open { transform: rotate(90deg); }
+  .makeup-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0ece5; font-size: 13px; }
+  .makeup-row select { font-size: 13px; padding: 4px 6px; }
+  #grid-table.hide-withdrawn .withdrawn-col { display: none; }
+  .reschedule-icon-btn { padding: 2px; vertical-align: -2px; color: #b0a89c; }
+  .reschedule-icon-btn:hover { color: #7a3b2e; }
+  .student-row { cursor: pointer; }
+  .student-row:hover { background: #faf8f4; }
+  .expand-arrow { display: inline-block; width: 14px; transition: transform 0.15s; }
+  .expand-arrow.open { transform: rotate(90deg); }
+  .student-detail td { padding: 0 0 14px 0; }
+  .term-cards { display: flex; flex-direction: column; gap: 10px; margin: 6px 26px 0 26px; }
+  .term-card { border: 1px solid #e5ddd0; border-radius: 8px; padding: 12px 14px; width: 100%; box-sizing: border-box; }
+  .term-card-header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; color: #4a4038; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0ece5; }
+  .term-card-header .term-label { font-weight: 600; color: #6b5c4f; }
+  .term-card-header .term-price { color: #8a8074; }
+  .term-card.term-card-collapsed { background: #f5f2ec; }
+  .term-card.term-card-collapsed .term-card-header { cursor: pointer; color: #a89f92; border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .term-card.term-card-collapsed .term-card-header .term-label,
+  .term-card.term-card-collapsed .term-card-header .term-price { color: #a89f92; }
+  .term-card.term-card-collapsed .expand-arrow { width: 10px; font-size: 11px; }
+  .detail-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  .detail-table th, .detail-table td { padding: 4px 8px; text-align: left; }
+  .detail-table th { color: #8a8074; font-weight: 500; }
+  .detail-table tr:nth-child(even) { background: #faf8f4; }
+</style>
 </head>
 <body>
 <header class="topnav">
-  <span class="brand">🎻 Violin Studio</span>
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
   <a href="index.html" data-i18n="nav.schedule">Schedule</a>
   <a href="availability.html" data-i18n="nav.availability">Availability</a>
   <a href="leads.html" data-i18n="nav.leads">Leads</a>
-  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
-  <a href="payments.html" data-i18n="nav.payments">Payments</a>
   <a href="packages.html" class="active" data-i18n="nav.packages">Packages</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
   <span class="spacer"></span>
-  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="classes.title">Classes</h1>
+      <button class="primary" id="new-class-btn" data-i18n="classes.new">+ New class</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="classes.col_name">Name</th>
+        <th data-i18n="classes.col_time">Weekly time</th>
+        <th data-i18n="classes.col_enrolled">Enrolled</th>
+        <th data-i18n="classes.col_lessons">Lessons scheduled</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="class-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+    <button class="link" id="class-toggle-btn" style="display:none; margin-top:8px;"></button>
+  </div>
+
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="packages.students_title">Students</h1>
@@ -29,46 +102,90 @@
     <table>
       <thead><tr>
         <th data-i18n="student.name">Name</th>
+        <th data-i18n="student.gender">Gender</th>
+        <th data-i18n="student.age">Age</th>
+        <th data-i18n="enroll.col_class">Class</th>
         <th data-i18n="student.phone">WhatsApp number</th>
-        <th data-i18n="student.age_group">Age group</th>
+        <th data-i18n="packages.col_total_paid">Total paid</th>
+        <th data-i18n="packages.col_renewal_count">Terms</th>
+        <th data-i18n="packages.col_status">Status</th>
+        <th data-i18n="packages.col_detail">Detail</th>
+        <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
     </table>
+    <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
+  </div>
+
+  <div class="card" id="attendance-card" style="display:none;">
+    <h1 data-i18n="attendance.title">Attendance</h1>
+    <label><span data-i18n="attendance.class_label">Class</span>
+      <select id="attendance-class-select" style="width:100%; max-width:480px;"></select>
+    </label>
+    <div style="display:flex; flex-wrap:wrap; gap:16px; margin:8px 0 0;">
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="show-cancelled-classes-toggle" />
+        <span data-i18n="attendance.show_cancelled_classes">Show cancelled classes</span>
+      </label>
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="show-withdrawn-toggle" />
+        <span data-i18n="attendance.show_withdrawn">Show withdrawn students</span>
+      </label>
+    </div>
+    <div id="grid-section" style="margin-top:16px; display:none;">
+      <div id="grid-wrap">
+        <table id="grid-table" class="hide-withdrawn"></table>
+      </div>
+
+      <h1 style="font-size:16px; margin-top:24px;" data-i18n="attendance.pending_makeups_title">Leave requests needing a decision</h1>
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
+        <input type="checkbox" id="show-processed-leaves-toggle" />
+        <span data-i18n="attendance.show_processed_leaves">Show processed leaves</span>
+      </label>
+      <div id="makeup-list"><p class="empty" data-i18n="attendance.pending_makeups_empty">None right now.</p></div>
+    </div>
   </div>
 
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-      <h1 style="margin:0;" data-i18n="packages.title">Group Class Packages</h1>
-      <button class="primary" id="new-package-btn" data-i18n="packages.new_package">+ New package</button>
+      <h1 style="margin:0;" data-i18n="payments.title">Payments</h1>
+      <label style="font-size:13px;"><input type="checkbox" id="unpaid-only" checked /> <span data-i18n="payments.unpaid_only">Show unpaid only</span></label>
     </div>
     <table>
       <thead><tr>
-        <th data-i18n="packages.col_student">Student</th>
-        <th data-i18n="packages.col_lessons">Lessons used</th>
-        <th data-i18n="packages.col_leaves">Leaves used</th>
-        <th data-i18n="packages.col_status">Status</th>
         <th></th>
+        <th data-i18n="payments.col_student">Student</th>
+        <th data-i18n="payments.col_renewal_count">Terms</th>
+        <th data-i18n="payments.col_total_amount">Total amount</th>
+        <th data-i18n="schedule.col_paid">Paid</th>
       </tr></thead>
-      <tbody id="package-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      <tbody id="payment-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
 
 <dialog id="student-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
   <form id="student-form" class="card" style="margin:0; box-shadow:none;">
-    <h1 data-i18n="dialog.new_student">New student</h1>
+    <h1 id="student-dialog-title" data-i18n="dialog.new_student">New student</h1>
+    <input type="hidden" id="student-contact-id" />
+    <input type="hidden" id="student-id" />
     <div style="display:flex; flex-direction:column; gap:10px;">
       <label><span data-i18n="student.name">Name</span> <input type="text" id="student-name" required /></label>
       <label><span data-i18n="student.phone">WhatsApp number</span> <input type="text" id="student-phone" /></label>
-      <label><span data-i18n="student.age_group">Age group</span>
-        <select id="student-age-group">
-          <option value="child" data-i18n="agegroup.child">Child</option>
-          <option value="adult" data-i18n="agegroup.adult">Adult</option>
+      <label><span data-i18n="student.gender">Gender</span>
+        <select id="student-gender">
+          <option value="male" data-i18n="gender.male">Male</option>
+          <option value="female" data-i18n="gender.female">Female</option>
         </select>
       </label>
+      <label><span data-i18n="student.age">Age</span> <input type="number" id="student-age" min="0" step="1" /></label>
       <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
       <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
-      <label><span data-i18n="lead.age">Age</span> <input type="text" id="student-age" data-i18n-placeholder="lead.age_placeholder" placeholder="e.g. 6, or 4.5 (K2)" /></label>
+      <div id="student-edit-class-field" style="display:none; flex-direction:column; gap:10px; border-top:1px solid #e5ddd0; padding-top:10px;">
+        <label><span data-i18n="enroll.col_class">Class</span>
+          <select id="student-edit-class"></select>
+        </label>
+      </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -77,31 +194,158 @@
   </form>
 </dialog>
 
-<dialog id="package-dialog" style="border:none; border-radius:10px; padding:0; width:380px;">
-  <form id="package-form" class="card" style="margin:0; box-shadow:none;">
-    <h1 data-i18n="dialog.new_package">New package (auto-generates weekly lessons)</h1>
+<dialog id="class-dialog" style="border:none; border-radius:10px; padding:0; width:360px;">
+  <form id="class-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="dialog.new_class">New class</h1>
     <div style="display:flex; flex-direction:column; gap:10px;">
-      <label><span data-i18n="package.student">Student</span>
-        <select id="package-student" required></select>
+      <label><span data-i18n="class.name">Class name</span>
+        <input type="text" id="class-name" data-i18n-placeholder="class.name_placeholder" placeholder="e.g. A Class" required />
       </label>
-      <label><span data-i18n="package.start_date">First lesson date</span>
-        <input type="date" id="package-start-date" required />
+      <label><span data-i18n="class.weekday">Day of week</span>
+        <select id="class-weekday">
+          <option value="0" data-i18n="day.0">Sun</option>
+          <option value="1" data-i18n="day.1">Mon</option>
+          <option value="2" data-i18n="day.2">Tue</option>
+          <option value="3" data-i18n="day.3">Wed</option>
+          <option value="4" data-i18n="day.4">Thu</option>
+          <option value="5" data-i18n="day.5">Fri</option>
+          <option value="6" selected data-i18n="day.6">Sat</option>
+        </select>
       </label>
-      <label><span data-i18n="package.weekly_time">Weekly time</span>
-        <input type="time" id="package-time" required />
+      <label><span data-i18n="class.first_lesson_date">First lesson date</span>
+        <input type="date" id="class-first-lesson-date" required />
       </label>
-      <label><span data-i18n="package.total_lessons">Total lessons</span>
-        <input type="number" id="package-total-lessons" value="8" min="1" required />
+      <label><span data-i18n="class.time">Start time</span>
+        <input type="time" id="class-time" required />
       </label>
-      <label><span data-i18n="package.price">Price ($)</span>
-        <input type="number" id="package-price" value="2000" min="0" required />
-      </label>
-      <label><span data-i18n="package.leave_limit">Leave limit</span>
-        <input type="number" id="package-leave-limit" value="3" min="0" required />
-      </label>
-      <p id="package-generate-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
+      <p id="class-generate-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button type="button" class="link" id="package-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="button" class="link" id="class-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="class-edit-dialog" style="border:none; border-radius:10px; padding:0; width:320px;">
+  <form id="class-edit-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="dialog.edit_class">Edit class</h1>
+    <input type="hidden" id="class-edit-id" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="class.name">Class name</span> <input type="text" id="class-edit-name" required /></label>
+      <label><span data-i18n="class.weekday">Day of week</span>
+        <select id="class-edit-weekday">
+          <option value="0" data-i18n="day.0">Sun</option>
+          <option value="1" data-i18n="day.1">Mon</option>
+          <option value="2" data-i18n="day.2">Tue</option>
+          <option value="3" data-i18n="day.3">Wed</option>
+          <option value="4" data-i18n="day.4">Thu</option>
+          <option value="5" data-i18n="day.5">Fri</option>
+          <option value="6" data-i18n="day.6">Sat</option>
+        </select>
+      </label>
+      <label><span data-i18n="class.time">Start time</span>
+        <input type="time" id="class-edit-time" required />
+      </label>
+      <label><span data-i18n="class.first_lesson_date">First lesson date</span> <input type="date" id="class-edit-first-lesson-date" required /></label>
+      <p id="class-edit-backfill-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="class-edit-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Extend a class: pick which upcoming weekly dates actually become lessons
+     (untick a holiday and the next candidate date fills in instead), and
+     confirm who's continuing — unticking a student marks them withdrawn. -->
+<dialog id="class-extend-dialog" style="border:none; border-radius:10px; padding:0; width:380px;">
+  <form id="class-extend-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="classes.extend_dialog_title">Extend class</h1>
+    <input type="hidden" id="class-extend-class-id" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <p style="font-size:12px; color:#8a8074; margin:0; font-weight:600;" data-i18n="classes.extend_dates_label">Lesson dates (untick a holiday)</p>
+      <div id="class-extend-date-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+      <p id="class-extend-date-note" style="font-size:12px; color:#8a2e2e; margin:0;"></p>
+      <p style="font-size:12px; color:#8a8074; margin:8px 0 0 0; font-weight:600;" data-i18n="classes.extend_dialog_note">Untick a student who is not continuing — they'll be marked withdrawn.</p>
+      <div id="class-extend-student-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="class-extend-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" id="class-extend-save-btn" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Enroll dialog: always for one specific student (id in the hidden field) —
+     opened either right after creating a new student, or via a "報名/Enroll"
+     button on an existing student who currently has no active enrollment. -->
+<dialog id="enroll-dialog" style="border:none; border-radius:10px; padding:0; width:380px;">
+  <form id="enroll-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="dialog.new_enroll">New enrollment</h1>
+    <input type="hidden" id="enroll-student-id" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <p style="margin:0; font-size:13px; color:#8a8074;" id="enroll-student-name"></p>
+      <label><span data-i18n="enroll.start_date">Start date</span>
+        <input type="date" id="enroll-start-date" required />
+      </label>
+      <label><span data-i18n="enroll.class">Class</span>
+        <select id="enroll-class" required></select>
+      </label>
+      <p id="enroll-lessons-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
+      <input type="hidden" id="enroll-total-lessons" value="8" />
+      <label><span data-i18n="enroll.price">Total price</span> <input type="number" id="enroll-price" value="2000" min="0" /></label>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="enroll-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="student-detail-dialog" style="border:none; border-radius:10px; padding:0; width:320px;">
+  <div class="card" style="margin:0; box-shadow:none;">
+    <h1 id="student-detail-name" data-i18n="packages.col_detail">Detail</h1>
+    <div style="display:flex; flex-direction:column; gap:10px; font-size:14px;">
+      <div>
+        <span style="color:#8a8074;" data-i18n="packages.col_join_date">Joined</span><br />
+        <input type="date" id="student-detail-join-date-input" style="font-size:14px;" />
+        <button type="button" class="link" id="student-detail-join-date-save" data-i18n="dialog.save">Save</button>
+      </div>
+      <div><span style="color:#8a8074;" data-i18n="package.total_lessons">Total lessons</span><br /><span id="student-detail-total-lessons"></span></div>
+      <div><span style="color:#8a8074;" data-i18n="package.price">Price ($)</span><br /><span id="student-detail-price"></span></div>
+      <div><span style="color:#8a8074;" data-i18n="packages.col_leaves">Leaves used</span><br /><span id="student-detail-leaves"></span></div>
+      <div id="student-detail-withdrawn-row" style="display:none;">
+        <span style="color:#8a8074;" data-i18n="packages.withdrawn_date">Withdrawn on</span><br />
+        <input type="date" id="student-detail-withdrawn-date-input" style="font-size:14px;" />
+        <button type="button" class="link" id="student-detail-withdrawn-date-save" data-i18n="dialog.save">Save</button>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button type="button" class="link" id="student-detail-close-btn" data-i18n="dialog.cancel">Close</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Reschedule a single already-generated lesson (e.g. typhoon/holiday
+     postponement) — moves just this one appointment to a new date/time;
+     every other lesson in the class stays untouched, and since attendance
+     rows key off the appointment's id (not its date), nobody's history moves. -->
+<dialog id="reschedule-dialog" style="border:none; border-radius:10px; padding:0; width:300px;">
+  <form id="reschedule-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="attendance.reschedule_dialog_title">Reschedule lesson</h1>
+    <input type="hidden" id="reschedule-appt-id" />
+    <input type="hidden" id="reschedule-original-start" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="attendance.reschedule_new_date">New date &amp; time</span>
+        <input type="datetime-local" id="reschedule-when" required />
+      </label>
+      <label><span data-i18n="attendance.reschedule_reason">Reason</span>
+        <input type="text" id="reschedule-reason" data-i18n-placeholder="attendance.reschedule_reason_placeholder" placeholder="e.g. typhoon" />
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="reschedule-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
       </div>
     </div>
@@ -111,239 +355,1803 @@
 <script src="supabase-config.js"></script>
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
+<script src="settings.js"></script>
 <script>
 (async () => {
   const session = await requireSession();
   if (!session) return;
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
-  window.onLangChange = () => { loadStudents(); loadPackages(); updateGenerateNote(); };
+  initSettingsMenu();
+  window.onLangChange = () => { loadClasses(); loadStudents(); };
 
   let students = [];
+  let classes = [];
 
-  async function loadStudents() {
-    const tbody = document.getElementById("student-rows");
-    const { data, error } = await supabaseClient
-      .from("students")
-      .select("id, contacts(name, whatsapp_number, age_group)")
-      .eq("active", true)
-      .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="3" class="empty">Error: ${error.message}</td></tr>`; return; }
-    students = data;
-    if (!data.length) {
-      tbody.innerHTML = `<tr><td colspan="3" class="empty">${t("packages.empty_students")}</td></tr>`;
-    } else {
-      tbody.innerHTML = data.map(s => `
-        <tr>
-          <td>${s.contacts?.name ?? ""}</td>
-          <td>${s.contacts?.whatsapp_number ?? ""}</td>
-          <td>${s.contacts?.age_group ? t("agegroup." + s.contacts.age_group) : "—"}</td>
-        </tr>
-      `).join("");
+  // A full term is 8 lessons for $2000 — used to auto-prorate a mid-term
+  // joiner's (or a renewal that outruns the class's generated schedule)
+  // total lessons and price down to whatever's actually available
+  // (e.g. only 6 lessons left → $1500).
+  const STANDARD_LESSONS_PER_TERM = 8;
+  const STANDARD_PRICE_PER_TERM = 2000;
+
+  // A no_show is still owed in full — skipping without an excuse doesn't
+  // reduce the bill. A leave only deducts money once it's actively decided
+  // as "deduct this term" (make_up_status "pending") — a freshly-marked
+  // leave starts life as "unprocessed" and costs nothing until a decision
+  // is made, a confirmed make-up session (made_up) means the lesson
+  // effectively still happened, and "deferred_to_next_package" means this
+  // term was paid for in full and the credit instead reduces the price of
+  // whichever package this student enrolls into next (see
+  // createEnrollment's deferred-credit lookup). The deduction is this
+  // package's own per-lesson rate (its price ÷ its total lessons), not a
+  // flat amount — a $1800/8-lesson term deducts $225 per leave, not the
+  // same $250 a $2000/8-lesson term would.
+  function isDeductible(row) {
+    return row.status === "leave" && row.make_up_status === "pending";
+  }
+
+  async function getAvailableLessonCount(classId, startDate) {
+    const { count } = await supabaseClient
+      .from("appointments").select("id", { count: "exact", head: true })
+      .eq("class_id", classId).gte("scheduled_start", startDate);
+    return count ?? 0;
+  }
+
+  // A package's "N lessons" are the first N real appointments on/after its
+  // start_date — sequential, not a fixed N-week calendar window — so a
+  // holiday closure (Christmas/CNY etc.) mid-term doesn't permanently
+  // strand the package a few lessons short.
+  async function getPackageLessonAppointments(classId, startDate, totalLessons) {
+    const { data } = await supabaseClient
+      .from("appointments").select("id, scheduled_start")
+      .eq("class_id", classId).gte("scheduled_start", startDate)
+      .order("scheduled_start", { ascending: true }).limit(totalLessons);
+    return data ?? [];
+  }
+
+  // A "deferred to next package" leave never touches packages.price at all
+  // — it just links this attendance row to whichever package absorbs the
+  // credit, and effectivePrice()/the students-page totals subtract for it
+  // live every time they're computed (see getIncomingCreditCounts). That
+  // keeps it fully reversible: change the leave's status or make-up
+  // decision later, and the discount disappears on its own, no separate
+  // "undo" step needed. If that next package already exists (student
+  // marked it after the fact, not right when renewing), link it now
+  // instead of waiting for createEnrollment to catch it on some future
+  // renewal that may never come for this particular gap.
+  async function applyDeferredCreditToExistingNextPackage(attendanceRowId, studentId, classId, appointmentId) {
+    const { data: pkgs } = await supabaseClient
+      .from("packages").select("id, start_date, total_lessons")
+      .eq("student_id", studentId).eq("class_id", classId).order("start_date", { ascending: true });
+    if (!pkgs || pkgs.length < 2) return;
+
+    let currentIdx = -1;
+    for (let i = 0; i < pkgs.length; i++) {
+      const lessonAppts = await getPackageLessonAppointments(classId, pkgs[i].start_date, pkgs[i].total_lessons);
+      if (lessonAppts.some(a => a.id === appointmentId)) { currentIdx = i; break; }
     }
-    populateStudentSelect();
+    const nextPkg = currentIdx !== -1 ? pkgs[currentIdx + 1] : undefined;
+    if (!nextPkg) return; // no later package yet — createEnrollment will pick this credit up whenever one is created
+
+    const { error } = await supabaseClient.from("attendance")
+      .update({ deferred_credit_used_in_package_id: nextPkg.id }).eq("id", attendanceRowId);
+    if (error) alert("Update failed: " + error.message);
   }
 
-  function populateStudentSelect() {
-    const select = document.getElementById("package-student");
-    select.innerHTML = students.map(s => `<option value="${s.id}">${s.contacts?.name ?? s.id}</option>`).join("");
+  // How many unresolved "deferred to next package" credits currently point
+  // at each of the given packages — subtracted live from that package's
+  // effective price, one lesson's worth per credit, rather than ever being
+  // baked into packages.price itself.
+  async function getIncomingCreditCounts(packageIds) {
+    const counts = new Map();
+    if (!packageIds.length) return counts;
+    const { data } = await supabaseClient
+      .from("attendance").select("deferred_credit_used_in_package_id").in("deferred_credit_used_in_package_id", packageIds);
+    (data ?? []).forEach(r => counts.set(r.deferred_credit_used_in_package_id, (counts.get(r.deferred_credit_used_in_package_id) ?? 0) + 1));
+    return counts;
   }
 
-  let loadedPackages = [];
-
-  async function loadPackages() {
-    const tbody = document.getElementById("package-rows");
-    const { data: packages, error } = await supabaseClient
-      .from("packages")
-      .select("id, student_id, total_lessons, price, leave_limit, status, students(contacts(name))")
-      .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
-    loadedPackages = packages;
-    if (!packages.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("packages.empty_packages")}</td></tr>`;
+  // Long lists default to showing just the first few rows, with a toggle to
+  // see everything — used by the Students/Classes tables below.
+  const COLLAPSE_LIMIT = 3;
+  const collapseState = {};
+  function renderCollapsible(tbody, toggleBtnId, rowsHtml, colSpan, emptyText, attachListeners) {
+    const btn = document.getElementById(toggleBtnId);
+    if (!rowsHtml.length) {
+      tbody.innerHTML = `<tr><td colspan="${colSpan}" class="empty">${emptyText}</td></tr>`;
+      btn.style.display = "none";
       return;
     }
-
-    const rows = await Promise.all(packages.map(async (pkg) => {
-      const { count: lessonsUsed } = await supabaseClient
-        .from("appointments")
-        .select("id", { count: "exact", head: true })
-        .eq("package_id", pkg.id);
-
-      const { data: appts } = await supabaseClient
-        .from("appointments")
-        .select("id")
-        .eq("package_id", pkg.id);
-      const apptIds = (appts ?? []).map(a => a.id);
-
-      let leavesUsed = 0;
-      if (apptIds.length) {
-        const { count } = await supabaseClient
-          .from("attendance")
-          .select("id", { count: "exact", head: true })
-          .in("appointment_id", apptIds)
-          .eq("status", "leave");
-        leavesUsed = count ?? 0;
-      }
-
-      const overLimit = leavesUsed > pkg.leave_limit;
-      return `
-        <tr>
-          <td>${pkg.students?.contacts?.name ?? ""}</td>
-          <td>${lessonsUsed ?? 0} / ${pkg.total_lessons}</td>
-          <td>${overLimit ? "⚠️ " : ""}${leavesUsed} / ${pkg.leave_limit}</td>
-          <td><span class="status-pill status-confirmed">${t("pkgstatus." + pkg.status)}</span></td>
-          <td><button class="link" data-renew-id="${pkg.id}">${t("package.renew")}</button></td>
-        </tr>
-      `;
-    }));
-    tbody.innerHTML = rows.join("");
-
-    tbody.querySelectorAll("button[data-renew-id]").forEach(btn => {
-      btn.addEventListener("click", () => renewPackage(loadedPackages.find(p => p.id === btn.dataset.renewId)));
-    });
+    function doRender() {
+      const expanded = collapseState[toggleBtnId];
+      tbody.innerHTML = (expanded ? rowsHtml : rowsHtml.slice(0, COLLAPSE_LIMIT)).join("");
+      if (attachListeners) attachListeners();
+    }
+    if (rowsHtml.length <= COLLAPSE_LIMIT) {
+      btn.style.display = "none";
+      doRender();
+      return;
+    }
+    if (!(toggleBtnId in collapseState)) collapseState[toggleBtnId] = false;
+    btn.style.display = "";
+    btn.textContent = collapseState[toggleBtnId] ? t("common.collapse") : tf("common.show_all", { n: rowsHtml.length });
+    btn.onclick = () => {
+      collapseState[toggleBtnId] = !collapseState[toggleBtnId];
+      btn.textContent = collapseState[toggleBtnId] ? t("common.collapse") : tf("common.show_all", { n: rowsHtml.length });
+      doRender();
+    };
+    doRender();
   }
 
-  function toTimeString(date) {
-    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  // ---------- Classes ----------
+  // Formats a Date using its *local* calendar date (not UTC) — appointment
+  // times are entered/displayed in the studio's local time throughout this
+  // app, so this avoids an off-by-one-day mismatch near midnight UTC.
+  function dateInputValue(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   }
 
-  // Shared by "New package" and "Renew" — inserts the package row, then
-  // generates the weekly group-class appointments in one go.
-  async function createPackageAndLessons({ studentId, firstStart, totalLessons, price, leaveLimit }) {
-    const { data: pkg, error: pkgError } = await supabaseClient
-      .from("packages")
-      .insert({
-        student_id: studentId,
-        total_lessons: totalLessons,
-        price,
-        leave_limit: leaveLimit,
-        start_date: firstStart.toISOString().slice(0, 10),
-        weekly_day_of_week: firstStart.getDay(),
-        weekly_start_time: toTimeString(firstStart),
-        status: "active",
-      })
-      .select()
-      .single();
-    if (pkgError) { alert("Save failed: " + pkgError.message); return null; }
+  function nextOccurrence(weekday, timeStr) {
+    const [h, m] = timeStr.split(":").map(Number);
+    const now = new Date();
+    const result = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+    let daysAhead = (weekday - result.getDay() + 7) % 7;
+    if (daysAhead === 0 && result <= now) daysAhead = 7; // today but already past that time
+    result.setDate(result.getDate() + daysAhead);
+    return result;
+  }
 
-    const studentName = students.find(s => s.id === studentId)?.contacts?.name ?? "";
-    const appointmentsToCreate = Array.from({ length: totalLessons }, (_, i) => {
-      const start = new Date(firstStart.getTime() + i * 7 * 24 * 60 * 60 * 1000);
-      const end = new Date(start.getTime() + 60 * 60 * 1000); // group class is always 1 hour
+  function weeklyAppointmentBatch(cls, fromDate, count) {
+    return Array.from({ length: count }, (_, i) => {
+      const start = new Date(fromDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      const end = new Date(start.getTime() + cls.duration_minutes * 60 * 1000);
       return {
         type: "group_class",
         lesson_format: "group",
-        student_id: studentId,
-        package_id: pkg.id,
+        class_id: cls.id,
         scheduled_start: start.toISOString(),
         scheduled_end: end.toISOString(),
         status: "confirmed",
         created_via: "manual_dashboard",
-        notes: studentName,
+        notes: cls.name,
       };
     });
-
-    const { error: apptError } = await supabaseClient.from("appointments").insert(appointmentsToCreate);
-    if (apptError) { alert("Package saved, but generating lessons failed: " + apptError.message); return null; }
-    return pkg;
   }
 
-  async function renewPackage(pkg) {
-    if (!pkg) return;
-    const { data: lastAppt, error } = await supabaseClient
-      .from("appointments")
-      .select("scheduled_start")
-      .eq("package_id", pkg.id)
-      .order("scheduled_start", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error || !lastAppt) { alert("Could not find this package's lessons to continue from."); return; }
+  async function loadClasses() {
+    const tbody = document.getElementById("class-rows");
+    const { data, error } = await supabaseClient
+      .from("classes")
+      .select("id, name, weekly_day_of_week, weekly_start_time, duration_minutes, active")
+      .eq("active", true)
+      .order("created_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    classes = data;
 
-    const nextStart = new Date(new Date(lastAppt.scheduled_start).getTime() + 7 * 24 * 60 * 60 * 1000);
-    const dateLabel = nextStart.toLocaleDateString(localeForDates(), { dateStyle: "medium" });
-    if (!confirm(tf("package.renew_confirm", { n: pkg.total_lessons, date: dateLabel }))) return;
+    const rows = await Promise.all(data.map(async (cls) => {
+      const { count: lessonCount } = await supabaseClient
+        .from("appointments").select("id", { count: "exact", head: true }).eq("class_id", cls.id);
+      const { data: enrolled } = await supabaseClient
+        .from("packages").select("student_id").eq("class_id", cls.id).eq("status", "active");
+      const enrolledCount = new Set((enrolled ?? []).map(p => p.student_id)).size;
+      const timeLabel = `${cls.weekly_start_time.slice(0, 5)} (${t("weekday_full." + cls.weekly_day_of_week)})`;
+      return `
+        <tr>
+          <td>${cls.name}</td>
+          <td>${timeLabel}</td>
+          <td>${enrolledCount}</td>
+          <td>${lessonCount ?? 0}</td>
+          <td style="white-space:nowrap;">
+            <button class="link" data-edit-class="${cls.id}">${t("student.edit")}</button>
+            <button class="link" data-extend-class="${cls.id}">${tf("classes.extend", { n: 8 })}</button>
+            <button class="link" data-cancel-class="${cls.id}" style="color:#8a2e2e;">${t("class.cancel")}</button>
+          </td>
+        </tr>`;
+    }));
 
-    await createPackageAndLessons({
-      studentId: pkg.student_id,
-      firstStart: nextStart,
-      totalLessons: pkg.total_lessons,
-      price: pkg.price,
-      leaveLimit: pkg.leave_limit,
+    renderCollapsible(tbody, "class-toggle-btn", rows, 5, t("classes.empty"), () => {
+      tbody.querySelectorAll("button[data-edit-class]").forEach(btn => {
+        btn.addEventListener("click", () => openEditClass(classes.find(c => c.id === btn.dataset.editClass)));
+      });
+      tbody.querySelectorAll("button[data-extend-class]").forEach(btn => {
+        btn.addEventListener("click", () => openExtendClassDialog(classes.find(c => c.id === btn.dataset.extendClass)));
+      });
+      tbody.querySelectorAll("button[data-cancel-class]").forEach(btn => {
+        btn.addEventListener("click", () => cancelClass(classes.find(c => c.id === btn.dataset.cancelClass)));
+      });
     });
-    await loadPackages();
+    populateClassSelect();
+    await refreshAttendanceSection();
+    await loadPayments();
   }
 
-  // Student dialog
+  function populateClassSelect() {
+    const select = document.getElementById("enroll-class");
+    select.innerHTML = `<option value="" data-i18n="enroll.select_class_placeholder">Select a group class</option>`
+      + classes.map(c => `<option value="${c.id}">${c.name} (${t("day." + c.weekly_day_of_week)} ${c.weekly_start_time.slice(0, 5)})</option>`).join("");
+  }
+
+  // ---------- Attendance (merged in from the old standalone Attendance page) ----------
+  const attendanceClassSelect = document.getElementById("attendance-class-select");
+  const expandedTermBatches = new Set(); // keys: `${classId}:${batchIndex}`
+  const pendingAttendanceWrites = new Set(); // keys: `${appointmentId}:${studentId}` — mid-flight optimistic writes, disables that one cell until it settles
+
+  // Click-to-cycle attendance status: unset → attended → leave → no_show → unset.
+  const ATTENDANCE_CYCLE = ["", "attended", "leave", "no_show"];
+  function nextAttendanceStatus(current) {
+    const idx = ATTENDANCE_CYCLE.indexOf(current || "");
+    return ATTENDANCE_CYCLE[(idx + 1) % ATTENDANCE_CYCLE.length];
+  }
+  function attendanceSymbol(status) {
+    if (status === "attended") return "✓";
+    if (status === "leave") return t("attstatus.leave");
+    if (status === "no_show") return "✕";
+    return "-";
+  }
+
+  // Called after every classes/students reload so the grid never shows a
+  // stale roster or a cancelled/extended class's old date list.
+  async function refreshAttendanceSection() {
+    allGroupAppointmentsCache = null;
+    const card = document.getElementById("attendance-card");
+    if (!classes.length) { card.style.display = "none"; return; }
+    card.style.display = "";
+
+    let selectableClasses = classes;
+    if (document.getElementById("show-cancelled-classes-toggle").checked) {
+      const { data: cancelledClasses } = await supabaseClient
+        .from("classes").select("id, name, weekly_day_of_week, weekly_start_time").eq("active", false);
+      selectableClasses = [...classes, ...(cancelledClasses ?? [])];
+    }
+
+    const prev = attendanceClassSelect.value;
+    attendanceClassSelect.innerHTML = selectableClasses.map(c =>
+      `<option value="${c.id}">${c.name} (${t("day." + c.weekly_day_of_week)} ${c.weekly_start_time.slice(0, 5)})${classes.some(ac => ac.id === c.id) ? "" : ` · ${t("class.cancelled_suffix")}`}</option>`
+    ).join("");
+    if (prev && selectableClasses.some(c => c.id === prev)) attendanceClassSelect.value = prev;
+    await loadClassGrid(attendanceClassSelect.value);
+  }
+
+  // Ticking one student's status right after another fires two overlapping
+  // loadClassGrid() calls (each does several sequential DB round-trips
+  // before it can render) — without this guard, the first call's slower
+  // fetch can finish AFTER the second and briefly re-render stale data,
+  // which is what shows up as the grid "jumping". Only the most recently
+  // started call is allowed to actually render.
+  let gridLoadSeq = 0;
+  async function loadClassGrid(classId) {
+    if (!classId) return;
+    document.getElementById("grid-section").style.display = "block";
+    // Marking attendance reloads the whole grid (table.innerHTML gets fully
+    // replaced), which loses the horizontal scroll position of #grid-wrap —
+    // capture it now and restore it after rendering so tapping a cell on the
+    // right doesn't visibly snap the grid back to the leftmost column.
+    const gridWrap = document.getElementById("grid-wrap");
+    const savedScrollLeft = gridWrap.scrollLeft;
+    const mySeq = ++gridLoadSeq;
+
+    const { data: appts } = await supabaseClient
+      .from("appointments")
+      .select("id, scheduled_start, rescheduled_from, reschedule_reason")
+      .eq("class_id", classId)
+      .order("scheduled_start", { ascending: true });
+
+    const apptIds = (appts ?? []).map(a => a.id);
+    let attendanceRows = [];
+    if (apptIds.length) {
+      const { data } = await supabaseClient
+        .from("attendance")
+        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, deferred_credit_used_in_package_id, students(contacts(name))")
+        .in("appointment_id", apptIds);
+      attendanceRows = data ?? [];
+    }
+
+    // Distinguish three kinds of column: formally-enrolled students, students
+    // who *were* enrolled here but withdrew (kept for their attendance
+    // history, locked going forward, badged "(退出)"), and one-off make-up
+    // visitors who never had a package here at all (locked outside their one
+    // make-up date, badged "(補堂)").
+    const { data: pkgsForRosterCheck } = await supabaseClient
+      .from("packages").select("student_id, status").eq("class_id", classId);
+    const enrolledStudentIds = new Set((pkgsForRosterCheck ?? []).filter(p => p.status === "active").map(p => p.student_id));
+    const withdrawnStudentIds = new Set((pkgsForRosterCheck ?? []).filter(p => p.status === "cancelled").map(p => p.student_id));
+
+    const rosterMap = new Map();
+    const withdrawnMap = new Map();
+    const visitorMap = new Map();
+    attendanceRows.forEach(r => {
+      const name = r.students?.contacts?.name ?? r.student_id;
+      if (enrolledStudentIds.has(r.student_id)) rosterMap.set(r.student_id, name);
+      else if (withdrawnStudentIds.has(r.student_id)) withdrawnMap.set(r.student_id, name);
+      else visitorMap.set(r.student_id, name);
+    });
+    const roster = [...rosterMap.entries()]; // [studentId, name] — enrolled only
+    const withdrawnRoster = [...withdrawnMap.entries()]; // [studentId, name] — formerly enrolled, kept for history
+    const visitorRoster = [...visitorMap.entries()]; // [studentId, name] — one-off make-ups
+
+    // Earliest start_date per student *in this class* (across all their
+    // packages/renewals here) — the date they actually first joined, so
+    // earlier date columns can be marked "not yet joined" instead of blank.
+    const { data: allPkgsForClass } = await supabaseClient
+      .from("packages").select("student_id, start_date").eq("class_id", classId);
+    const joinDateMap = new Map();
+    (allPkgsForClass ?? []).forEach(p => {
+      const existing = joinDateMap.get(p.student_id);
+      if (!existing || p.start_date < existing) joinDateMap.set(p.student_id, p.start_date);
+    });
+
+    const allGroupAppts = await getAllGroupAppointments();
+
+    if (mySeq !== gridLoadSeq) return; // a newer reload has since started — don't clobber it with stale data
+
+    renderGrid(classId, appts ?? [], roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap);
+    renderMakeupList(attendanceRows, appts ?? [], allGroupAppts, classId);
+    gridWrap.scrollLeft = savedScrollLeft;
+  }
+
+  // Short inline note under a "leave" cell so the make-up outcome is visible
+  // without scrolling down to the pending-decisions list — e.g. "→8/8" if
+  // made up in another session, "下期扣" if deferred to the next package.
+  function makeupNoteHtml(row, allGroupAppts) {
+    if (!row || row.status !== "leave") return "";
+    if (row.make_up_status === "made_up" && row.made_up_appointment_id) {
+      const target = allGroupAppts.find(a => a.id === row.made_up_appointment_id);
+      const dateLabel = target ? new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" }) : "?";
+      return `<div style="font-size:10px; color:#1e6b34;">→${dateLabel}</div>`;
+    }
+    if (row.make_up_status === "deferred_to_next_package") {
+      return `<div style="font-size:10px; color:#8a6314;">${t("makeup.deferred_to_next_package")}</div>`;
+    }
+    if (row.make_up_status === "pending") {
+      return `<div style="font-size:10px; color:#8a2e2e;">${t("makeup.pending")}</div>`;
+    }
+    if (row.make_up_status === "combined_with_private" && row.make_up_remark) {
+      return `<div style="font-size:10px; color:#1e6b34;">${row.make_up_remark}</div>`;
+    }
+    return `<div style="font-size:10px; color:#a89f92;">${t("makeup.unprocessed")}</div>`;
+  }
+
+  function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap) {
+    const table = document.getElementById("grid-table");
+    if (!appts.length) {
+      table.innerHTML = `<tr><td class="empty">${t("attendance.empty_roster")}</td></tr>`;
+      return;
+    }
+    // Enrolled students first, then withdrawn (kept for history), then
+    // one-off make-up visitors — both withdrawn and visitor columns lock to
+    // "-" outside a row they actually have, so neither reads as an open
+    // roster slot you could accidentally mark.
+    const columns = [
+      ...roster.map(([studentId, name]) => ({ studentId, name, isVisitor: false, isWithdrawn: false })),
+      ...withdrawnRoster.map(([studentId, name]) => ({ studentId, name, isVisitor: false, isWithdrawn: true })),
+      ...visitorRoster.map(([studentId, name]) => ({ studentId, name, isVisitor: true, isWithdrawn: false })),
+    ];
+    const totalCols = columns.length + 1;
+    const headRow = `<tr><th class="date-col" data-i18n="attendance.grid_col_date">Date</th>${columns.map(c => {
+      const badge = c.isWithdrawn ? t("attendance.withdrawn_student") : c.isVisitor ? t("attendance.makeup_visitor") : "";
+      return `<th${c.isWithdrawn ? ' class="withdrawn-col"' : ""}>${c.name}${badge ? ` <span class="visitor-badge">(${badge})</span>` : ""}</th>`;
+    }).join("")}</tr>`;
+
+    // Shared by the per-date cells and the divider row's per-student "mark
+    // all ✓" button — a cell is eligible for marking if it's an enrolled
+    // student, or a withdrawn/visitor student who already has a row here.
+    function isEligibleCell(a, studentId, isVisitor, isWithdrawn) {
+      const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
+      if ((isVisitor || isWithdrawn) && !row) return false;
+      const joinDate = joinDateMap?.get(studentId);
+      if (!isVisitor && !isWithdrawn && joinDate && new Date(a.scheduled_start) < new Date(`${joinDate}T00:00:00`)) return false;
+      return true;
+    }
+
+    function dateRowHtml(a) {
+      const dateLabel = new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" });
+      const rescheduleNote = a.rescheduled_from
+        ? ` <span style="font-size:10px; color:#8a6314;">(補回${new Date(a.rescheduled_from).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}${a.reschedule_reason ? " " + a.reschedule_reason : ""})</span>`
+        : "";
+      const cells = columns.map(({ studentId, isVisitor, isWithdrawn }) => {
+        const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
+        const withdrawnClass = isWithdrawn ? "withdrawn-col " : "";
+
+        if ((isVisitor || isWithdrawn) && !row) {
+          return `<td class="${withdrawnClass}visitor-locked">-</td>`;
+        }
+
+        const joinDate = joinDateMap?.get(studentId);
+        if (!isVisitor && !isWithdrawn && joinDate && new Date(a.scheduled_start) < new Date(`${joinDate}T00:00:00`)) {
+          return `<td style="color:#b0a89c;">${t("attendance.not_joined_yet")}</td>`;
+        }
+        const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
+        return `
+          <td${isWithdrawn ? ' class="withdrawn-col"' : ""}>
+            <button type="button" class="att-toggle att-${row?.status || "unset"}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
+            ${makeupNoteHtml(row, allGroupAppts)}
+            ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#8a2e2e; font-size:10px;">${t("student.delete")}</button>` : ""}
+          </td>`;
+      }).join("");
+      return `<tr><td class="date-col">${dateLabel}${rescheduleNote} <button type="button" class="link reschedule-icon-btn" data-reschedule-appt="${a.id}" data-current-start="${a.scheduled_start}" title="${t("attendance.reschedule")}" aria-label="${t("attendance.reschedule")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button></td>${cells}</tr>`;
+    }
+
+    // Group the class's dates into 8-lesson terms with a divider between
+    // them — older terms collapse by default so taking attendance today
+    // isn't buried under every past term's rows; the latest term always
+    // shows in full.
+    const batches = [];
+    for (let i = 0; i < appts.length; i += STANDARD_LESSONS_PER_TERM) batches.push(appts.slice(i, i + STANDARD_LESSONS_PER_TERM));
+
+    const renderedBatches = batches.map((batch, batchIndex) => {
+      const isLatest = batchIndex === batches.length - 1;
+      const key = `${classId}:${batchIndex}`;
+      const isOpen = isLatest || expandedTermBatches.has(key);
+      const dividerRow = `
+        <tr class="term-divider-row ${isLatest ? "" : "term-divider-clickable"}" data-term-batch="${key}">
+          <td class="date-col">
+            ${isLatest ? "" : `<span class="expand-arrow ${isOpen ? "open" : ""}">▶</span>`}
+            ${tf("attendance.term_divider", { n: batchIndex + 1, count: batch.length })}
+          </td>
+          ${columns.map(({ studentId, isVisitor, isWithdrawn }) => {
+            if (!isOpen) return `<td${isWithdrawn ? ' class="withdrawn-col"' : ""}></td>`;
+            const eligible = batch.some(a => isEligibleCell(a, studentId, isVisitor, isWithdrawn));
+            if (!eligible) return `<td${isWithdrawn ? ' class="withdrawn-col"' : ""}></td>`;
+            return `<td${isWithdrawn ? ' class="withdrawn-col"' : ""}><button type="button" class="link mark-all-attended-btn" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.mark_all_attended_title")}">${t("attendance.mark_all_attended")}</button></td>`;
+          }).join("")}
+        </tr>`;
+      return isOpen ? dividerRow + batch.map(dateRowHtml).join("") : dividerRow;
+    });
+    // Most recent term first — otherwise the auto-expanded latest term's
+    // rows end up pushed far below every older (collapsed) term's divider,
+    // putting them nowhere near the column headers.
+    const bodyRows = renderedBatches.slice().reverse().join("");
+
+    table.innerHTML = headRow + bodyRows;
+    applyI18n();
+
+    // Re-draws the grid from data already sitting in memory — no DB reads,
+    // so it's essentially instant. Used after any change that only touches
+    // attendanceRows/expandedTermBatches, instead of loadClassGrid()'s full
+    // 4-query reload (which is what made ticking a status feel sluggish).
+    function rerenderLocally() {
+      const gridWrap = document.getElementById("grid-wrap");
+      const savedScrollLeft = gridWrap.scrollLeft;
+      renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap);
+      renderMakeupList(attendanceRows, appts, allGroupAppts, classId);
+      gridWrap.scrollLeft = savedScrollLeft;
+    }
+
+    table.querySelectorAll("button[data-appt-id]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const apptId = btn.dataset.apptId;
+        const studentId = btn.dataset.studentId;
+        const pendingKey = `${apptId}:${studentId}`;
+        if (pendingAttendanceWrites.has(pendingKey)) return; // already mid-write from a previous click
+
+        const status = nextAttendanceStatus(btn.dataset.status) || null;
+        const attendanceId = btn.dataset.attendanceId;
+        const now = new Date().toISOString();
+
+        // Optimistic: patch the local copy and repaint immediately (no DB
+        // round-trip in the way), so ticking feels instant. The write still
+        // happens for real in the background — on failure we roll the cell
+        // back and say so, but that's rare (network/permission errors only).
+        let row = attendanceRows.find(r => r.id === attendanceId);
+        const previousStatus = row ? row.status : null;
+        const previousMakeUpStatus = row ? row.make_up_status : null;
+        const previousMadeUpApptId = row ? row.made_up_appointment_id : null;
+        const previousMakeUpRemark = row ? row.make_up_remark : null;
+        const previousDeferredLink = row ? row.deferred_credit_used_in_package_id : null;
+        // make_up_status/made_up_appointment_id/deferred_credit_used_in_package_id
+        // only ever mean something while status is "leave" — cycling INTO
+        // leave starts make_up_status fresh as "unprocessed" (no decision
+        // made, no deduction yet); cycling AWAY from leave resets it back to
+        // "not_needed" (this app's existing convention for "not a leave"),
+        // and clears the make-up date/credit link, so a later leave on the
+        // same lesson never inherits a stale decision.
+        const enteringLeave = status === "leave" && previousStatus !== "leave";
+        const leavingLeave = status !== "leave" && previousStatus === "leave";
+        const isNewRow = !row;
+        if (row) {
+          row.status = status;
+          if (enteringLeave) {
+            row.make_up_status = "unprocessed";
+            row.made_up_appointment_id = null;
+            row.make_up_remark = null;
+            row.deferred_credit_used_in_package_id = null;
+          } else if (leavingLeave) {
+            row.make_up_status = "not_needed";
+            row.made_up_appointment_id = null;
+            row.make_up_remark = null;
+            row.deferred_credit_used_in_package_id = null;
+          }
+        } else {
+          const col = columns.find(c => c.studentId === studentId);
+          row = { id: null, appointment_id: apptId, student_id: studentId, status, make_up_status: null, made_up_appointment_id: null, make_up_remark: null, deferred_credit_used_in_package_id: null, students: { contacts: { name: col?.name ?? "" } } };
+          attendanceRows.push(row);
+        }
+        pendingAttendanceWrites.add(pendingKey);
+        rerenderLocally();
+
+        let error;
+        if (attendanceId) {
+          const updatePayload = { status, marked_at: now };
+          if (enteringLeave) {
+            updatePayload.make_up_status = "unprocessed";
+            updatePayload.made_up_appointment_id = null;
+            updatePayload.make_up_remark = null;
+            updatePayload.deferred_credit_used_in_package_id = null;
+          } else if (leavingLeave) {
+            updatePayload.make_up_status = "not_needed";
+            updatePayload.made_up_appointment_id = null;
+            updatePayload.make_up_remark = null;
+            updatePayload.deferred_credit_used_in_package_id = null;
+          }
+          ({ error } = await supabaseClient.from("attendance").update(updatePayload).eq("id", attendanceId));
+        } else {
+          const { data, error: insertError } = await supabaseClient
+            .from("attendance").insert({ appointment_id: apptId, student_id: studentId, status, marked_at: now }).select().single();
+          error = insertError;
+          if (!error) row.id = data.id;
+        }
+
+        pendingAttendanceWrites.delete(pendingKey);
+        if (error) {
+          if (isNewRow) {
+            const idx = attendanceRows.indexOf(row);
+            if (idx !== -1) attendanceRows.splice(idx, 1);
+          } else {
+            row.status = previousStatus;
+            if (enteringLeave || leavingLeave) {
+              row.make_up_status = previousMakeUpStatus;
+              row.made_up_appointment_id = previousMadeUpApptId;
+              row.make_up_remark = previousMakeUpRemark;
+              row.deferred_credit_used_in_package_id = previousDeferredLink;
+            }
+          }
+          alert("Update failed: " + error.message);
+        }
+        rerenderLocally();
+      });
+    });
+
+    table.querySelectorAll("button[data-visitor-delete]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm(t("attendance.visitor_delete_confirm"))) return;
+        const rowId = btn.dataset.visitorDelete;
+        const { error } = await supabaseClient.from("attendance").delete().eq("id", rowId);
+        if (error) { alert("Delete failed: " + error.message); return; }
+        const idx = attendanceRows.findIndex(r => r.id === rowId);
+        if (idx !== -1) attendanceRows.splice(idx, 1);
+        rerenderLocally();
+      });
+    });
+
+    table.querySelectorAll(".term-divider-clickable").forEach(tr => {
+      tr.addEventListener("click", () => {
+        const key = tr.dataset.termBatch;
+        if (expandedTermBatches.has(key)) expandedTermBatches.delete(key); else expandedTermBatches.add(key);
+        rerenderLocally();
+      });
+    });
+
+    table.querySelectorAll("button[data-reschedule-appt]").forEach(btn => {
+      btn.addEventListener("click", () => openRescheduleDialog(btn.dataset.rescheduleAppt, btn.dataset.currentStart));
+    });
+
+    table.querySelectorAll(".mark-all-attended-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(t("attendance.mark_all_attended_confirm"))) return;
+
+        const batch = batches[Number(btn.dataset.batchIndex)];
+        const studentId = btn.dataset.studentId;
+        const col = columns.find(c => c.studentId === studentId);
+        const targets = batch
+          .filter(a => isEligibleCell(a, studentId, col.isVisitor, col.isWithdrawn))
+          .map(a => {
+            const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
+            return { apptId: a.id, studentId, attendanceId: row?.id ?? null };
+          });
+
+        const now = new Date().toISOString();
+        const toUpdate = targets.filter(item => item.attendanceId);
+        const toInsert = targets.filter(item => !item.attendanceId);
+
+        if (toUpdate.length) {
+          const { error } = await supabaseClient
+            .from("attendance").update({ status: "attended", marked_at: now }).in("id", toUpdate.map(item => item.attendanceId));
+          if (error) { alert("Update failed: " + error.message); return; }
+          toUpdate.forEach(item => {
+            const row = attendanceRows.find(r => r.id === item.attendanceId);
+            if (row) row.status = "attended";
+          });
+        }
+        if (toInsert.length) {
+          const { data, error } = await supabaseClient
+            .from("attendance").insert(toInsert.map(item => ({ appointment_id: item.apptId, student_id: item.studentId, status: "attended", marked_at: now }))).select();
+          if (error) { alert("Update failed: " + error.message); return; }
+          (data ?? []).forEach(row => attendanceRows.push({ id: row.id, appointment_id: row.appointment_id, student_id: row.student_id, status: "attended", make_up_status: null, made_up_appointment_id: null }));
+        }
+        rerenderLocally();
+      });
+    });
+  }
+
+  let allGroupAppointmentsCache = null;
+  async function getAllGroupAppointments() {
+    if (allGroupAppointmentsCache) return allGroupAppointmentsCache;
+    // Only from currently-active classes — a cancelled/old class's leftover
+    // appointments shouldn't clutter the make-up target list.
+    const { data } = await supabaseClient
+      .from("appointments")
+      .select("id, scheduled_start, class_id, classes!inner(active, name)")
+      .eq("type", "group_class")
+      .eq("classes.active", true)
+      .order("scheduled_start", { ascending: true });
+    allGroupAppointmentsCache = data ?? [];
+    return allGroupAppointmentsCache;
+  }
+
+  // A make-up is always in a *different* class — a student can't "make up"
+  // in their own class's future sessions, those are just their normal
+  // upcoming lessons. So exclude every appointment from the same class,
+  // not just the one specific date that was missed. Also only offer sessions
+  // on/after the missed date — you can't make up a lesson you haven't missed yet.
+  function renderMakeupList(attendanceRows, appts, allGroupAppts, currentClassId) {
+    const container = document.getElementById("makeup-list");
+    // A leave still "needs a decision" if it's unprocessed, OR it was set to
+    // "made_up" but doesn't have an actual make-up date picked yet — that
+    // second case matters because picking "補堂" is what reveals the date
+    // dropdown in the first place; if the row vanished the instant the
+    // status changed, there'd be no way to ever pick the date. Once fully
+    // resolved (今期扣/下期扣, or 補堂 with a date), it drops off on its own —
+    // "Show processed leaves" lets her look back at ones already handled.
+    const showProcessed = document.getElementById("show-processed-leaves-toggle")?.checked;
+    const leaveRows = attendanceRows.filter(r => r.status === "leave" && (
+      showProcessed
+      || r.make_up_status === "unprocessed" || !r.make_up_status
+      || (r.make_up_status === "made_up" && !r.made_up_appointment_id)
+      || (r.make_up_status === "combined_with_private" && !r.make_up_remark)
+    ));
+    if (!leaveRows.length) {
+      container.innerHTML = `<p class="empty">${t("attendance.pending_makeups_empty")}</p>`;
+      return;
+    }
+    container.innerHTML = leaveRows.map(row => {
+      const appt = appts.find(a => a.id === row.appointment_id);
+      const dateLabel = appt ? new Date(appt.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "";
+      const otherAppts = allGroupAppts.filter(a => a.class_id !== currentClassId
+        && (!appt || new Date(a.scheduled_start) >= new Date(appt.scheduled_start)));
+      const targetOptions = otherAppts.map(a => `
+        <option value="${a.id}" ${a.id === row.made_up_appointment_id ? "selected" : ""}>
+          ${a.classes?.name ?? ""} — ${new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })} (${t("day." + new Date(a.scheduled_start).getDay())}) ${new Date(a.scheduled_start).toLocaleTimeString(localeForDates(), { timeStyle: "short" })}
+        </option>`).join("");
+      return `
+        <div class="makeup-row" data-attendance-id="${row.id}" data-student-id="${row.student_id}" data-appointment-id="${row.appointment_id}">
+          <strong>${row.students?.contacts?.name ?? ""}</strong>
+          <span style="color:#8a8074;">${dateLabel}</span>
+          <select data-field="make_up_status">
+            <option value="unprocessed" ${row.make_up_status === "unprocessed" || !row.make_up_status ? "selected" : ""}>${t("makeup.unprocessed")}</option>
+            <option value="pending" ${row.make_up_status === "pending" ? "selected" : ""}>${t("makeup.pending")}</option>
+            <option value="made_up" ${row.make_up_status === "made_up" ? "selected" : ""}>${t("makeup.made_up")}</option>
+            <option value="deferred_to_next_package" ${row.make_up_status === "deferred_to_next_package" ? "selected" : ""}>${t("makeup.deferred_to_next_package")}</option>
+            <option value="combined_with_private" ${row.make_up_status === "combined_with_private" ? "selected" : ""}>${t("makeup.combined_with_private")}</option>
+          </select>
+          <select data-field="made_up_appointment_id" style="${row.make_up_status === "made_up" ? "" : "display:none;"}">
+            <option value="">—</option>
+            ${targetOptions}
+          </select>
+          <input type="text" data-field="make_up_remark" value="${row.make_up_remark ?? ""}" placeholder="${t("makeup.remark_placeholder")}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
+        </div>`;
+    }).join("");
+
+    container.querySelectorAll('select[data-field="make_up_status"]').forEach(sel => {
+      sel.addEventListener("change", async () => {
+        const rowEl = sel.closest(".makeup-row");
+        const attendanceId = rowEl.dataset.attendanceId;
+        const row = attendanceRows.find(r => r.id === attendanceId);
+        const make_up_status = sel.value;
+        const payload = { make_up_status };
+        if (make_up_status !== "made_up") payload.made_up_appointment_id = null;
+        if (make_up_status !== "combined_with_private") payload.make_up_remark = null;
+        // Switching away from "deferred to next package" releases whatever
+        // credit link it may have already claimed — otherwise that package
+        // keeps a discount for a leave that no longer qualifies for one.
+        if (make_up_status !== "deferred_to_next_package" && row?.deferred_credit_used_in_package_id) {
+          payload.deferred_credit_used_in_package_id = null;
+        }
+        const { error } = await supabaseClient.from("attendance").update(payload).eq("id", attendanceId);
+        if (error) { alert("Update failed: " + error.message); return; }
+
+        // If this student's next package (in this same class) already
+        // exists, apply the credit to it right now instead of waiting for
+        // a future enrollment/renewal to pick it up.
+        if (make_up_status === "deferred_to_next_package" && !row?.deferred_credit_used_in_package_id) {
+          await applyDeferredCreditToExistingNextPackage(attendanceId, rowEl.dataset.studentId, currentClassId, rowEl.dataset.appointmentId);
+        }
+
+        await loadClassGrid(attendanceClassSelect.value);
+      });
+    });
+
+    container.querySelectorAll('select[data-field="made_up_appointment_id"]').forEach(sel => {
+      sel.addEventListener("change", async () => {
+        const rowEl = sel.closest(".makeup-row");
+        const targetAppointmentId = sel.value || null;
+        const { error } = await supabaseClient.from("attendance").update({ made_up_appointment_id: targetAppointmentId }).eq("id", rowEl.dataset.attendanceId);
+        if (error) { alert("Update failed: " + error.message); return; }
+
+        if (targetAppointmentId) {
+          // Just get them onto that date's roster (status unset "-") — picking
+          // a make-up date is a scheduling decision, not proof they actually
+          // showed up, so attendance still needs a manual confirm on the day.
+          const studentId = rowEl.dataset.studentId;
+          const { data: existing } = await supabaseClient
+            .from("attendance")
+            .select("id")
+            .eq("appointment_id", targetAppointmentId)
+            .eq("student_id", studentId)
+            .maybeSingle();
+          if (!existing) {
+            await supabaseClient.from("attendance").insert({ appointment_id: targetAppointmentId, student_id: studentId });
+          }
+        }
+      });
+    });
+
+    container.querySelectorAll('input[data-field="make_up_remark"]').forEach(input => {
+      input.addEventListener("change", async () => {
+        const rowEl = input.closest(".makeup-row");
+        const remark = input.value.trim() || null;
+        const { error } = await supabaseClient.from("attendance").update({ make_up_remark: remark }).eq("id", rowEl.dataset.attendanceId);
+        if (error) { alert("Update failed: " + error.message); return; }
+        await loadClassGrid(attendanceClassSelect.value);
+      });
+    });
+  }
+
+  attendanceClassSelect.addEventListener("change", () => loadClassGrid(attendanceClassSelect.value));
+  document.getElementById("show-withdrawn-toggle").addEventListener("change", (e) => {
+    document.getElementById("grid-table").classList.toggle("hide-withdrawn", !e.target.checked);
+  });
+  document.getElementById("show-cancelled-classes-toggle").addEventListener("change", () => refreshAttendanceSection());
+  document.getElementById("show-processed-leaves-toggle").addEventListener("change", () => loadClassGrid(attendanceClassSelect.value));
+
+  // Reschedule a single already-generated lesson (e.g. typhoon/holiday
+  // postponement) — only this one appointment's date/time changes; every
+  // other lesson, and every student's attendance/package links (which key
+  // off the appointment id, not its date), stay exactly as they were.
+  const rescheduleDialog = document.getElementById("reschedule-dialog");
+  function openRescheduleDialog(apptId, currentStartIso) {
+    document.getElementById("reschedule-appt-id").value = apptId;
+    document.getElementById("reschedule-original-start").value = currentStartIso;
+    document.getElementById("reschedule-reason").value = "";
+    const d = new Date(currentStartIso);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    document.getElementById("reschedule-when").value = d.toISOString().slice(0, 16);
+    rescheduleDialog.showModal();
+  }
+  document.getElementById("reschedule-cancel-btn").addEventListener("click", () => rescheduleDialog.close());
+  document.getElementById("reschedule-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const apptId = document.getElementById("reschedule-appt-id").value;
+    const whenStr = document.getElementById("reschedule-when").value;
+    const originalStart = document.getElementById("reschedule-original-start").value;
+    const reason = document.getElementById("reschedule-reason").value || null;
+    if (!apptId || !whenStr) return;
+
+    const cls = classes.find(c => c.id === attendanceClassSelect.value);
+    const start = new Date(whenStr);
+    const end = new Date(start.getTime() + (cls?.duration_minutes ?? 60) * 60 * 1000);
+    // rescheduled_from/reschedule_reason are purely a display note for this
+    // one-off disruption (typhoon etc.) — they don't feed into any pricing,
+    // attendance, or lesson-count logic, which all still key off the
+    // appointment's current scheduled_start same as before.
+    const { error } = await supabaseClient.from("appointments").update({
+      scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+      rescheduled_from: originalStart || null, reschedule_reason: reason,
+    }).eq("id", apptId);
+    if (error) { alert("Save failed: " + error.message); return; }
+
+    rescheduleDialog.close();
+    await loadClassGrid(attendanceClassSelect.value);
+  });
+
+  // ---------- Payments (merged in from the old standalone Payments page) ----------
+  const unpaidOnlyToggle = document.getElementById("unpaid-only");
+  const paymentRowsEl = document.getElementById("payment-rows");
+  const paymentExpandedIds = new Set();
+  const paymentExpandedTermIds = new Set(); // manually re-opened older terms (by package id)
+  let paymentPackages = []; // [{ pkg, lessons: [{apptId, date, status, attendanceId, paid}] }]
+  let paymentsAllGroupAppts = []; // cached appointments, used to resolve a make-up's target date for display
+
+  function effectivePrice(pkg, lessons) {
+    const perLessonPrice = pkg.price / pkg.total_lessons;
+    const deduction = (lessons.filter(isDeductible).length + (pkg.incomingCreditCount ?? 0)) * perLessonPrice;
+    return Math.round(Math.max(0, pkg.price - deduction));
+  }
+
+  async function loadPayments() {
+    // Per-lesson paid/leave detail lives inside each term's card; the
+    // collapsed row is one per STUDENT (not per term), so a student with
+    // several renewals shows as a single line, not repeated rows.
+    const { data: pkgs, error } = await supabaseClient
+      .from("packages")
+      .select("id, class_id, student_id, start_date, total_lessons, price, students!inner(active, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
+      .eq("students.active", true)
+      .order("start_date", { ascending: false });
+    if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+
+    const incomingCreditCounts = await getIncomingCreditCounts(pkgs.map(p => p.id));
+
+    paymentPackages = await Promise.all(pkgs.map(async (pkg) => {
+      pkg.incomingCreditCount = incomingCreditCounts.get(pkg.id) ?? 0;
+      const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
+      const apptIds = appts.map(a => a.id);
+
+      let attRows = [];
+      if (apptIds.length) {
+        const { data } = await supabaseClient
+          .from("attendance").select("id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, paid")
+          .eq("student_id", pkg.student_id).in("appointment_id", apptIds);
+        attRows = data ?? [];
+      }
+
+      const lessons = (appts ?? []).map(a => {
+        const att = attRows.find(r => r.appointment_id === a.id);
+        return { apptId: a.id, date: a.scheduled_start, status: att?.status ?? null, make_up_status: att?.make_up_status ?? null, made_up_appointment_id: att?.made_up_appointment_id ?? null, make_up_remark: att?.make_up_remark ?? null, attendanceId: att?.id ?? null, paid: att?.paid ?? false };
+      });
+      return { pkg, lessons };
+    }));
+
+    paymentsAllGroupAppts = await getAllGroupAppointments();
+    renderPayments();
+  }
+
+  function groupPackagesByStudent(list) {
+    const map = new Map();
+    for (const entry of list) {
+      const sid = entry.pkg.student_id;
+      if (!map.has(sid)) map.set(sid, { studentId: sid, name: entry.pkg.students?.contacts?.name ?? "", entries: [] });
+      map.get(sid).entries.push(entry);
+    }
+    // Chronological within each student, so "Term 1, Term 2…" reads in join order.
+    for (const s of map.values()) s.entries.sort((a, b) => a.pkg.start_date.localeCompare(b.pkg.start_date));
+    return [...map.values()];
+  }
+
+  function renderPayments() {
+    const studentsList = groupPackagesByStudent(paymentPackages);
+    let visible = studentsList;
+    if (unpaidOnlyToggle.checked) {
+      visible = visible.filter(s => s.entries.some(({ lessons }) => lessons.some(l => !l.paid)));
+    }
+    if (!visible.length) { paymentRowsEl.innerHTML = `<tr><td colspan="5" class="empty">${t("payments.empty")}</td></tr>`; return; }
+
+    paymentRowsEl.innerHTML = visible.map((student) => {
+      const totalAmount = student.entries.reduce((sum, { pkg, lessons }) => sum + effectivePrice(pkg, lessons), 0);
+      const allLessons = student.entries.flatMap(({ lessons }) => lessons);
+      const paidCount = allLessons.filter(l => l.paid).length;
+      const isOpen = paymentExpandedIds.has(student.studentId);
+
+      const cards = student.entries.map(({ pkg, lessons }, i) => {
+        const isLatest = i === student.entries.length - 1;
+        const isOpenTerm = isLatest || paymentExpandedTermIds.has(pkg.id);
+        const classLabel = pkg.classes ? `${pkg.classes.name} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})` : "";
+        const startLabel = new Date(`${pkg.start_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" });
+        const termPaidCount = lessons.filter(l => l.paid).length;
+        const detailRows = lessons.map(l => {
+          const isDeferred = l.status === "leave" && l.make_up_status === "deferred_to_next_package";
+          const isMadeUp = l.status === "leave" && l.make_up_status === "made_up";
+          let statusLabel, statusColor;
+          if (isDeferred) {
+            statusLabel = `${t("attstatus.leave")}(${t("makeup.deferred_to_next_package")})`;
+            statusColor = "#8a2e2e";
+          } else if (isMadeUp) {
+            const target = paymentsAllGroupAppts.find(a => a.id === l.made_up_appointment_id);
+            const dateLabel = target ? new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "?";
+            statusLabel = `補堂(${dateLabel})`;
+            statusColor = "#1e6b34";
+          } else if (l.status === "leave" && l.make_up_status === "pending") {
+            statusLabel = `${t("attstatus.leave")}(${t("makeup.pending")})`;
+            statusColor = "#8a2e2e";
+          } else if (l.status === "leave" && l.make_up_status === "combined_with_private") {
+            statusLabel = `疊埋上私人堂(${l.make_up_remark ?? ""})`;
+            statusColor = "#1e6b34";
+          } else if (l.status === "leave") {
+            statusLabel = t("makeup.unprocessed");
+            statusColor = "#a89f92";
+          } else {
+            statusLabel = l.status ? t("attstatus." + l.status) : t("attstatus.unset");
+            statusColor = "";
+          }
+          return `
+          <tr>
+            <td>${new Date(l.date).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}</td>
+            <td${statusColor ? ` style="color:${statusColor}; font-weight:600;"` : ""}>${statusLabel}</td>
+            <td><input type="checkbox" data-attendance-id="${l.attendanceId ?? ""}" data-appt-id="${l.apptId}" data-student-id="${pkg.student_id}" ${l.paid ? "checked" : ""} /></td>
+          </tr>`;
+        }).join("");
+
+        return `
+          <div class="term-card ${isLatest ? "" : "term-card-collapsed"}" data-term-id="${pkg.id}">
+            <div class="term-card-header">
+              ${isLatest ? "" : `<span class="expand-arrow ${isOpenTerm ? "open" : ""}">▶</span>`}
+              <span class="term-label">${tf("payments.term_label", { n: i + 1 })}</span>
+              <span>${classLabel}</span>
+              <span>${startLabel}</span>
+              <span class="term-price">$${effectivePrice(pkg, lessons)}</span>
+              <span>${termPaidCount} / ${lessons.length} ${t("schedule.col_paid")}</span>
+              ${isOpenTerm && termPaidCount < lessons.length ? `<button type="button" class="link mark-all-paid-btn" data-term-id="${pkg.id}">${t("payments.mark_all_paid")}</button>` : ""}
+            </div>
+            ${isOpenTerm ? `
+              <table class="detail-table">
+                <thead><tr>
+                  <th data-i18n="schedule.col_when">When</th>
+                  <th data-i18n="attendance.col_attended">Status</th>
+                  <th data-i18n="schedule.col_paid">Paid</th>
+                </tr></thead>
+                <tbody>${detailRows}</tbody>
+              </table>` : ""}
+          </div>`;
+      }).join("");
+
+      return `
+        <tr class="student-row" data-student-id="${student.studentId}">
+          <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
+          <td>${student.name}</td>
+          <td>${student.entries.length}</td>
+          <td>$${totalAmount}</td>
+          <td>${paidCount} / ${allLessons.length}</td>
+        </tr>
+        <tr class="student-detail" data-student-detail="${student.studentId}" style="${isOpen ? "" : "display:none;"}">
+          <td></td>
+          <td colspan="4">
+            <div class="term-cards">${cards}</div>
+          </td>
+        </tr>`;
+    }).join("");
+    applyI18n();
+
+    paymentRowsEl.querySelectorAll(".student-row").forEach(tr => {
+      tr.addEventListener("click", () => {
+        const id = tr.dataset.studentId;
+        if (paymentExpandedIds.has(id)) paymentExpandedIds.delete(id); else paymentExpandedIds.add(id);
+        renderPayments();
+      });
+    });
+
+    paymentRowsEl.querySelectorAll(".term-card-collapsed .term-card-header").forEach(header => {
+      header.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const termId = header.closest(".term-card").dataset.termId;
+        if (paymentExpandedTermIds.has(termId)) paymentExpandedTermIds.delete(termId); else paymentExpandedTermIds.add(termId);
+        renderPayments();
+      });
+    });
+
+    paymentRowsEl.querySelectorAll(".student-detail input[type=checkbox]").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", async () => {
+        const paid = cb.checked;
+        let attendanceId = cb.dataset.attendanceId;
+        let error;
+        if (attendanceId) {
+          ({ error } = await supabaseClient.from("attendance").update({ paid }).eq("id", attendanceId));
+        } else {
+          const { data, error: insertError } = await supabaseClient
+            .from("attendance")
+            .insert({ appointment_id: cb.dataset.apptId, student_id: cb.dataset.studentId, paid })
+            .select().single();
+          error = insertError;
+          if (data) attendanceId = data.id;
+        }
+        if (error) { alert("Update failed: " + error.message); cb.checked = !paid; return; }
+
+        // Patch local state in place so the row stays expanded and the
+        // summary counts update without a full reload. Must match on both
+        // student and appointment — a class session is shared by several
+        // students, so the same appointment ID appears in multiple packages.
+        for (const { pkg, lessons } of paymentPackages) {
+          if (pkg.student_id !== cb.dataset.studentId) continue;
+          const lesson = lessons.find(l => l.apptId === cb.dataset.apptId);
+          if (lesson) { lesson.paid = paid; lesson.attendanceId = attendanceId; break; }
+        }
+        renderPayments();
+      });
+    });
+
+    paymentRowsEl.querySelectorAll(".mark-all-paid-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(t("payments.mark_all_paid_confirm"))) return;
+        const entry = paymentPackages.find(({ pkg }) => pkg.id === btn.dataset.termId);
+        if (!entry) return;
+        const unpaid = entry.lessons.filter(l => !l.paid);
+        if (!unpaid.length) return;
+
+        const toUpdate = unpaid.filter(l => l.attendanceId);
+        const toInsert = unpaid.filter(l => !l.attendanceId);
+
+        if (toUpdate.length) {
+          const { error } = await supabaseClient.from("attendance").update({ paid: true }).in("id", toUpdate.map(l => l.attendanceId));
+          if (error) { alert("Update failed: " + error.message); return; }
+        }
+        if (toInsert.length) {
+          const { data, error } = await supabaseClient
+            .from("attendance")
+            .insert(toInsert.map(l => ({ appointment_id: l.apptId, student_id: entry.pkg.student_id, paid: true })))
+            .select();
+          if (error) { alert("Update failed: " + error.message); return; }
+          (data ?? []).forEach(row => {
+            const lesson = entry.lessons.find(l => l.apptId === row.appointment_id);
+            if (lesson) lesson.attendanceId = row.id;
+          });
+        }
+        unpaid.forEach(l => { l.paid = true; });
+        renderPayments();
+      });
+    });
+  }
+
+  unpaidOnlyToggle.addEventListener("change", renderPayments);
+
+  // Extending a class means a new term is starting for everyone currently
+  // enrolled — so this is also the natural checkpoint to ask who's actually
+  // still continuing. Untick someone and their current enrollment gets
+  // withdrawn instead of silently rolling into the new term.
+  const classExtendDialog = document.getElementById("class-extend-dialog");
+  const EXTEND_CANDIDATE_COUNT = 12; // buffer beyond 8, so unticking a holiday or two still leaves enough to pick from
+
+  function updateExtendDateNote() {
+    const checked = document.querySelectorAll(".extend-date-checkbox:checked").length;
+    document.getElementById("class-extend-date-note").textContent =
+      checked < STANDARD_LESSONS_PER_TERM ? tf("classes.extend_need_more", { n: STANDARD_LESSONS_PER_TERM - checked }) : "";
+  }
+
+  async function openExtendClassDialog(cls) {
+    if (!cls) return;
+    document.getElementById("class-extend-class-id").value = cls.id;
+
+    const { data: last } = await supabaseClient
+      .from("appointments").select("scheduled_start").eq("class_id", cls.id)
+      .order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+    const firstCandidate = last
+      ? new Date(new Date(last.scheduled_start).getTime() + 7 * 24 * 60 * 60 * 1000)
+      : nextOccurrence(cls.weekly_day_of_week, cls.weekly_start_time.slice(0, 5));
+    const candidates = Array.from({ length: EXTEND_CANDIDATE_COUNT }, (_, i) => new Date(firstCandidate.getTime() + i * 7 * 24 * 60 * 60 * 1000));
+
+    const dateList = document.getElementById("class-extend-date-list");
+    dateList.dataset.candidates = JSON.stringify(candidates.map(d => d.toISOString()));
+    dateList.innerHTML = candidates.map((d, i) => `
+      <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+        <input type="checkbox" checked data-date-index="${i}" class="extend-date-checkbox" />
+        ${d.toLocaleDateString(localeForDates(), { dateStyle: "medium" })} (${t("day." + d.getDay())})
+      </label>`).join("");
+    dateList.querySelectorAll(".extend-date-checkbox").forEach(cb => cb.addEventListener("change", updateExtendDateNote));
+    updateExtendDateNote();
+
+    const { data: pkgs } = await supabaseClient
+      .from("packages")
+      .select("id, student_id, students(contacts(name))")
+      .eq("class_id", cls.id).eq("status", "active");
+    const list = document.getElementById("class-extend-student-list");
+    if (!pkgs || !pkgs.length) {
+      list.innerHTML = `<p class="empty" style="margin:0;">${t("packages.empty_students")}</p>`;
+    } else {
+      list.innerHTML = pkgs.map(p => `
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+          <input type="checkbox" checked data-pkg-id="${p.id}" />
+          <span style="flex:1;">${p.students?.contacts?.name ?? ""}</span>
+          <span style="font-size:12px; color:#8a8074;">$</span>
+          <input type="number" data-pkg-price="${p.id}" value="${STANDARD_PRICE_PER_TERM}" min="0" style="width:70px; font-size:13px; padding:3px 5px;" />
+        </label>`).join("");
+    }
+    classExtendDialog.showModal();
+  }
+  document.getElementById("class-extend-cancel-btn").addEventListener("click", () => classExtendDialog.close());
+  document.getElementById("class-extend-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    // Guards against a double-click (or any other double-fire) submitting
+    // this twice — without it, a second submit while the first is still
+    // running duplicates the new lessons and re-renews every student.
+    const saveBtn = document.getElementById("class-extend-save-btn");
+    if (saveBtn.disabled) return;
+    saveBtn.disabled = true;
+    try {
+      const classId = document.getElementById("class-extend-class-id").value;
+      const cls = classes.find(c => c.id === classId);
+      if (!cls) return;
+
+      const dateList = document.getElementById("class-extend-date-list");
+      const candidates = JSON.parse(dateList.dataset.candidates).map(s => new Date(s));
+      const checkedIndexes = [...dateList.querySelectorAll(".extend-date-checkbox:checked")]
+        .map(cb => parseInt(cb.dataset.dateIndex, 10)).sort((a, b) => a - b);
+      if (checkedIndexes.length < STANDARD_LESSONS_PER_TERM) {
+        alert(tf("classes.extend_need_more", { n: STANDARD_LESSONS_PER_TERM - checkedIndexes.length }));
+        return;
+      }
+      const chosenDates = checkedIndexes.slice(0, STANDARD_LESSONS_PER_TERM).map(i => candidates[i]);
+
+      const batch = chosenDates.map(start => {
+        const end = new Date(start.getTime() + cls.duration_minutes * 60 * 1000);
+        return {
+          type: "group_class", lesson_format: "group", class_id: cls.id,
+          scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+          status: "confirmed", created_via: "manual_dashboard", notes: cls.name,
+        };
+      });
+      const { error: apptError } = await supabaseClient.from("appointments").insert(batch);
+      if (apptError) { alert("Extend failed: " + apptError.message); return; }
+
+      // Unticked = not continuing, withdraw them. Ticked = continuing — renew
+      // them straight into the new term (new package + attendance rows for the
+      // lessons just created above), so extending the class and rolling
+      // everyone's enrollment forward happens in one step instead of also
+      // needing a separate manual "續期" click per student.
+      const newTermStartStr = chosenDates[0].toISOString().slice(0, 10);
+      const studentCheckboxes = [...document.querySelectorAll('#class-extend-student-list input[type=checkbox]')];
+      for (const cb of studentCheckboxes) {
+        const pkg = await getPackageById(cb.dataset.pkgId);
+        if (!pkg) continue;
+        if (!cb.checked) {
+          await cancelPackage(pkg);
+          continue;
+        }
+        const priceInput = document.querySelector(`input[data-pkg-price="${cb.dataset.pkgId}"]`);
+        const price = priceInput && priceInput.value !== "" ? parseFloat(priceInput.value) : STANDARD_PRICE_PER_TERM;
+        const newPkg = await createEnrollment({
+          classId: pkg.class_id, studentId: pkg.student_id,
+          startDate: newTermStartStr,
+          totalLessons: chosenDates.length, price,
+        });
+        if (newPkg) await supabaseClient.from("packages").update({ status: "completed" }).eq("id", pkg.id);
+      }
+
+      classExtendDialog.close();
+      await loadClasses();
+      await loadStudents();
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  async function openEditClass(cls) {
+    if (!cls) return;
+    document.getElementById("class-edit-id").value = cls.id;
+    document.getElementById("class-edit-name").value = cls.name;
+    document.getElementById("class-edit-weekday").value = cls.weekly_day_of_week;
+    document.getElementById("class-edit-time").value = cls.weekly_start_time.slice(0, 5);
+    const { data: earliest } = await supabaseClient
+      .from("appointments").select("scheduled_start").eq("class_id", cls.id)
+      .order("scheduled_start", { ascending: true }).limit(1).maybeSingle();
+    document.getElementById("class-edit-first-lesson-date").value = earliest ? dateInputValue(new Date(earliest.scheduled_start)) : "";
+    document.getElementById("class-edit-backfill-note").textContent = "";
+    classEditDialog.showModal();
+  }
+
+  async function cancelClass(cls) {
+    if (!cls) return;
+    if (!confirm(t("class.cancel_confirm"))) return;
+    const { error: classError } = await supabaseClient.from("classes").update({ active: false }).eq("id", cls.id);
+    if (classError) { alert("Cancel failed: " + classError.message); return; }
+    const { error: apptError } = await supabaseClient
+      .from("appointments").update({ status: "cancelled" }).eq("class_id", cls.id).gt("scheduled_start", new Date().toISOString());
+    if (apptError) { alert("Class cancelled, but couldn't cancel upcoming lessons: " + apptError.message); return; }
+    await loadClasses();
+  }
+
+  const classDialog = document.getElementById("class-dialog");
+  function classDialogWeekdayMismatch() {
+    const weekday = parseInt(document.getElementById("class-weekday").value, 10);
+    const dateStr = document.getElementById("class-first-lesson-date").value;
+    if (!dateStr) return false;
+    return new Date(`${dateStr}T00:00:00`).getDay() !== weekday;
+  }
+  function updateClassGenerateNote() {
+    const dateStr = document.getElementById("class-first-lesson-date").value;
+    const dateLabel = dateStr ? new Date(`${dateStr}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "";
+    document.getElementById("class-generate-note").textContent = tf("class.generate_note", { n: STANDARD_LESSONS_PER_TERM, date: dateLabel });
+  }
+  // Defaults the first-lesson date to the nearest upcoming occurrence of the
+  // chosen weekday — she can still freely override it (e.g. to backdate a
+  // class so its schedule lines up with when a student actually started).
+  function updateClassFirstLessonDefault() {
+    const weekday = parseInt(document.getElementById("class-weekday").value, 10);
+    const time = document.getElementById("class-time").value || "00:00";
+    const next = nextOccurrence(weekday, time);
+    document.getElementById("class-first-lesson-date").value = dateInputValue(next);
+    updateClassGenerateNote();
+  }
+  document.getElementById("new-class-btn").addEventListener("click", () => {
+    document.getElementById("class-form").reset();
+    updateClassFirstLessonDefault();
+    classDialog.showModal();
+  });
+  document.getElementById("class-cancel-btn").addEventListener("click", () => classDialog.close());
+  document.getElementById("class-weekday").addEventListener("change", updateClassFirstLessonDefault);
+  document.getElementById("class-first-lesson-date").addEventListener("change", () => {
+    if (classDialogWeekdayMismatch()) {
+      const weekday = parseInt(document.getElementById("class-weekday").value, 10);
+      alert(tf("class.weekday_mismatch", { day: t("weekday_full." + weekday) }));
+    }
+    updateClassGenerateNote();
+  });
+
+  document.getElementById("class-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("class-name").value;
+    const weekday = parseInt(document.getElementById("class-weekday").value, 10);
+    const time = document.getElementById("class-time").value;
+    const firstLessonDate = document.getElementById("class-first-lesson-date").value;
+    const initialLessons = STANDARD_LESSONS_PER_TERM;
+    if (!name || !time || !firstLessonDate) return;
+    if (classDialogWeekdayMismatch()) {
+      alert(tf("class.weekday_mismatch", { day: t("weekday_full." + weekday) }));
+      return;
+    }
+
+    const { data: cls, error } = await supabaseClient
+      .from("classes")
+      .insert({ name, weekly_day_of_week: weekday, weekly_start_time: time, duration_minutes: 60, active: true })
+      .select().single();
+    if (error) { alert("Save failed: " + error.message); return; }
+
+    const [h, m] = time.split(":").map(Number);
+    const firstStart = new Date(`${firstLessonDate}T00:00:00`);
+    firstStart.setHours(h, m, 0, 0);
+    const batch = weeklyAppointmentBatch(cls, firstStart, initialLessons);
+    const { error: apptError } = await supabaseClient.from("appointments").insert(batch);
+    if (apptError) { alert("Class saved, but generating lessons failed: " + apptError.message); return; }
+
+    classDialog.close();
+    await loadClasses();
+  });
+
+  const classEditDialog = document.getElementById("class-edit-dialog");
+  document.getElementById("class-edit-cancel-btn").addEventListener("click", () => classEditDialog.close());
+  document.getElementById("class-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("class-edit-id").value;
+    const name = document.getElementById("class-edit-name").value;
+    const newWeekday = parseInt(document.getElementById("class-edit-weekday").value, 10);
+    const newTime = document.getElementById("class-edit-time").value;
+    const newFirstDateStr = document.getElementById("class-edit-first-lesson-date").value;
+
+    const cls = classes.find(c => c.id === id);
+    const scheduleChanged = cls && (newWeekday !== cls.weekly_day_of_week || newTime !== cls.weekly_start_time.slice(0, 5));
+
+    const updatePayload = { name };
+    if (scheduleChanged) { updatePayload.weekly_day_of_week = newWeekday; updatePayload.weekly_start_time = newTime; }
+    const { error } = await supabaseClient.from("classes").update(updatePayload).eq("id", id);
+    if (error) { alert("Save failed: " + error.message); return; }
+
+    // Fixing a typo'd day/time corrects the schedule label, but the lessons
+    // already generated at the wrong day/time need shifting too — otherwise
+    // the class row says one thing and the actual appointments (and anyone
+    // already enrolled) still show the old, wrong slot.
+    if (scheduleChanged) {
+      const { data: appts } = await supabaseClient
+        .from("appointments").select("id, scheduled_start").eq("class_id", id);
+      if (appts?.length && confirm(tf("class.time_shift_confirm", { n: appts.length }))) {
+        const dayDelta = newWeekday - cls.weekly_day_of_week;
+        const [newH, newM] = newTime.split(":").map(Number);
+        for (const a of appts) {
+          const start = new Date(a.scheduled_start);
+          start.setDate(start.getDate() + dayDelta);
+          start.setHours(newH, newM, 0, 0);
+          const end = new Date(start.getTime() + cls.duration_minutes * 60 * 1000);
+          await supabaseClient.from("appointments").update({
+            scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+          }).eq("id", a.id);
+        }
+      }
+    }
+
+    // If the picked date is earlier than the class's current earliest
+    // appointment, backfill the missing weekly lessons in between — then
+    // reconcile any existing enrollment whose date window now overlaps
+    // those newly-created appointments (e.g. a student who joined back
+    // when the class *actually* started, but got 0 attendance rows because
+    // the class's appointments hadn't been backfilled that far yet).
+    const { data: earliest } = await supabaseClient
+      .from("appointments").select("scheduled_start").eq("class_id", id)
+      .order("scheduled_start", { ascending: true }).limit(1).maybeSingle();
+
+    if (cls && earliest && newFirstDateStr) {
+      const newFirst = new Date(`${newFirstDateStr}T00:00:00`);
+      const toCreate = [];
+      let cursor = new Date(earliest.scheduled_start);
+      cursor.setDate(cursor.getDate() - 7);
+      while (cursor >= newFirst) {
+        const end = new Date(cursor.getTime() + cls.duration_minutes * 60 * 1000);
+        toCreate.push({
+          type: "group_class", lesson_format: "group", class_id: id,
+          scheduled_start: cursor.toISOString(), scheduled_end: end.toISOString(),
+          status: "confirmed", created_via: "manual_dashboard", notes: cls.name,
+        });
+        cursor = new Date(cursor.getTime() - 7 * 24 * 60 * 60 * 1000);
+      }
+
+      if (toCreate.length && confirm(tf("class.backfill_confirm", { n: toCreate.length }))) {
+        const { data: inserted, error: insertError } = await supabaseClient.from("appointments").insert(toCreate).select();
+        if (insertError) { alert("Backfill failed: " + insertError.message); return; }
+
+        const { data: pkgsForClass } = await supabaseClient
+          .from("packages").select("student_id, start_date, total_lessons").eq("class_id", id);
+        for (const p of (pkgsForClass ?? [])) {
+          const lessonAppts = await getPackageLessonAppointments(id, p.start_date, p.total_lessons);
+          if (!lessonAppts.length) continue;
+          const apptIds = lessonAppts.map(a => a.id);
+          const { data: existingAtt } = await supabaseClient
+            .from("attendance").select("appointment_id").eq("student_id", p.student_id).in("appointment_id", apptIds);
+          const already = new Set((existingAtt ?? []).map(a => a.appointment_id));
+          const rows = apptIds.filter(aid => !already.has(aid)).map(aid => ({ appointment_id: aid, student_id: p.student_id }));
+          if (rows.length) await supabaseClient.from("attendance").insert(rows);
+        }
+      }
+    }
+
+    classEditDialog.close();
+    await loadClasses();
+    await loadStudents();
+  });
+
+  // ---------- Students (merged with their current enrollment) ----------
+  async function loadStudents() {
+    const tbody = document.getElementById("student-rows");
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("id, contact_id, contacts(name, whatsapp_number, gender, social_media_name, level, age)")
+      .eq("active", true)
+      .eq("is_group", true)
+      .order("created_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="10" class="empty">Error: ${error.message}</td></tr>`; return; }
+    students = data;
+
+    const rowsHtml = await Promise.all(data.map(async (s) => {
+      // "Current" enrollment = this student's most recently created package, if any.
+      const { data: pkgs } = await supabaseClient
+        .from("packages")
+        .select("id, class_id, start_date, total_lessons, price, status, cancelled_at, classes(name, weekly_day_of_week, weekly_start_time)")
+        .eq("student_id", s.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const pkg = pkgs?.[0];
+      s.currentPkg = pkg ?? null;
+      const isWithdrawn = pkg?.status === "cancelled";
+      const withdrawnDateCell = pkg?.cancelled_at
+        ? new Date(pkg.cancelled_at).toLocaleDateString(localeForDates(), { dateStyle: "medium" })
+        : "";
+      const withdrawnDateRaw = pkg?.cancelled_at ? dateInputValue(new Date(pkg.cancelled_at)) : "";
+      const latestPkgId = pkg?.id ?? "";
+
+      // "Joined" = their very first lesson date ever, i.e. the earliest
+      // start_date across ALL their packages (not just the current one) —
+      // renewals don't count as re-joining. Also used to compute lifetime
+      // totals — every package ever (including cancelled ones, since the
+      // fee was already collected up front before a mid-term cancel).
+      const { data: allOwnPkgs } = await supabaseClient
+        .from("packages").select("id, class_id, start_date, total_lessons, price").eq("student_id", s.id).order("start_date", { ascending: true });
+      const joinDateCell = allOwnPkgs?.[0]
+        ? new Date(`${allOwnPkgs[0].start_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" })
+        : "—";
+      const joinDateRaw = allOwnPkgs?.[0]?.start_date ?? "";
+      const earliestPkgId = allOwnPkgs?.[0]?.id ?? "";
+      const totalLessonsSum = (allOwnPkgs ?? []).reduce((sum, p) => sum + (p.total_lessons ?? 0), 0);
+      const renewalCount = totalLessonsSum / STANDARD_LESSONS_PER_TERM;
+      const renewalCountCell = renewalCount % 1 === 0 ? String(renewalCount) : renewalCount.toFixed(2).replace(/0$/, "");
+
+      // "已請假" and "累計已付" are both cumulative across every package this
+      // student has ever had — not just the current one — and share the same
+      // per-package attendance query, so they're computed together in one pass.
+      const ownIncomingCreditCounts = await getIncomingCreditCounts((allOwnPkgs ?? []).map(p => p.id));
+      let totalLeavesUsed = 0, totalDeduction = 0;
+      for (const p of (allOwnPkgs ?? [])) {
+        const pAppts = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
+        const pApptIds = pAppts.map(a => a.id);
+        if (pApptIds.length) {
+          const { data: pAtt } = await supabaseClient.from("attendance")
+            .select("status, make_up_status")
+            .eq("student_id", s.id).in("appointment_id", pApptIds);
+          const rows = pAtt ?? [];
+          totalLeavesUsed += rows.filter(r => r.status === "leave").length;
+          const creditCount = ownIncomingCreditCounts.get(p.id) ?? 0;
+          totalDeduction += (rows.filter(isDeductible).length + creditCount) * (p.price / p.total_lessons);
+        }
+      }
+      const leavesCell = `${totalLeavesUsed}`;
+      const totalPaid = Math.round(Math.max(0, (allOwnPkgs ?? []).reduce((sum, p) => sum + (p.price ?? 0), 0) - totalDeduction));
+
+      let classCell = "—", statusCell = "—", enrollActionBtn;
+      if (pkg) {
+        classCell = pkg.classes ? `${pkg.classes.name} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})` : "";
+        statusCell = `<span class="status-pill status-${pkg.status === "active" ? "confirmed" : pkg.status}">${t("pkgstatus." + pkg.status)}</span>`;
+        enrollActionBtn = pkg.status === "active"
+          ? ""
+          : `<button class="link" data-enroll-student="${s.id}">${t("enroll.new")}</button>`;
+      } else {
+        enrollActionBtn = `<button class="link" data-enroll-student="${s.id}">${t("enroll.new")}</button>`;
+      }
+
+      const rawPhone = s.contacts?.whatsapp_number ?? "";
+      const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
+      const whatsappCell = rawPhone && digitsOnly
+        ? `<a href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">${rawPhone}</a>`
+        : "—";
+
+      const html = `
+        <tr${isWithdrawn ? ' class="row-withdrawn"' : ""}>
+          <td>${s.contacts?.name ?? ""}</td>
+          <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
+          <td>${s.contacts?.age ?? "—"}</td>
+          <td>${classCell}</td>
+          <td>${whatsappCell}</td>
+          <td>$${totalPaid}</td>
+          <td>${renewalCountCell}</td>
+          <td>${statusCell}</td>
+          <td><button class="link" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">${t("packages.col_detail")}</button></td>
+          <td style="white-space:nowrap;">
+            <button class="link" data-edit-student="${s.id}">${t("student.edit")}</button>
+            ${enrollActionBtn}
+            <button class="link" data-delete-student="${s.id}" style="color:#8a2e2e;">${t("student.delete")}</button>
+          </td>
+        </tr>`;
+      return { isWithdrawn, html };
+    }));
+
+    // Withdrawn students (latest package cancelled) sink to the bottom,
+    // greyed out — everyone else keeps the normal newest-first order.
+    rowsHtml.sort((a, b) => (a.isWithdrawn === b.isWithdrawn) ? 0 : a.isWithdrawn ? 1 : -1);
+    const rowsHtmlList = rowsHtml.map(r => r.html);
+
+    renderCollapsible(tbody, "student-toggle-btn", rowsHtmlList, 10, t("packages.empty_students"), () => {
+      tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
+        btn.addEventListener("click", () => openEditStudent(students.find(s => s.id === btn.dataset.editStudent)));
+      });
+      tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
+        btn.addEventListener("click", () => deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)));
+      });
+      tbody.querySelectorAll("button[data-enroll-student]").forEach(btn => {
+        btn.addEventListener("click", () => openEnrollDialog(students.find(s => s.id === btn.dataset.enrollStudent)));
+      });
+      tbody.querySelectorAll("button[data-view-detail]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const student = students.find(s => s.id === btn.dataset.viewDetail);
+          document.getElementById("student-detail-name").textContent = student?.contacts?.name ?? "";
+          document.getElementById("student-detail-join-date-input").value = btn.dataset.joinDateRaw;
+          document.getElementById("student-detail-join-date-save").dataset.earliestPkgId = btn.dataset.earliestPkgId;
+          document.getElementById("student-detail-total-lessons").textContent = btn.dataset.totalLessons;
+          document.getElementById("student-detail-price").textContent = btn.dataset.price;
+          document.getElementById("student-detail-leaves").textContent = btn.dataset.leaves;
+          const withdrawnRow = document.getElementById("student-detail-withdrawn-row");
+          if (btn.dataset.withdrawnDateRaw) {
+            document.getElementById("student-detail-withdrawn-date-input").value = btn.dataset.withdrawnDateRaw;
+            document.getElementById("student-detail-withdrawn-date-save").dataset.latestPkgId = btn.dataset.latestPkgId;
+            withdrawnRow.style.display = "";
+          } else {
+            withdrawnRow.style.display = "none";
+          }
+          studentDetailDialog.showModal();
+        });
+      });
+    });
+    await refreshAttendanceSection();
+    await loadPayments();
+  }
+
+  async function deleteStudent(student) {
+    if (!student) return;
+    if (!confirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" }))) return;
+
+    const { data: pkgs } = await supabaseClient.from("packages").select("id").eq("student_id", student.id);
+    const pkgIds = (pkgs ?? []).map(p => p.id);
+    const { data: attRows } = await supabaseClient.from("attendance").select("id").eq("student_id", student.id);
+    const attIds = (attRows ?? []).map(a => a.id);
+
+    if (attIds.length) {
+      const { error } = await supabaseClient.from("attendance").delete().in("id", attIds);
+      if (error) { alert("Delete failed: " + error.message); return; }
+    }
+    if (pkgIds.length) {
+      const { error } = await supabaseClient.from("packages").delete().in("id", pkgIds);
+      if (error) { alert("Delete failed: " + error.message); return; }
+    }
+    // Any 1-on-1 appointments directly owned by this student (not shared class appointments).
+    const { error: apptError } = await supabaseClient.from("appointments").delete().eq("student_id", student.id).is("class_id", null);
+    if (apptError) { alert("Delete failed: " + apptError.message); return; }
+
+    const { error: studentError } = await supabaseClient.from("students").delete().eq("id", student.id);
+    if (studentError) { alert("Delete failed: " + studentError.message); return; }
+    const { error: contactError } = await supabaseClient.from("contacts").delete().eq("id", student.contact_id);
+    if (contactError) { alert("Student deleted, but couldn't remove their contact record: " + contactError.message); }
+
+    await loadStudents();
+    await loadClasses();
+  }
+
+  function openEditStudent(student) {
+    if (!student) return;
+    const c = student.contacts ?? {};
+    document.getElementById("student-dialog-title").textContent = t("dialog.edit_student");
+    document.getElementById("student-id").value = student.id;
+    document.getElementById("student-contact-id").value = student.contact_id;
+    document.getElementById("student-name").value = c.name ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number ?? "";
+    document.getElementById("student-gender").value = c.gender ?? "male";
+    document.getElementById("student-social").value = c.social_media_name ?? "";
+    document.getElementById("student-level").value = c.level ?? "";
+    document.getElementById("student-age").value = c.age ?? "";
+
+    const pkg = student.currentPkg;
+    const classField = document.getElementById("student-edit-class-field");
+    if (pkg && pkg.status === "active") {
+      const classSelectEl = document.getElementById("student-edit-class");
+      classSelectEl.innerHTML = classes.map(c => `<option value="${c.id}">${c.name} (${t("day." + c.weekly_day_of_week)} ${c.weekly_start_time.slice(0, 5)})</option>`).join("");
+      classSelectEl.value = pkg.class_id;
+      classField.style.display = "flex";
+    } else {
+      classField.style.display = "none";
+    }
+    studentDialog.showModal();
+  }
+
   const studentDialog = document.getElementById("student-dialog");
   document.getElementById("new-student-btn").addEventListener("click", () => {
     document.getElementById("student-form").reset();
+    document.getElementById("student-id").value = "";
+    document.getElementById("student-contact-id").value = "";
+    document.getElementById("student-edit-class-field").style.display = "none";
+    document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
     studentDialog.showModal();
   });
   document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());
 
+  const studentDetailDialog = document.getElementById("student-detail-dialog");
+  document.getElementById("student-detail-close-btn").addEventListener("click", () => studentDetailDialog.close());
+  document.getElementById("student-detail-join-date-save").addEventListener("click", async (e) => {
+    const pkgId = e.target.dataset.earliestPkgId;
+    const newDate = document.getElementById("student-detail-join-date-input").value;
+    if (!pkgId || !newDate) return;
+    const { error } = await supabaseClient.from("packages").update({ start_date: newDate }).eq("id", pkgId);
+    if (error) { alert("Save failed: " + error.message); return; }
+    studentDetailDialog.close();
+    await loadStudents();
+  });
+  document.getElementById("student-detail-withdrawn-date-save").addEventListener("click", async (e) => {
+    const pkgId = e.target.dataset.latestPkgId;
+    const newDate = document.getElementById("student-detail-withdrawn-date-input").value;
+    if (!pkgId || !newDate) return;
+    const { error } = await supabaseClient.from("packages").update({ cancelled_at: new Date(`${newDate}T00:00:00`).toISOString() }).eq("id", pkgId);
+    if (error) { alert("Save failed: " + error.message); return; }
+    studentDetailDialog.close();
+    await loadStudents();
+  });
+
   document.getElementById("student-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const name = document.getElementById("student-name").value;
-    const whatsapp_number = document.getElementById("student-phone").value || null;
-    const age_group = document.getElementById("student-age-group").value;
-    const social_media_name = document.getElementById("student-social").value || null;
-    const level = document.getElementById("student-level").value || null;
-    const age = document.getElementById("student-age").value || null;
+    const studentId = document.getElementById("student-id").value;
+    const contactId = document.getElementById("student-contact-id").value;
+    const contactFields = {
+      name: document.getElementById("student-name").value,
+      whatsapp_number: document.getElementById("student-phone").value || null,
+      gender: document.getElementById("student-gender").value,
+      social_media_name: document.getElementById("student-social").value || null,
+      level: document.getElementById("student-level").value || null,
+      age: document.getElementById("student-age").value || null,
+    };
+
+    if (studentId && contactId) {
+      const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contactId);
+      if (error) { alert("Save failed: " + error.message); return; }
+
+      const classField = document.getElementById("student-edit-class-field");
+      if (classField.style.display !== "none") {
+        const student = students.find(s => s.id === studentId);
+        const pkg = student?.currentPkg;
+        const newClassId = document.getElementById("student-edit-class").value;
+        if (pkg && newClassId && newClassId !== pkg.class_id) {
+          if (!confirm(t("package.change_class_confirm"))) { studentDialog.close(); await loadStudents(); return; }
+
+          const available = await getAvailableLessonCount(newClassId, pkg.start_date);
+          if (available === 0) { alert(t("package.change_class_needs_lessons")); return; }
+          const price = Math.round(available * (STANDARD_PRICE_PER_TERM / STANDARD_LESSONS_PER_TERM));
+
+          // This is a correction (wrong class picked at signup), not a real
+          // withdrawal — erase the mistaken enrollment's attendance/package
+          // entirely rather than leaving a "withdrawn" record behind.
+          const oldAppts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
+          const oldApptIds = oldAppts.map(a => a.id);
+          if (oldApptIds.length) {
+            await supabaseClient.from("attendance").delete().eq("student_id", studentId).in("appointment_id", oldApptIds);
+          }
+
+          const newPkg = await createEnrollment({
+            classId: newClassId, studentId, startDate: pkg.start_date, totalLessons: available, price,
+          });
+          if (newPkg) await supabaseClient.from("packages").delete().eq("id", pkg.id);
+        }
+      }
+
+      studentDialog.close();
+      await loadStudents();
+      return;
+    }
 
     const { data: contact, error: contactError } = await supabaseClient
       .from("contacts")
-      .insert({ name, whatsapp_number, age_group, social_media_name, level, age, source: "existing_student" })
+      .insert({ ...contactFields, source: "existing_student" })
       .select()
       .single();
     if (contactError) { alert("Save failed: " + contactError.message); return; }
 
-    const { error: studentError } = await supabaseClient
-      .from("students")
-      .insert({ contact_id: contact.id, active: true });
+    const { data: newStudent, error: studentError } = await supabaseClient
+      .from("students").insert({ contact_id: contact.id, active: true, is_group: true }).select().single();
     if (studentError) { alert("Save failed: " + studentError.message); return; }
 
     studentDialog.close();
     await loadStudents();
+    // Since every student added here is going to join a class, go straight
+    // into enrolling them rather than making Angela come back for a second step.
+    openEnrollDialog({ id: newStudent.id, contacts: { name: contactFields.name } });
   });
 
-  // Package dialog
-  const packageDialog = document.getElementById("package-dialog");
-  function updateGenerateNote() {
-    const n = document.getElementById("package-total-lessons").value || 8;
-    document.getElementById("package-generate-note").textContent = tf("package.generate_note", { n });
+  // ---------- Enrollment (always for one specific student) ----------
+  async function warnIfEnrolledElsewhere(studentId, classId) {
+    const { data: others } = await supabaseClient
+      .from("packages")
+      .select("classes(name)")
+      .eq("student_id", studentId)
+      .eq("status", "active")
+      .neq("class_id", classId);
+    if (!others || !others.length) return true;
+    const studentName = students.find(s => s.id === studentId)?.contacts?.name ?? "";
+    const classNames = others.map(o => o.classes?.name).filter(Boolean).join(", ");
+    return confirm(tf("enroll.other_class_warning", { name: studentName, classes: classNames }));
   }
-  document.getElementById("new-package-btn").addEventListener("click", () => {
-    document.getElementById("package-form").reset();
-    document.getElementById("package-total-lessons").value = 8;
-    document.getElementById("package-price").value = 2000;
-    document.getElementById("package-leave-limit").value = 3;
-    updateGenerateNote();
-    packageDialog.showModal();
-  });
-  document.getElementById("package-cancel-btn").addEventListener("click", () => packageDialog.close());
-  document.getElementById("package-total-lessons").addEventListener("input", updateGenerateNote);
 
-  document.getElementById("package-form").addEventListener("submit", async (e) => {
+  async function createEnrollment({ classId, studentId, startDate, totalLessons, price }) {
+    const cls = classes.find(c => c.id === classId);
+    if (!cls) { alert("Class not found."); return null; }
+    if (!(await warnIfEnrolledElsewhere(studentId, classId))) return null;
+
+    // Deliberately does NOT extend the class's own schedule to cover this
+    // student's full term — the class runs on its own shared term (opened
+    // via "New class" / "+8 more weeks"), and a student joining mid-term
+    // simply gets fewer lessons this round (whatever's left of the class's
+    // current term), not a personally-extended tail past everyone else's term.
+
+    // A leave marked "deferred to next package" (in this same class) didn't
+    // deduct anything from the term it happened in — link any still-unused
+    // ones to this new package so effectivePrice() subtracts for them live
+    // (packages.price itself is never touched — see getIncomingCreditCounts).
+    const { data: unusedCredits } = await supabaseClient
+      .from("attendance")
+      .select("id, appointments!inner(class_id)")
+      .eq("student_id", studentId).eq("status", "leave").eq("make_up_status", "deferred_to_next_package")
+      .is("deferred_credit_used_in_package_id", null).eq("appointments.class_id", classId);
+
+    const { data: pkg, error: pkgError } = await supabaseClient
+      .from("packages")
+      .insert({ student_id: studentId, class_id: classId, start_date: startDate, total_lessons: totalLessons, price, status: "active" })
+      .select().single();
+    if (pkgError) { alert("Save failed: " + pkgError.message); return null; }
+
+    if (unusedCredits?.length) {
+      await supabaseClient.from("attendance")
+        .update({ deferred_credit_used_in_package_id: pkg.id }).in("id", unusedCredits.map(c => c.id));
+    }
+
+    const appts = await getPackageLessonAppointments(classId, startDate, totalLessons);
+
+    const { data: existingAttendance } = await supabaseClient
+      .from("attendance").select("appointment_id").eq("student_id", studentId).in("appointment_id", appts.map(a => a.id));
+    const alreadyOn = new Set((existingAttendance ?? []).map(a => a.appointment_id));
+
+    const rows = appts.filter(a => !alreadyOn.has(a.id)).map(a => ({ appointment_id: a.id, student_id: studentId }));
+    if (rows.length) {
+      const { error: attError } = await supabaseClient.from("attendance").insert(rows);
+      if (attError) { alert("Enrolled, but couldn't add them to all lessons: " + attError.message); return null; }
+    }
+    return pkg;
+  }
+
+  async function getPackageById(id) {
+    const { data } = await supabaseClient
+      .from("packages")
+      .select("id, student_id, class_id, start_date, total_lessons, price, status")
+      .eq("id", id).single();
+    return data;
+  }
+
+  // Marks a package cancelled and drops this student's *not-yet-marked,
+  // still-upcoming* attendance — never touches history, and never touches
+  // the class's other students. Used when a student doesn't continue into a
+  // class's next term (via "+延長8星期") and when a student is deactivated
+  // entirely (deactivating implies they're not continuing this class either).
+  async function cancelPackage(pkg) {
+    const { error: pkgError } = await supabaseClient.from("packages").update({ status: "cancelled", cancelled_at: new Date().toISOString() }).eq("id", pkg.id);
+    if (pkgError) { alert("Cancel failed: " + pkgError.message); return false; }
+
+    const { data: futureAppts } = await supabaseClient
+      .from("appointments").select("id").eq("class_id", pkg.class_id).gt("scheduled_start", new Date().toISOString());
+    const apptIds = (futureAppts ?? []).map(a => a.id);
+    if (apptIds.length) {
+      await supabaseClient.from("attendance").delete()
+        .eq("student_id", pkg.student_id).in("appointment_id", apptIds).is("status", null);
+    }
+    return true;
+  }
+
+  // A start date that doesn't fall on the class's own weekly day is almost
+  // always a typo (e.g. picking a Saturday for a Friday class) — it would
+  // silently throw off the available-lesson count, so catch it immediately
+  // instead of letting a mismatched enrollment get created.
+  function classWeekdayMismatch(classId, startDate) {
+    const cls = classes.find(c => c.id === classId);
+    if (!cls || !startDate) return false;
+    return new Date(`${startDate}T00:00:00`).getDay() !== cls.weekly_day_of_week;
+  }
+
+  async function updateEnrollLessonsAndPrice() {
+    const classId = document.getElementById("enroll-class").value;
+    const startDate = document.getElementById("enroll-start-date").value;
+    const note = document.getElementById("enroll-lessons-note");
+    if (!classId || !startDate) { note.textContent = ""; return; }
+
+    if (classWeekdayMismatch(classId, startDate)) {
+      const cls = classes.find(c => c.id === classId);
+      alert(tf("enroll.weekday_mismatch", { day: t("weekday_full." + cls.weekly_day_of_week) }));
+      document.getElementById("enroll-total-lessons").value = 0;
+      document.getElementById("enroll-price").value = 0;
+      note.textContent = "";
+      return;
+    }
+
+    const remaining = await getAvailableLessonCount(classId, startDate);
+    document.getElementById("enroll-total-lessons").value = remaining;
+    const pricePerLesson = STANDARD_PRICE_PER_TERM / STANDARD_LESSONS_PER_TERM;
+    document.getElementById("enroll-price").value = Math.round(remaining * pricePerLesson);
+    note.textContent = remaining < STANDARD_LESSONS_PER_TERM
+      ? tf("enroll.mid_term_note", { n: remaining })
+      : "";
+  }
+
+  const enrollDialog = document.getElementById("enroll-dialog");
+  async function openEnrollDialog(student) {
+    if (!classes.length) { alert(t("classes.empty")); return; }
+    document.getElementById("enroll-form").reset();
+    document.getElementById("enroll-student-id").value = student.id;
+    document.getElementById("enroll-student-name").textContent = student.contacts?.name ?? "";
+    document.getElementById("enroll-start-date").value = new Date().toISOString().slice(0, 10);
+    await updateEnrollLessonsAndPrice();
+    enrollDialog.showModal();
+  }
+  document.getElementById("enroll-cancel-btn").addEventListener("click", () => enrollDialog.close());
+  document.getElementById("enroll-class").addEventListener("change", updateEnrollLessonsAndPrice);
+  document.getElementById("enroll-start-date").addEventListener("change", updateEnrollLessonsAndPrice);
+
+  document.getElementById("enroll-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const studentId = document.getElementById("package-student").value;
-    const startDate = document.getElementById("package-start-date").value;
-    const time = document.getElementById("package-time").value;
-    const totalLessons = parseInt(document.getElementById("package-total-lessons").value, 10);
-    const price = parseFloat(document.getElementById("package-price").value);
-    const leaveLimit = parseInt(document.getElementById("package-leave-limit").value, 10);
-    if (!studentId || !startDate || !time) return;
+    const studentId = document.getElementById("enroll-student-id").value;
+    const classId = document.getElementById("enroll-class").value;
+    const startDate = document.getElementById("enroll-start-date").value;
+    const totalLessons = parseInt(document.getElementById("enroll-total-lessons").value, 10);
+    const price = parseFloat(document.getElementById("enroll-price").value);
+    if (!classId || !studentId || !startDate) return;
+    if (classWeekdayMismatch(classId, startDate)) {
+      const cls = classes.find(c => c.id === classId);
+      alert(tf("enroll.weekday_mismatch", { day: t("weekday_full." + cls.weekly_day_of_week) }));
+      return;
+    }
 
-    const firstStart = new Date(`${startDate}T${time}:00`);
-    const pkg = await createPackageAndLessons({ studentId, firstStart, totalLessons, price, leaveLimit });
+    const pkg = await createEnrollment({ classId, studentId, startDate, totalLessons, price });
     if (!pkg) return;
-
-    packageDialog.close();
-    await loadPackages();
+    enrollDialog.close();
+    await loadStudents();
+    await loadClasses();
   });
 
+  await loadClasses();
   await loadStudents();
-  await loadPackages();
 })();
 </script>
 </body>

@@ -9,30 +9,24 @@
 </head>
 <body>
 <header class="topnav">
-  <span class="brand">🎻 Violin Studio</span>
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
   <a href="index.html" class="active" data-i18n="nav.schedule">Schedule</a>
   <a href="availability.html" data-i18n="nav.availability">Availability</a>
   <a href="leads.html" data-i18n="nav.leads">Leads</a>
-  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
-  <a href="payments.html" data-i18n="nav.payments">Payments</a>
   <a href="packages.html" data-i18n="nav.packages">Packages</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
   <span class="spacer"></span>
-  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
-  <div class="card">
-    <h1 style="margin:0 0 10px;" data-i18n="schedule.followup_title">Needs Follow-up</h1>
-    <table>
-      <thead><tr>
-        <th data-i18n="lead.name">Name</th>
-        <th data-i18n="lead.phone">WhatsApp number</th>
-        <th data-i18n="schedule.followup_col_status">Status</th>
-      </tr></thead>
-      <tbody id="followup-rows"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
-    </table>
-  </div>
-
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
       <h1 style="margin:0;" data-i18n="schedule.title">This Week</h1>
@@ -118,13 +112,15 @@
 <script src="supabase-config.js"></script>
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
+<script src="settings.js"></script>
 <script>
 (async () => {
   const session = await requireSession();
   if (!session) return;
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
-  window.onLangChange = () => { loadFollowUps(); loadAppointments(); };
+  initSettingsMenu();
+  window.onLangChange = () => { loadAppointments(); };
 
   // Google Calendar embed — replace GOOGLE_CALENDAR_EMBED_ID in supabase-config.js
   document.getElementById("calendar-embed").innerHTML =
@@ -203,24 +199,6 @@
     await loadAppointments();
   });
 
-  async function loadFollowUps() {
-    const tbody = document.getElementById("followup-rows");
-    const { data, error } = await supabaseClient
-      .from("leads")
-      .select("id, status, contacts(name, whatsapp_number)")
-      .in("status", ["inquired", "consultation_booked", "attended"])
-      .order("updated_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="3" class="empty">Error: ${error.message}</td></tr>`; return; }
-    if (!data.length) { tbody.innerHTML = `<tr><td colspan="3" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
-    tbody.innerHTML = data.map(l => `
-      <tr>
-        <td>${l.contacts?.name ?? ""}</td>
-        <td>${l.contacts?.whatsapp_number ?? ""}</td>
-        <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span></td>
-      </tr>
-    `).join("");
-  }
-
   function apptRowHtml(a) {
     // Show the lesson format alongside the type for consultations/lessons
     // (e.g. "諮詢 (小組班)") so Angela can tell at a glance whether a
@@ -243,7 +221,13 @@
   async function loadAppointments() {
     const tbody = document.getElementById("appt-rows");
     const filter = document.getElementById("type-filter").value;
-    let query = supabaseClient.from("appointments").select("*").order("scheduled_start", { ascending: true });
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    let query = supabaseClient.from("appointments").select("*")
+      .gte("scheduled_start", startOfDay.toISOString())
+      .lte("scheduled_start", endOfDay.toISOString())
+      .order("scheduled_start", { ascending: true });
     if (filter !== "all") query = query.eq("type", filter);
     const { data, error } = await query;
 
@@ -329,7 +313,6 @@
     return d.toISOString().slice(0, 16);
   }
 
-  await loadFollowUps();
   await loadAppointments();
 })();
 </script>

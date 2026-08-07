@@ -18,18 +18,36 @@
 </head>
 <body>
 <header class="topnav">
-  <span class="brand">🎻 Violin Studio</span>
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
   <a href="index.html" data-i18n="nav.schedule">Schedule</a>
   <a href="availability.html" data-i18n="nav.availability">Availability</a>
   <a href="leads.html" class="active" data-i18n="nav.leads">Leads</a>
-  <a href="attendance.html" data-i18n="nav.attendance">Attendance</a>
-  <a href="payments.html" data-i18n="nav.payments">Payments</a>
   <a href="packages.html" data-i18n="nav.packages">Packages</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
   <span class="spacer"></span>
-  <button data-lang-toggle onclick="toggleLang()">中文</button>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main style="max-width:1200px;">
+  <div class="card">
+    <h1 style="margin:0 0 10px;" data-i18n="schedule.followup_title">Needs Follow-up</h1>
+    <table>
+      <thead><tr>
+        <th data-i18n="lead.name">Name</th>
+        <th data-i18n="lead.phone">WhatsApp number</th>
+        <th data-i18n="schedule.followup_col_status">Status</th>
+      </tr></thead>
+      <tbody id="followup-rows"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="leads.title">Leads pipeline</h1>
@@ -70,15 +88,35 @@
 <script src="supabase-config.js"></script>
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
+<script src="settings.js"></script>
 <script>
 (async () => {
   const session = await requireSession();
   if (!session) return;
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
-  window.onLangChange = loadBoard;
+  initSettingsMenu();
+  window.onLangChange = () => { loadFollowUps(); loadBoard(); };
 
   const STATUSES = ["inquired", "consultation_booked", "attended", "converted", "lost"];
+
+  async function loadFollowUps() {
+    const tbody = document.getElementById("followup-rows");
+    const { data, error } = await supabaseClient
+      .from("leads")
+      .select("id, status, contacts(name, whatsapp_number)")
+      .in("status", ["inquired", "consultation_booked", "attended"])
+      .order("updated_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="3" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (!data.length) { tbody.innerHTML = `<tr><td colspan="3" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
+    tbody.innerHTML = data.map(l => `
+      <tr>
+        <td>${l.contacts?.name ?? ""}</td>
+        <td>${l.contacts?.whatsapp_number ?? ""}</td>
+        <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span></td>
+      </tr>
+    `).join("");
+  }
 
   async function loadBoard() {
     const { data, error } = await supabaseClient
@@ -139,6 +177,7 @@
             .update({ status: select.value, updated_at: new Date().toISOString() })
             .eq("id", lead.id);
           if (error) { alert("Update failed: " + error.message); return; }
+          await loadFollowUps();
           await loadBoard();
         });
         card.appendChild(select);
@@ -208,9 +247,11 @@
     if (leadError) { alert("Save failed: " + leadError.message); return; }
 
     dialog.close();
+    await loadFollowUps();
     await loadBoard();
   });
 
+  await loadFollowUps();
   await loadBoard();
 })();
 </script>
