@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Receipt</title>
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  #receipt-sheet {
+    background: #fff;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 40px 48px;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #2a2420;
+  }
+  #receipt-sheet .logo-row { text-align: center; margin-bottom: 4px; }
+  #receipt-sheet .logo-row img { height: 90px; }
+  #receipt-sheet .studio-title { text-align: center; letter-spacing: 6px; font-size: 18px; margin: 4px 0 36px; }
+  .receipt-meta { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; gap: 16px; }
+  .receipt-meta label { font-size: 11px; letter-spacing: 1px; color: #6b5c4f; display: block; margin-bottom: 4px; }
+  .receipt-meta input { border: none; border-bottom: 1px solid #ddd4c8; font-family: inherit; font-size: 14px; padding: 2px 0; background: transparent; }
+  .receipt-meta .issued-to input { width: 220px; }
+  .receipt-meta .date-field { text-align: right; }
+  .receipt-meta .date-field input { width: 130px; text-align: right; }
+
+  #item-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 4px; }
+  #item-table thead th { background: #e2d6bb; text-align: left; padding: 8px 10px; font-size: 11px; letter-spacing: 1px; color: #4a4038; }
+  #item-table thead th.num { text-align: right; }
+  #item-table tbody td { padding: 7px 10px; border-bottom: 1px solid #f0ece5; }
+  #item-table tbody input { border: none; background: transparent; font-family: inherit; font-size: 13px; width: 100%; padding: 2px 0; }
+  #item-table .num-cell { text-align: right; }
+  #item-table .num-cell input { text-align: right; }
+  #item-table .qty-cell input { text-align: center; }
+  #item-table .row-total { text-align: right; white-space: nowrap; }
+  #item-table .remove-item-btn { border: none; background: transparent; color: #b0a89c; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
+  #item-table .remove-item-btn:hover { color: #8a2e2e; }
+
+  #add-item-btn { font-size: 12px; margin: 8px 0 20px; }
+
+  #schedule-note { width: 100%; border: none; background: transparent; font-family: inherit; font-size: 12px; color: #4a4038; resize: vertical; margin-bottom: 20px; line-height: 1.5; }
+
+  .total-row { display: flex; justify-content: flex-end; background: #e2d6bb; padding: 10px 16px; margin-bottom: 32px; }
+  .total-row .total-label { font-size: 12px; letter-spacing: 2px; color: #4a4038; margin-right: 24px; }
+  .total-row .total-value { font-weight: 700; font-size: 15px; }
+
+  .receipt-footer { display: flex; justify-content: space-between; align-items: flex-end; }
+  .receipt-footer .studio-info { font-size: 12px; line-height: 1.7; }
+  .receipt-footer .studio-info .studio-name { font-weight: 700; letter-spacing: 1px; margin-bottom: 4px; }
+  .receipt-footer .signature-block { text-align: center; }
+  .receipt-footer .signature-block img.stamp-img { height: 70px; display: block; margin: 0 auto 6px; }
+  .receipt-footer .signature-block img.signature-img { height: 44px; display: block; margin: 0 auto; }
+  .receipt-footer .signature-block .sig-line { width: 130px; border-top: 1px solid #4a4038; margin-top: 4px; padding-top: 4px; font-size: 11px; letter-spacing: 1px; color: #6b5c4f; }
+
+  #receipt-controls { max-width: 700px; margin: 0 auto 16px; }
+  #receipt-controls .control-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  #receipt-controls label { font-size: 12px; }
+  #receipt-controls select { min-width: 200px; }
+
+  @media print {
+    body { background: #fff; }
+    header.topnav, #receipt-controls, .no-print { display: none !important; }
+    #receipt-sheet { box-shadow: none; padding: 0; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="packages.html" data-i18n="nav.packages">Packages</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
+  <a href="receipt.html" class="active" data-i18n="nav.receipt">Receipt</a>
+  <span class="spacer"></span>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card no-print" id="receipt-controls">
+    <div class="control-row">
+      <label><span data-i18n="receipt.pick_student">Student</span><br />
+        <select id="receipt-student-select"><option value="" data-i18n="receipt.select_student_placeholder">Select a student</option></select>
+      </label>
+      <label><span data-i18n="receipt.pick_package">Term</span><br />
+        <select id="receipt-package-select" disabled><option value="" data-i18n="receipt.select_package_placeholder">Select a term</option></select>
+      </label>
+      <button class="primary" id="print-receipt-btn" data-i18n="receipt.print">Print</button>
+    </div>
+  </div>
+
+  <div id="receipt-sheet">
+    <div class="logo-row"><img src="logo.png" alt="" /></div>
+    <div class="studio-title">TOM'S VIOLIN STUDIO</div>
+
+    <div class="receipt-meta">
+      <div class="issued-to">
+        <label>ISSUED TO:</label>
+        <input type="text" id="receipt-issued-to" placeholder="Student name" />
+      </div>
+      <div class="date-field">
+        <label>DATE:</label>
+        <input type="date" id="receipt-date" />
+      </div>
+    </div>
+
+    <table id="item-table">
+      <thead>
+        <tr>
+          <th>DESCRIPTION</th>
+          <th class="num">UNIT PRICE</th>
+          <th class="num">QTY</th>
+          <th class="num">TOTAL</th>
+          <th class="no-print"></th>
+        </tr>
+      </thead>
+      <tbody id="item-rows"></tbody>
+    </table>
+    <button type="button" class="link no-print" id="add-item-btn" data-i18n="receipt.add_item">+ Add item</button>
+
+    <textarea id="schedule-note" rows="3" placeholder="Schedule for this term..."></textarea>
+
+    <div class="total-row">
+      <span class="total-label">TOTAL</span>
+      <span class="total-value" id="receipt-total">$0</span>
+    </div>
+
+    <div class="receipt-footer">
+      <div class="studio-info">
+        <div class="studio-name">TOM'S VIOLIN STUDIO</div>
+        <div>Contact number: 95179962</div>
+        <div>Address: 9A Spark City(Mong Kok),<br />Tong Mi Road 25, Mong Kok</div>
+      </div>
+      <div class="signature-block">
+        <img src="stamp.png" alt="" class="stamp-img" onerror="this.style.display='none'" />
+        <img src="signature.png" alt="" class="signature-img" onerror="this.style.display='none'" />
+        <div class="sig-line">Signature</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  initSettingsMenu();
+  window.onLangChange = applyI18n;
+
+  document.getElementById("receipt-date").value = new Date().toISOString().slice(0, 10);
+
+  // Same "first N real appointments on/after start_date" rule used on the
+  // Packages page, so a term's printed schedule always matches what that
+  // page shows — holiday closures etc. don't throw the dates off.
+  async function getPackageLessonAppointments(classId, startDate, totalLessons) {
+    const { data } = await supabaseClient
+      .from("appointments").select("scheduled_start")
+      .eq("class_id", classId).gte("scheduled_start", startDate)
+      .order("scheduled_start", { ascending: true }).limit(totalLessons);
+    return data ?? [];
+  }
+
+  function addItemRow({ description = "", unitPrice = "", qty = 1 } = {}) {
+    const tbody = document.getElementById("item-rows");
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" class="item-desc" value="${description}" /></td>
+      <td class="num-cell"><input type="number" class="item-price" value="${unitPrice}" step="0.01" /></td>
+      <td class="qty-cell"><input type="number" class="item-qty" value="${qty}" min="0" step="1" /></td>
+      <td class="row-total">$0</td>
+      <td class="no-print"><button type="button" class="remove-item-btn" title="${t("receipt.remove_item")}">×</button></td>
+    `;
+    tbody.appendChild(tr);
+    tr.querySelectorAll("input").forEach(el => el.addEventListener("input", recalcTotals));
+    tr.querySelector(".remove-item-btn").addEventListener("click", () => { tr.remove(); recalcTotals(); });
+    recalcTotals();
+  }
+
+  function recalcTotals() {
+    let grandTotal = 0;
+    document.querySelectorAll("#item-rows tr").forEach(tr => {
+      const price = parseFloat(tr.querySelector(".item-price").value) || 0;
+      const qty = parseFloat(tr.querySelector(".item-qty").value) || 0;
+      const rowTotal = price * qty;
+      tr.querySelector(".row-total").textContent = `$${rowTotal.toLocaleString()}`;
+      grandTotal += rowTotal;
+    });
+    document.getElementById("receipt-total").textContent = `$${grandTotal.toLocaleString()}`;
+  }
+
+  document.getElementById("add-item-btn").addEventListener("click", () => addItemRow());
+
+  // ---------- Student + term pickers (auto-fill convenience) ----------
+  const studentSelect = document.getElementById("receipt-student-select");
+  const packageSelect = document.getElementById("receipt-package-select");
+  let studentsCache = [];
+
+  async function loadStudents() {
+    const { data } = await supabaseClient
+      .from("students")
+      .select("id, contacts(name)")
+      .eq("active", true)
+      .order("created_at", { ascending: false });
+    studentsCache = data ?? [];
+    studentSelect.innerHTML = `<option value="" data-i18n="receipt.select_student_placeholder">${t("receipt.select_student_placeholder")}</option>`
+      + studentsCache.map(s => `<option value="${s.id}">${s.contacts?.name ?? ""}</option>`).join("");
+  }
+
+  studentSelect.addEventListener("change", async () => {
+    const studentId = studentSelect.value;
+    packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`;
+    packageSelect.disabled = true;
+    const student = studentsCache.find(s => s.id === studentId);
+    document.getElementById("receipt-issued-to").value = student?.contacts?.name ?? "";
+    if (!studentId) return;
+
+    const { data: pkgs } = await supabaseClient
+      .from("packages")
+      .select("id, start_date, total_lessons, price, class_id, classes(name)")
+      .eq("student_id", studentId)
+      .order("start_date", { ascending: false });
+    if (!pkgs || !pkgs.length) return;
+
+    packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`
+      + pkgs.map(p => {
+          const dateLabel = new Date(`${p.start_date}T00:00:00`).toLocaleDateString("en-HK", { dateStyle: "medium" });
+          return `<option value="${p.id}">${p.classes?.name ?? ""} — ${dateLabel} ($${p.price})</option>`;
+        }).join("");
+    packageSelect.disabled = false;
+    packageSelect.dataset.pkgs = JSON.stringify(pkgs);
+  });
+
+  packageSelect.addEventListener("change", async () => {
+    const pkgId = packageSelect.value;
+    if (!pkgId) return;
+    const pkgs = JSON.parse(packageSelect.dataset.pkgs || "[]");
+    const pkg = pkgs.find(p => p.id === pkgId);
+    if (!pkg) return;
+
+    const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
+    const dateLabels = appts.map(a => new Date(a.scheduled_start).toLocaleDateString("en-US", { month: "long", day: "numeric" }));
+    document.getElementById("schedule-note").value =
+      `Schedule for this term (${appts.length} lessons total):\n${dateLabels.join(", ")}`;
+
+    document.getElementById("item-rows").innerHTML = "";
+    addItemRow({ description: pkg.classes?.name ?? "Violin Group Class", unitPrice: pkg.price, qty: 1 });
+  });
+
+  document.getElementById("print-receipt-btn").addEventListener("click", () => window.print());
+
+  addItemRow();
+  await loadStudents();
+})();
+</script>
+</body>
+</html>
