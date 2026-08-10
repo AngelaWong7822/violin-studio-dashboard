@@ -38,6 +38,9 @@
   .makeup-row select { font-size: 13px; padding: 4px 6px; }
   #grid-table.hide-withdrawn .withdrawn-col { display: none; }
   #grid-table.hide-visitors .visitor-col { display: none; }
+  #grid-lock-toggle-btn { font-size: 16px; width: 32px; height: 32px; padding: 0; line-height: 1; border-radius: 50%; border: 1px solid #d9d0c3; background: #fff; color: #6b5c4f; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  #grid-lock-toggle-btn.locked { background: #f5f2ec; color: #8a6314; border-color: #e5ddd0; }
+  #grid-section.edit-locked { pointer-events: none; opacity: 0.65; user-select: none; }
   .reschedule-icon-btn { padding: 2px; vertical-align: -2px; color: #b0a89c; }
   .reschedule-icon-btn:hover { color: #7a3b2e; }
   .student-row { cursor: pointer; }
@@ -105,20 +108,19 @@
       <h1 style="margin:0;" data-i18n="packages.students_title">Students</h1>
       <button class="primary" id="new-student-btn" data-i18n="packages.new_student">+ New student</button>
     </div>
+    <input type="text" id="student-search" data-i18n-placeholder="packages.search_students_placeholder" placeholder="Search by name…" style="width:100%; max-width:280px; margin-bottom:10px;" />
     <table>
       <thead><tr>
         <th data-i18n="student.name">Name</th>
         <th data-i18n="student.gender">Gender</th>
-        <th data-i18n="student.age">Age</th>
         <th data-i18n="enroll.col_class">Class</th>
         <th data-i18n="student.phone">WhatsApp number</th>
-        <th data-i18n="packages.col_total_paid">Total paid</th>
         <th data-i18n="packages.col_renewal_count">Terms</th>
         <th data-i18n="packages.col_status">Status</th>
         <th data-i18n="packages.col_detail">Detail</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
     </table>
     <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
@@ -128,7 +130,7 @@
     <label><span data-i18n="attendance.class_label">Class</span>
       <select id="attendance-class-select" style="width:100%; max-width:480px;"></select>
     </label>
-    <div style="display:flex; flex-wrap:wrap; gap:16px; margin:8px 0 0;">
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin:8px 0 0;">
       <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
         <input type="checkbox" id="show-cancelled-classes-toggle" />
         <span data-i18n="attendance.show_cancelled_classes">Show cancelled classes</span>
@@ -141,6 +143,7 @@
         <input type="checkbox" id="show-visitors-toggle" />
         <span data-i18n="attendance.show_visitors">Show make-up visitors</span>
       </label>
+      <button type="button" id="grid-lock-toggle-btn" style="margin-left:auto;"></button>
     </div>
     <div id="grid-section" style="margin-top:16px; display:none;">
       <div id="grid-wrap">
@@ -330,8 +333,9 @@
         <input type="date" id="student-detail-join-date-input" style="font-size:14px;" />
         <button type="button" class="link" id="student-detail-join-date-save" data-i18n="dialog.save">Save</button>
       </div>
+      <div><span style="color:#8a8074;" data-i18n="student.age">Age</span><br /><span id="student-detail-age"></span></div>
       <div><span style="color:#8a8074;" data-i18n="package.total_lessons">Total lessons</span><br /><span id="student-detail-total-lessons"></span></div>
-      <div><span style="color:#8a8074;" data-i18n="package.price">Price ($)</span><br /><span id="student-detail-price"></span></div>
+      <div><span style="color:#8a8074;" data-i18n="packages.col_total_paid">Total paid</span><br /><span id="student-detail-price"></span></div>
       <div><span style="color:#8a8074;" data-i18n="packages.col_leaves">Leaves used</span><br /><span id="student-detail-leaves"></span></div>
       <div id="student-detail-withdrawn-row" style="display:none;">
         <span style="color:#8a8074;" data-i18n="packages.withdrawn_date">Withdrawn on</span><br />
@@ -1201,6 +1205,22 @@
   document.getElementById("show-visitors-toggle").addEventListener("change", (e) => {
     document.getElementById("grid-table").classList.toggle("hide-visitors", !e.target.checked);
   });
+  // Defaults to locked on every fresh page load — a deliberate "unlock"
+  // click is required before any attendance status can change, so idly
+  // scrolling/tapping around the grid can't accidentally mark someone.
+  const gridLockBtn = document.getElementById("grid-lock-toggle-btn");
+  function setGridLocked(locked) {
+    document.getElementById("grid-section").classList.toggle("edit-locked", locked);
+    gridLockBtn.classList.toggle("locked", locked);
+    gridLockBtn.textContent = locked ? "🔒" : "🔓";
+    const label = locked ? t("attendance.grid_locked") : t("attendance.grid_unlocked");
+    gridLockBtn.title = label;
+    gridLockBtn.setAttribute("aria-label", label);
+  }
+  gridLockBtn.addEventListener("click", () => {
+    setGridLocked(!gridLockBtn.classList.contains("locked"));
+  });
+  setGridLocked(true);
   document.getElementById("show-cancelled-classes-toggle").addEventListener("change", () => refreshAttendanceSection());
   document.getElementById("show-processed-leaves-toggle").addEventListener("change", () => loadClassGrid(attendanceClassSelect.value));
 
@@ -1786,6 +1806,60 @@
   });
 
   // ---------- Students (merged with their current enrollment) ----------
+  let studentRowsCache = []; // [{ isWithdrawn, name, html }] — re-filtered locally by the search box, no re-fetch needed
+  function attachStudentRowListeners(tbody) {
+    tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
+      btn.addEventListener("click", () => openEditStudent(students.find(s => s.id === btn.dataset.editStudent)));
+    });
+    tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
+      btn.addEventListener("click", () => deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)));
+    });
+    tbody.querySelectorAll("button[data-enroll-student]").forEach(btn => {
+      btn.addEventListener("click", () => openEnrollDialog(students.find(s => s.id === btn.dataset.enrollStudent)));
+    });
+    tbody.querySelectorAll("button[data-view-detail]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const student = students.find(s => s.id === btn.dataset.viewDetail);
+        document.getElementById("student-detail-name").textContent = student?.contacts?.name ?? "";
+        document.getElementById("student-detail-join-date-input").value = btn.dataset.joinDateRaw;
+        document.getElementById("student-detail-join-date-save").dataset.earliestPkgId = btn.dataset.earliestPkgId;
+        document.getElementById("student-detail-age").textContent = btn.dataset.age;
+        document.getElementById("student-detail-total-lessons").textContent = btn.dataset.totalLessons;
+        document.getElementById("student-detail-price").textContent = btn.dataset.price;
+        document.getElementById("student-detail-leaves").textContent = btn.dataset.leaves;
+        const withdrawnRow = document.getElementById("student-detail-withdrawn-row");
+        if (btn.dataset.withdrawnDateRaw) {
+          document.getElementById("student-detail-withdrawn-date-input").value = btn.dataset.withdrawnDateRaw;
+          document.getElementById("student-detail-withdrawn-date-save").dataset.latestPkgId = btn.dataset.latestPkgId;
+          withdrawnRow.style.display = "";
+        } else {
+          withdrawnRow.style.display = "none";
+        }
+        studentDetailDialog.showModal();
+      });
+    });
+  }
+
+  // Actively searching bypasses the collapse-to-3 limit entirely and shows
+  // every match directly — a search is a specific lookup, not browsing.
+  function renderStudentRows() {
+    const tbody = document.getElementById("student-rows");
+    const btn = document.getElementById("student-toggle-btn");
+    const searchText = document.getElementById("student-search").value.trim().toLowerCase();
+    const filtered = searchText
+      ? studentRowsCache.filter(r => r.name.toLowerCase().includes(searchText))
+      : studentRowsCache;
+
+    if (searchText) {
+      btn.style.display = "none";
+      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="8" class="empty">${t("packages.empty_students")}</td></tr>`;
+      attachStudentRowListeners(tbody);
+    } else {
+      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 8, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
+    }
+  }
+  document.getElementById("student-search").addEventListener("input", renderStudentRows);
+
   async function loadStudents() {
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
@@ -1794,7 +1868,7 @@
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="10" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${error.message}</td></tr>`; return; }
     students = data;
 
     const rowsHtml = await Promise.all(data.map(async (s) => {
@@ -1872,58 +1946,26 @@
         <tr${isWithdrawn ? ' class="row-withdrawn"' : ""}>
           <td>${s.contacts?.name ?? ""}${s.contacts?.needs_violin ? ' <span title="' + t("student.needs_violin") + '">🎻</span>' : ""}</td>
           <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
-          <td>${s.contacts?.age ?? "—"}</td>
           <td>${classCell}</td>
           <td>${whatsappCell}</td>
-          <td>$${totalPaid}</td>
           <td>${renewalCountCell}</td>
           <td>${statusCell}</td>
-          <td><button class="link" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">${t("packages.col_detail")}</button></td>
+          <td><button class="link" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-age="${s.contacts?.age ?? "—"}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">${t("packages.col_detail")}</button></td>
           <td style="white-space:nowrap;">
             <button class="link" data-edit-student="${s.id}">${t("student.edit")}</button>
             ${enrollActionBtn}
             <button class="link" data-delete-student="${s.id}" style="color:#8a2e2e;">${t("student.delete")}</button>
           </td>
         </tr>`;
-      return { isWithdrawn, html };
+      return { isWithdrawn, name: s.contacts?.name ?? "", html };
     }));
 
     // Withdrawn students (latest package cancelled) sink to the bottom,
     // greyed out — everyone else keeps the normal newest-first order.
     rowsHtml.sort((a, b) => (a.isWithdrawn === b.isWithdrawn) ? 0 : a.isWithdrawn ? 1 : -1);
-    const rowsHtmlList = rowsHtml.map(r => r.html);
+    studentRowsCache = rowsHtml;
+    renderStudentRows();
 
-    renderCollapsible(tbody, "student-toggle-btn", rowsHtmlList, 10, t("packages.empty_students"), () => {
-      tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
-        btn.addEventListener("click", () => openEditStudent(students.find(s => s.id === btn.dataset.editStudent)));
-      });
-      tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
-        btn.addEventListener("click", () => deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)));
-      });
-      tbody.querySelectorAll("button[data-enroll-student]").forEach(btn => {
-        btn.addEventListener("click", () => openEnrollDialog(students.find(s => s.id === btn.dataset.enrollStudent)));
-      });
-      tbody.querySelectorAll("button[data-view-detail]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const student = students.find(s => s.id === btn.dataset.viewDetail);
-          document.getElementById("student-detail-name").textContent = student?.contacts?.name ?? "";
-          document.getElementById("student-detail-join-date-input").value = btn.dataset.joinDateRaw;
-          document.getElementById("student-detail-join-date-save").dataset.earliestPkgId = btn.dataset.earliestPkgId;
-          document.getElementById("student-detail-total-lessons").textContent = btn.dataset.totalLessons;
-          document.getElementById("student-detail-price").textContent = btn.dataset.price;
-          document.getElementById("student-detail-leaves").textContent = btn.dataset.leaves;
-          const withdrawnRow = document.getElementById("student-detail-withdrawn-row");
-          if (btn.dataset.withdrawnDateRaw) {
-            document.getElementById("student-detail-withdrawn-date-input").value = btn.dataset.withdrawnDateRaw;
-            document.getElementById("student-detail-withdrawn-date-save").dataset.latestPkgId = btn.dataset.latestPkgId;
-            withdrawnRow.style.display = "";
-          } else {
-            withdrawnRow.style.display = "none";
-          }
-          studentDetailDialog.showModal();
-        });
-      });
-    });
     await refreshAttendanceSection();
     await loadPayments();
   }

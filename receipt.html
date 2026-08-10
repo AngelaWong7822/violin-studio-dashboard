@@ -9,41 +9,47 @@
 <style>
   #receipt-sheet {
     background: #fff;
-    max-width: 700px;
+    max-width: 560px;
     margin: 0 auto;
-    padding: 40px 48px;
+    padding: 32px 40px;
     font-family: Georgia, "Times New Roman", serif;
     color: #2a2420;
   }
-  #receipt-sheet .logo-row { text-align: center; margin-bottom: 4px; }
-  #receipt-sheet .logo-row img { height: 90px; }
-  #receipt-sheet .studio-title { text-align: center; letter-spacing: 6px; font-size: 18px; margin: 4px 0 36px; }
-  .receipt-meta { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; gap: 16px; }
-  .receipt-meta label { font-size: 11px; letter-spacing: 1px; color: #6b5c4f; display: block; margin-bottom: 4px; }
-  .receipt-meta input { border: none; border-bottom: 1px solid #ddd4c8; font-family: inherit; font-size: 14px; padding: 2px 0; background: transparent; }
-  .receipt-meta .issued-to input { width: 220px; }
+  #receipt-sheet .logo-row { text-align: center; margin-bottom: 2px; }
+  #receipt-sheet .logo-row img { height: 64px; }
+  #receipt-sheet .studio-title { text-align: center; letter-spacing: 5px; font-size: 15px; margin: 2px 0 20px; }
+  .receipt-meta { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; gap: 16px; padding: 12px 16px; background: #faf8f4; border: 1px solid #ede6d8; border-radius: 4px; }
+  .receipt-meta label { font-size: 10px; letter-spacing: 1.5px; color: #8a6314; display: block; margin-bottom: 4px; text-transform: uppercase; }
+  .receipt-meta input { border: none; border-bottom: 1px solid #ddd4c8; font-family: inherit; font-size: 13px; padding: 2px 0; background: transparent; }
+  .receipt-meta .issued-to input { width: 200px; }
   .receipt-meta .date-field { text-align: right; }
-  .receipt-meta .date-field input { width: 130px; text-align: right; }
+  .receipt-meta .date-field input { width: 120px; text-align: right; }
 
-  #item-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 4px; }
-  #item-table thead th { background: #e2d6bb; text-align: left; padding: 8px 10px; font-size: 11px; letter-spacing: 1px; color: #4a4038; }
-  #item-table thead th.num { text-align: right; }
-  #item-table tbody td { padding: 7px 10px; border-bottom: 1px solid #f0ece5; }
-  #item-table tbody input { border: none; background: transparent; font-family: inherit; font-size: 13px; width: 100%; padding: 2px 0; }
-  #item-table .num-cell { text-align: right; }
-  #item-table .num-cell input { text-align: right; }
-  #item-table .qty-cell input { text-align: center; }
-  #item-table .row-total { text-align: right; white-space: nowrap; }
+  #item-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
+  #item-table thead th { background: #e2d6bb; text-align: center; padding: 7px 8px; font-size: 10px; letter-spacing: 1px; color: #4a4038; }
+  #item-table thead th.desc { text-align: left; }
+  #item-table col.col-desc { width: auto; }
+  #item-table col.col-price, #item-table col.col-qty, #item-table col.col-total { width: 62px; }
+  #item-table col.col-actions { width: 20px; }
+  #item-table tbody td { padding: 8px; border-bottom: 1px solid #f0ece5; vertical-align: top; }
+  #item-table tbody input { border: none; background: transparent; font-family: inherit; font-size: 12px; width: 100%; padding: 2px 0; text-align: center; }
+  #item-table tbody textarea.item-desc { border: none; background: transparent; font-family: inherit; font-weight: 600; font-size: 12px; width: 100%; padding: 2px 0; resize: none; overflow: hidden; line-height: 1.4; display: block; }
+  #item-table .num-cell { text-align: center; }
+  #item-table .row-total { text-align: center; white-space: nowrap; }
   #item-table .remove-item-btn { border: none; background: transparent; color: #b0a89c; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
   #item-table .remove-item-btn:hover { color: #8a2e2e; }
 
-  #add-item-btn { font-size: 12px; margin: 8px 0 20px; }
+  .item-schedule { margin-top: 6px; font-weight: normal; }
+  .item-schedule .schedule-title { font-size: 10px; letter-spacing: 1px; color: #8a6314; text-transform: uppercase; margin-bottom: 3px; }
+  .item-schedule .schedule-line { font-size: 12px; line-height: 1.6; }
+  .item-schedule .schedule-line .struck { text-decoration: line-through; color: #a89b8a; }
 
-  #schedule-note { width: 100%; border: none; background: transparent; font-family: inherit; font-size: 12px; color: #4a4038; resize: vertical; margin-bottom: 20px; line-height: 1.5; }
+  #add-item-btn { font-size: 12px; margin: 8px 0 16px; }
 
-  .total-row { display: flex; justify-content: flex-end; background: #e2d6bb; padding: 10px 16px; margin-bottom: 32px; }
-  .total-row .total-label { font-size: 12px; letter-spacing: 2px; color: #4a4038; margin-right: 24px; }
-  .total-row .total-value { font-weight: 700; font-size: 15px; }
+
+  .total-row { display: flex; justify-content: flex-end; background: #e2d6bb; padding: 8px 14px; margin-bottom: 24px; }
+  .total-row .total-label { font-size: 11px; letter-spacing: 2px; color: #4a4038; margin-right: 20px; }
+  .total-row .total-value { font-weight: 700; font-size: 14px; }
 
   .receipt-footer { display: flex; justify-content: space-between; align-items: flex-end; }
   .receipt-footer .studio-info { font-size: 12px; line-height: 1.7; }
@@ -53,15 +59,73 @@
   .receipt-footer .signature-block img.signature-img { height: 44px; display: block; margin: 0 auto; }
   .receipt-footer .signature-block .sig-line { width: 130px; border-top: 1px solid #4a4038; margin-top: 4px; padding-top: 4px; font-size: 11px; letter-spacing: 1px; color: #6b5c4f; }
 
-  #receipt-controls { max-width: 700px; margin: 0 auto 16px; }
-  #receipt-controls .control-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-  #receipt-controls label { font-size: 12px; }
+  #receipt-controls { max-width: 700px; margin: 0 auto 12px; padding: 10px 16px; }
+  #receipt-controls .control-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  #receipt-controls label { font-size: 11px; display: block; margin-bottom: 3px; }
   #receipt-controls select { min-width: 200px; }
+  #receipt-controls button.primary { padding: 7px 14px; }
+
+  /* Searchable combobox: a text field that opens a panel with its own
+     search box at the top and a scrollable option list below, instead of
+     relying on the browser's native (unsearchable) <select> dropdown. */
+  .combo { position: relative; min-width: 200px; }
+  .combo-display { width: 100%; box-sizing: border-box; cursor: pointer; background: #fff; }
+  .combo-panel { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; background: #fff; border: 1px solid #d9d0c3; border-radius: 6px; margin-top: 2px; box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+  .combo-panel .combo-search { padding: 6px; border-bottom: 1px solid #eee; }
+  .combo-panel .combo-search input { width: 100%; box-sizing: border-box; }
+  .combo-options { max-height: 220px; overflow-y: auto; }
+  .combo-option { padding: 7px 10px; cursor: pointer; font-size: 13px; }
+  .combo-option:hover, .combo-option.active { background: #f5f2ec; }
+  .combo-empty { padding: 7px 10px; font-size: 13px; color: #8a8074; }
+
+  @media (max-width: 600px) {
+    #receipt-sheet { padding: 20px 16px; }
+    /* ISSUED TO / DATE stack instead of sitting side by side, which left
+       almost no room for either field's input on a phone-width screen. */
+    .receipt-meta { flex-direction: column; align-items: stretch; gap: 8px; }
+    .receipt-meta .date-field { text-align: left; }
+    .receipt-meta .issued-to input, .receipt-meta .date-field input { width: 100%; box-sizing: border-box; }
+
+    /* The fixed per-column widths below are sized for desktop; on a narrow
+       screen they'd leave almost nothing for DESCRIPTION, so everything
+       shrinks together instead. */
+    #item-table { font-size: 10px; }
+    #item-table thead th { padding: 5px 4px; font-size: 8px; }
+    #item-table col.col-price, #item-table col.col-qty, #item-table col.col-total { width: 40px; }
+    #item-table col.col-actions { width: 16px; }
+    #item-table tbody td { padding: 5px 4px; }
+    #item-table tbody input, #item-table tbody textarea.item-desc { font-size: 10px; }
+    .item-schedule .schedule-line { font-size: 10px; }
+
+    /* Fields default to a 200px min-width, sized for desktop rows — on a
+       phone that alone is most of the available width, so each field takes
+       its own full-width row instead of fighting the others for space. */
+    #receipt-controls .control-row { flex-direction: column; align-items: stretch; }
+    #receipt-controls .field-label-wrap, #receipt-controls select, #receipt-controls .combo { min-width: 0; width: 100%; }
+    #receipt-controls button.primary { width: 100%; }
+  }
 
   @media print {
+    /* Chrome/most browsers skip printing background colors by default —
+       without this the table header band and TOTAL row print white. */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    /* A zero page margin leaves no room for the browser's own header
+       (date/title) and footer (URL/page number), so they don't print;
+       #receipt-sheet's own padding below replaces that lost margin. */
+    @page { margin: 0; }
     body { background: #fff; }
     header.topnav, #receipt-controls, .no-print { display: none !important; }
-    #receipt-sheet { box-shadow: none; padding: 0; max-width: none; }
+    #receipt-sheet { box-shadow: none; padding: 36px 42px; max-width: none; }
+    /* position:fixed pins the footer to the page box itself, so it sits at
+       the bottom of the printed page without inflating the document's own
+       height — min-height:100vh was tried first but "vh" in print is
+       measured against the browser's on-screen viewport, not the actual
+       page size, and pushed the footer onto a second, otherwise-blank page. */
+    .receipt-footer { position: fixed; left: 42px; right: 42px; bottom: 36px; }
+    /* table-layout:fixed still reserves the "remove item" column's width
+       even once its th/td are hidden above — without this the header row's
+       gold band falls short of the TOTAL row's, which has no such column. */
+    #item-table col.col-actions { width: 0; }
   }
 </style>
 </head>
@@ -88,12 +152,21 @@
 <main>
   <div class="card no-print" id="receipt-controls">
     <div class="control-row">
-      <label><span data-i18n="receipt.pick_student">Student</span><br />
-        <select id="receipt-student-select"><option value="" data-i18n="receipt.select_student_placeholder">Select a student</option></select>
-      </label>
-      <label><span data-i18n="receipt.pick_package">Term</span><br />
+      <div class="field-label-wrap">
+        <label for="receipt-student-display"><span data-i18n="receipt.pick_student">Student</span></label>
+        <div class="combo" id="receipt-student-combo">
+          <input type="text" class="combo-display" id="receipt-student-display" readonly data-i18n-placeholder="receipt.select_student_placeholder" placeholder="Select a student" />
+          <div class="combo-panel" id="receipt-student-panel" style="display:none;">
+            <div class="combo-search"><input type="text" id="receipt-student-search" data-i18n-placeholder="receipt.search_student_placeholder" placeholder="Search…" /></div>
+            <div class="combo-options" id="receipt-student-options"></div>
+          </div>
+        </div>
+        <input type="hidden" id="receipt-student-select" />
+      </div>
+      <div class="field-label-wrap">
+        <label for="receipt-package-select"><span data-i18n="receipt.pick_package">Term</span></label>
         <select id="receipt-package-select" disabled><option value="" data-i18n="receipt.select_package_placeholder">Select a term</option></select>
-      </label>
+      </div>
       <button class="primary" id="print-receipt-btn" data-i18n="receipt.print">Print</button>
     </div>
   </div>
@@ -114,20 +187,25 @@
     </div>
 
     <table id="item-table">
+      <colgroup>
+        <col class="col-desc" />
+        <col class="col-price" />
+        <col class="col-qty" />
+        <col class="col-total" />
+        <col class="col-actions" />
+      </colgroup>
       <thead>
         <tr>
-          <th>DESCRIPTION</th>
-          <th class="num">UNIT PRICE</th>
-          <th class="num">QTY</th>
-          <th class="num">TOTAL</th>
+          <th class="desc">DESCRIPTION</th>
+          <th>UNIT PRICE</th>
+          <th>QTY</th>
+          <th>TOTAL</th>
           <th class="no-print"></th>
         </tr>
       </thead>
       <tbody id="item-rows"></tbody>
     </table>
     <button type="button" class="link no-print" id="add-item-btn" data-i18n="receipt.add_item">+ Add item</button>
-
-    <textarea id="schedule-note" rows="3" placeholder="Schedule for this term..."></textarea>
 
     <div class="total-row">
       <span class="total-label">TOTAL</span>
@@ -169,23 +247,72 @@
   // page shows — holiday closures etc. don't throw the dates off.
   async function getPackageLessonAppointments(classId, startDate, totalLessons) {
     const { data } = await supabaseClient
-      .from("appointments").select("scheduled_start")
+      .from("appointments").select("id, scheduled_start, rescheduled_from")
       .eq("class_id", classId).gte("scheduled_start", startDate)
       .order("scheduled_start", { ascending: true }).limit(totalLessons);
     return data ?? [];
   }
 
-  function addItemRow({ description = "", unitPrice = "", qty = 1 } = {}) {
+  function formatDateLabel(iso) {
+    return new Date(iso).toLocaleDateString("en-HK", { dateStyle: "medium" });
+  }
+
+  // A rescheduled lesson (whole-class move, e.g. a typhoon) shows its
+  // original date struck through with an arrow to the date it actually
+  // landed on — same convention as the studio's paper receipt template.
+  function scheduleLineHtml(appt) {
+    if (appt.rescheduled_from) {
+      return `<div class="schedule-line"><span class="struck">${formatDateLabel(appt.rescheduled_from)}</span> → ${formatDateLabel(appt.scheduled_start)}</div>`;
+    }
+    return `<div class="schedule-line">${formatDateLabel(appt.scheduled_start)}</div>`;
+  }
+
+  // Same rules the Packages page's Payments tab uses, so a term's price on
+  // the receipt always matches what's shown there: a "same-period" leave
+  // deducts this package's own per-lesson rate, and any deferred credit
+  // landing on this package (from an earlier term's leave) is subtracted too.
+  function isDeductible(row) {
+    return row.status === "leave" && row.make_up_status === "pending";
+  }
+
+  async function getIncomingCreditAmounts(packageIds) {
+    const amounts = new Map();
+    if (!packageIds.length) return amounts;
+    const { data } = await supabaseClient
+      .from("attendance").select("deferred_credit_used_in_package_id, deferred_credit_amount").in("deferred_credit_used_in_package_id", packageIds);
+    (data ?? []).forEach(r => amounts.set(r.deferred_credit_used_in_package_id, (amounts.get(r.deferred_credit_used_in_package_id) ?? 0) + (r.deferred_credit_amount ?? 0)));
+    return amounts;
+  }
+
+  function effectivePrice(pkg, lessons) {
+    const perLessonPrice = pkg.price / pkg.total_lessons;
+    const ownDeduction = lessons.filter(isDeductible).length * perLessonPrice;
+    return Math.round(Math.max(0, pkg.price - ownDeduction - (pkg.incomingCreditAmount ?? 0)));
+  }
+
+  function autoGrowTextarea(el) {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+
+  function addItemRow({ description = "", unitPrice = "", qty = 1, scheduleLines = null } = {}) {
     const tbody = document.getElementById("item-rows");
     const tr = document.createElement("tr");
+    const scheduleHtml = scheduleLines && scheduleLines.length
+      ? `<div class="item-schedule"><div class="schedule-title">${t("receipt.schedule_title")}</div>${scheduleLines.join("")}</div>`
+      : "";
     tr.innerHTML = `
-      <td><input type="text" class="item-desc" value="${description}" /></td>
+      <td><textarea class="item-desc" rows="1"></textarea>${scheduleHtml}</td>
       <td class="num-cell"><input type="number" class="item-price" value="${unitPrice}" step="0.01" /></td>
       <td class="qty-cell"><input type="number" class="item-qty" value="${qty}" min="0" step="1" /></td>
       <td class="row-total">$0</td>
       <td class="no-print"><button type="button" class="remove-item-btn" title="${t("receipt.remove_item")}">×</button></td>
     `;
     tbody.appendChild(tr);
+    const descEl = tr.querySelector(".item-desc");
+    descEl.value = description;
+    descEl.addEventListener("input", () => autoGrowTextarea(descEl));
+    autoGrowTextarea(descEl);
     tr.querySelectorAll("input").forEach(el => el.addEventListener("input", recalcTotals));
     tr.querySelector(".remove-item-btn").addEventListener("click", () => { tr.remove(); recalcTotals(); });
     recalcTotals();
@@ -206,9 +333,48 @@
   document.getElementById("add-item-btn").addEventListener("click", () => addItemRow());
 
   // ---------- Student + term pickers (auto-fill convenience) ----------
-  const studentSelect = document.getElementById("receipt-student-select");
+  // Custom searchable combobox — a native <select> can't put a search box
+  // inside its own dropdown, so this is a text "display" field that opens a
+  // panel containing a search input (filters the option list live, no
+  // re-query) and the clickable option list itself.
+  const studentSelect = document.getElementById("receipt-student-select"); // hidden input, holds the chosen student id
+  const studentDisplay = document.getElementById("receipt-student-display");
+  const studentCombo = document.getElementById("receipt-student-combo");
+  const studentPanel = document.getElementById("receipt-student-panel");
+  const studentSearch = document.getElementById("receipt-student-search");
+  const studentOptionsEl = document.getElementById("receipt-student-options");
   const packageSelect = document.getElementById("receipt-package-select");
   let studentsCache = [];
+
+  function renderStudentOptions() {
+    const searchText = studentSearch.value.trim().toLowerCase();
+    const filtered = searchText
+      ? studentsCache.filter(s => (s.contacts?.name ?? "").toLowerCase().includes(searchText))
+      : studentsCache;
+    studentOptionsEl.innerHTML = filtered.length
+      ? filtered.map(s => `<div class="combo-option" data-id="${s.id}">${s.contacts?.name ?? ""}</div>`).join("")
+      : `<div class="combo-empty">${t("receipt.no_students_found")}</div>`;
+    studentOptionsEl.querySelectorAll(".combo-option").forEach(opt => {
+      opt.addEventListener("click", () => selectStudent(opt.dataset.id));
+    });
+  }
+  studentSearch.addEventListener("input", renderStudentOptions);
+
+  function openStudentPanel() {
+    studentPanel.style.display = "";
+    studentSearch.value = "";
+    renderStudentOptions();
+    studentSearch.focus();
+  }
+  function closeStudentPanel() {
+    studentPanel.style.display = "none";
+  }
+  studentDisplay.addEventListener("click", () => {
+    if (studentPanel.style.display === "none") openStudentPanel(); else closeStudentPanel();
+  });
+  document.addEventListener("click", (e) => {
+    if (!studentCombo.contains(e.target)) closeStudentPanel();
+  });
 
   async function loadStudents() {
     const { data } = await supabaseClient
@@ -216,34 +382,66 @@
       .select("id, contacts(name)")
       .eq("active", true)
       .order("created_at", { ascending: false });
-    studentsCache = data ?? [];
-    studentSelect.innerHTML = `<option value="" data-i18n="receipt.select_student_placeholder">${t("receipt.select_student_placeholder")}</option>`
-      + studentsCache.map(s => `<option value="${s.id}">${s.contacts?.name ?? ""}</option>`).join("");
+
+    // A student's "current" status is their most recently created package —
+    // same rule the Packages page's Students tab uses. Exclude anyone whose
+    // latest package was cancelled (i.e. they've quit) from the picker.
+    const withActive = await Promise.all((data ?? []).map(async (s) => {
+      const { data: pkgs } = await supabaseClient
+        .from("packages").select("status")
+        .eq("student_id", s.id)
+        .order("created_at", { ascending: false }).limit(1);
+      const isWithdrawn = pkgs?.[0]?.status === "cancelled";
+      return { student: s, isWithdrawn };
+    }));
+    studentsCache = withActive.filter(r => !r.isWithdrawn).map(r => r.student);
   }
 
-  studentSelect.addEventListener("change", async () => {
-    const studentId = studentSelect.value;
+  async function selectStudent(studentId) {
+    studentSelect.value = studentId;
+    const student = studentsCache.find(s => s.id === studentId);
+    studentDisplay.value = student?.contacts?.name ?? "";
+    closeStudentPanel();
+
     packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`;
     packageSelect.disabled = true;
-    const student = studentsCache.find(s => s.id === studentId);
     document.getElementById("receipt-issued-to").value = student?.contacts?.name ?? "";
     if (!studentId) return;
 
     const { data: pkgs } = await supabaseClient
       .from("packages")
-      .select("id, start_date, total_lessons, price, class_id, classes(name)")
+      .select("id, start_date, total_lessons, price, class_id, classes(name, weekly_day_of_week, weekly_start_time, duration_minutes)")
       .eq("student_id", studentId)
       .order("start_date", { ascending: false });
     if (!pkgs || !pkgs.length) return;
 
+    const incomingCreditAmounts = await getIncomingCreditAmounts(pkgs.map(p => p.id));
+    await Promise.all(pkgs.map(async (p) => {
+      p.incomingCreditAmount = incomingCreditAmounts.get(p.id) ?? 0;
+      const appts = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
+      const apptIds = appts.map(a => a.id);
+      let attRows = [];
+      if (apptIds.length) {
+        const { data } = await supabaseClient
+          .from("attendance").select("appointment_id, status, make_up_status")
+          .eq("student_id", studentId).in("appointment_id", apptIds);
+        attRows = data ?? [];
+      }
+      const lessons = appts.map(a => {
+        const att = attRows.find(r => r.appointment_id === a.id);
+        return { status: att?.status ?? null, make_up_status: att?.make_up_status ?? null };
+      });
+      p.effectivePrice = effectivePrice(p, lessons);
+    }));
+
     packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`
       + pkgs.map(p => {
           const dateLabel = new Date(`${p.start_date}T00:00:00`).toLocaleDateString("en-HK", { dateStyle: "medium" });
-          return `<option value="${p.id}">${p.classes?.name ?? ""} — ${dateLabel} ($${p.price})</option>`;
+          return `<option value="${p.id}">${p.classes?.name ?? ""} — ${dateLabel} ($${p.effectivePrice})</option>`;
         }).join("");
     packageSelect.disabled = false;
     packageSelect.dataset.pkgs = JSON.stringify(pkgs);
-  });
+  }
 
   packageSelect.addEventListener("change", async () => {
     const pkgId = packageSelect.value;
@@ -253,12 +451,19 @@
     if (!pkg) return;
 
     const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
-    const dateLabels = appts.map(a => new Date(a.scheduled_start).toLocaleDateString("en-US", { month: "long", day: "numeric" }));
-    document.getElementById("schedule-note").value =
-      `Schedule for this term (${appts.length} lessons total):\n${dateLabels.join(", ")}`;
+    const scheduleLines = appts.map(scheduleLineHtml);
+
+    const cls = pkg.classes;
+    let description = cls?.name ?? "";
+    if (cls?.weekly_day_of_week != null && cls?.weekly_start_time) {
+      const start = cls.weekly_start_time.slice(0, 5);
+      const end = new Date(new Date(`2000-01-01T${cls.weekly_start_time}`).getTime() + (cls.duration_minutes ?? 60) * 60000)
+        .toTimeString().slice(0, 5);
+      description += ` (${t("weekday_full." + cls.weekly_day_of_week)} ${start}-${end})`;
+    }
 
     document.getElementById("item-rows").innerHTML = "";
-    addItemRow({ description: pkg.classes?.name ?? "Violin Group Class", unitPrice: pkg.price, qty: 1 });
+    addItemRow({ description, unitPrice: pkg.effectivePrice, qty: 1, scheduleLines });
   });
 
   document.getElementById("print-receipt-btn").addEventListener("click", () => window.print());

@@ -70,8 +70,12 @@ h1 { font-size: 20px; margin: 0 0 16px; }
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   margin-bottom: 16px;
+  overflow-x: auto;
 }
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+/* min-width:max-content stops a many-column table being crushed to fit a
+   narrow/mobile screen (every cell wrapping into an unreadable stack) —
+   past that point the .card above scrolls horizontally instead. */
+table { width: 100%; min-width: max-content; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
 th { color: #6b5c4f; font-weight: 600; }
 button, input, select {
