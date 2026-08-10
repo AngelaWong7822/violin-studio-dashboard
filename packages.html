@@ -28,6 +28,7 @@
   .att-toggle.att-no_show { background: #8a2e2e; color: #fff; }
   .visitor-badge { color: #8a6314; font-weight: 600; }
   #grid-table td.visitor-locked { color: #cfc7ba; background: #faf8f4; }
+  #grid-table tr.next-upcoming-row td { background: #fff6d9; }
   #grid-table tr.term-divider-row td { background: #f5f2ec; text-align: center; font-weight: 600; color: #6b5c4f; white-space: normal; }
   #grid-table tr.term-divider-row td.date-col { text-align: left; }
   #grid-table tr.term-divider-clickable td { cursor: pointer; color: #a89f92; font-weight: 500; }
@@ -743,7 +744,7 @@
     if (row.make_up_status === "made_up" && row.made_up_appointment_id) {
       const target = allGroupAppts.find(a => a.id === row.made_up_appointment_id);
       const dateLabel = target
-        ? `${new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" })} (${t("day." + new Date(target.scheduled_start).getDay())})`
+        ? `${new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" })} (${t("day." + new Date(target.scheduled_start).getDay())}) ${new Date(target.scheduled_start).toLocaleTimeString(localeForDates(), { timeStyle: "short" })}`
         : "?";
       return `<div style="font-size:10px; color:#1e6b34;">→${dateLabel}</div>`;
     }
@@ -756,7 +757,7 @@
     if (row.make_up_status === "combined_with_private" && row.make_up_remark) {
       return `<div style="font-size:10px; color:#1e6b34;">${row.make_up_remark}</div>`;
     }
-    return `<div style="font-size:10px; color:#a89f92;">${t("makeup.unprocessed")}</div>`;
+    return `<div style="font-size:10px; color:#8a2e2e; font-weight:600;">${t("makeup.unprocessed")}</div>`;
   }
 
   function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap) {
@@ -765,6 +766,10 @@
       table.innerHTML = `<tr><td class="empty">${t("attendance.empty_roster")}</td></tr>`;
       return;
     }
+    // Highlight the soonest lesson on/after today, so it's obvious at a
+    // glance which row is "up next" without having to scan every date.
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const nextUpcomingAppt = appts.find(a => new Date(a.scheduled_start) >= startOfToday);
     // Enrolled students first, then withdrawn (kept for history), then
     // one-off make-up visitors — both withdrawn and visitor columns lock to
     // "-" outside a row they actually have, so neither reads as an open
@@ -824,7 +829,8 @@
             ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#8a2e2e; font-size:10px;">${t("student.delete")}</button>` : ""}
           </td>`;
       }).join("");
-      return `<tr><td class="date-col"><div style="display:flex; align-items:center; gap:2px; white-space:nowrap;">${dateLabel} <button type="button" class="link reschedule-icon-btn" data-reschedule-appt="${a.id}" data-current-start="${a.scheduled_start}" title="${t("attendance.reschedule")}" aria-label="${t("attendance.reschedule")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button></div>${rescheduleNote}</td>${cells}</tr>`;
+      const isNextUpcoming = nextUpcomingAppt && a.id === nextUpcomingAppt.id;
+      return `<tr${isNextUpcoming ? ' class="next-upcoming-row"' : ""}><td class="date-col"><div style="display:flex; align-items:center; gap:2px; white-space:nowrap;">${dateLabel} <button type="button" class="link reschedule-icon-btn" data-reschedule-appt="${a.id}" data-current-start="${a.scheduled_start}" title="${t("attendance.reschedule")}" aria-label="${t("attendance.reschedule")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button></div>${rescheduleNote}</td>${cells}</tr>`;
     }
 
     // Group the class's dates into 8-lesson terms with a divider between
@@ -1298,7 +1304,8 @@
     }
     // Chronological within each student, so "Term 1, Term 2…" reads in join order.
     for (const s of map.values()) s.entries.sort((a, b) => a.pkg.start_date.localeCompare(b.pkg.start_date));
-    return [...map.values()];
+    // A-Z by name across students, so the list is easy to scan/find someone in.
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
   }
 
   function renderPayments() {
@@ -1326,7 +1333,7 @@
           const isMadeUp = l.status === "leave" && l.make_up_status === "made_up";
           let statusLabel, statusColor;
           if (isDeferred) {
-            statusLabel = `${t("attstatus.leave")}(${t("makeup.deferred_to_next_package")})`;
+            statusLabel = t("makeup.deferred_to_next_package");
             statusColor = "#8a2e2e";
           } else if (isMadeUp) {
             const target = paymentsAllGroupAppts.find(a => a.id === l.made_up_appointment_id);
@@ -1334,14 +1341,14 @@
             statusLabel = `補堂(${dateLabel})`;
             statusColor = "#1e6b34";
           } else if (l.status === "leave" && l.make_up_status === "pending") {
-            statusLabel = `${t("attstatus.leave")}(${t("makeup.pending")})`;
+            statusLabel = t("makeup.pending");
             statusColor = "#8a2e2e";
           } else if (l.status === "leave" && l.make_up_status === "combined_with_private") {
             statusLabel = `疊埋上私人堂(${l.make_up_remark ?? ""})`;
             statusColor = "#1e6b34";
           } else if (l.status === "leave") {
             statusLabel = t("makeup.unprocessed");
-            statusColor = "#a89f92";
+            statusColor = "#8a2e2e";
           } else {
             statusLabel = l.status ? t("attstatus." + l.status) : t("attstatus.unset");
             statusColor = "";

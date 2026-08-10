@@ -114,6 +114,7 @@ const I18N_STRINGS = {
     "lead.lost_reason": "Reason lost",
     "lead.lost_reason_placeholder": "e.g. No response, moved away, no time",
     "lead.preferred_times": "Preferred times",
+    "lead.consultation_time": "Consultation time",
     "lead.preferred_times_placeholder": "e.g. Sat morning, Fri after 5pm",
 
     "attendance.title": "Attendance",
@@ -396,6 +397,7 @@ const I18N_STRINGS = {
     "lead.lost_reason": "流失原因",
     "lead.lost_reason_placeholder": "例如:冇回覆、搬走、冇時間",
     "lead.preferred_times": "偏好時段",
+    "lead.consultation_time": "諮詢時間",
     "lead.preferred_times_placeholder": "例如:星期六朝早、星期五5點後",
 
     "attendance.title": "出席",
@@ -440,9 +442,9 @@ const I18N_STRINGS = {
 
     "makeup.not_needed": "—",
     "makeup.unprocessed": "請假(未處理)",
-    "makeup.pending": "今期扣",
+    "makeup.pending": "事先請假(今期扣)",
     "makeup.made_up": "補堂日子",
-    "makeup.deferred_to_next_package": "下期扣",
+    "makeup.deferred_to_next_package": "突發請假(下期扣)",
     "makeup.combined_with_private": "請假(疊埋上私人堂)",
     "makeup.remark_placeholder": "例如:8月3日私人堂補返",
 

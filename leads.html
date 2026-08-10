@@ -78,6 +78,7 @@
         </select>
       </label>
       <label><span data-i18n="lead.preferred_times">Preferred times</span> <input type="text" id="lead-preferred-times" data-i18n-placeholder="lead.preferred_times_placeholder" placeholder="e.g. Sat morning, Fri after 5pm" /></label>
+      <label><span data-i18n="lead.consultation_time">Consultation time</span> <input type="datetime-local" id="lead-consultation-time" /></label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="lead-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -122,7 +123,7 @@
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, created_at, lost_reason, preferred_times, contacts(name, whatsapp_number, source, level, age, social_media_name)")
+      .select("id, status, created_at, lost_reason, preferred_times, consultation_appointment_id, contacts(name, whatsapp_number, source, level, age, social_media_name)")
       .order("created_at", { ascending: false });
 
     const board = document.getElementById("board");
@@ -178,6 +179,13 @@
             .update({ status: select.value, updated_at: new Date().toISOString() })
             .eq("id", lead.id);
           if (error) { alert("Update failed: " + error.message); return; }
+          // Marking "attended" also marks their consultation appointment
+          // "completed" — that appointments-table update is what the
+          // Google Calendar sync webhook actually reacts to (it turns the
+          // event grey; see calendar-sync's colorId logic).
+          if (select.value === "attended" && lead.consultation_appointment_id) {
+            await supabaseClient.from("appointments").update({ status: "completed" }).eq("id", lead.consultation_appointment_id);
+          }
           await loadFollowUps();
           await loadBoard();
         });
@@ -234,6 +242,7 @@
     const age = document.getElementById("lead-age").value || null;
     const source = document.getElementById("lead-source").value;
     const preferred_times = document.getElementById("lead-preferred-times").value || null;
+    const consultationTimeStr = document.getElementById("lead-consultation-time").value;
 
     const { data: contact, error: contactError } = await supabaseClient
       .from("contacts")
@@ -242,10 +251,32 @@
       .single();
     if (contactError) { alert("Save failed: " + contactError.message); return; }
 
-    const { error: leadError } = await supabaseClient
+    const { data: lead, error: leadError } = await supabaseClient
       .from("leads")
-      .insert({ contact_id: contact.id, status: "inquired", preferred_times });
+      .insert({ contact_id: contact.id, status: consultationTimeStr ? "consultation_booked" : "inquired", preferred_times })
+      .select().single();
     if (leadError) { alert("Save failed: " + leadError.message); return; }
+
+    // A consultation time books an actual appointment — this is what
+    // actually puts it on the shared Google Calendar (a database webhook on
+    // `appointments` INSERT/UPDATE syncs there automatically), not anything
+    // this page does directly.
+    if (consultationTimeStr) {
+      const start = new Date(consultationTimeStr);
+      const end = new Date(start.getTime() + 20 * 60 * 1000); // consultations default to 20min, same as the Schedule page
+      const { data: appt, error: apptError } = await supabaseClient
+        .from("appointments")
+        .insert({
+          type: "consultation", lead_id: lead.id,
+          scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+          status: "confirmed", notes: name,
+        })
+        .select().single();
+      if (apptError) { alert("Lead saved, but couldn't book the consultation: " + apptError.message); }
+      else {
+        await supabaseClient.from("leads").update({ consultation_appointment_id: appt.id }).eq("id", lead.id);
+      }
+    }
 
     dialog.close();
     await loadFollowUps();
