@@ -21,6 +21,8 @@ const I18N_STRINGS = {
     "receipt.print": "Print",
     "receipt.add_item": "+ Add item",
     "receipt.add_violin_item": "+ Add violin item",
+    "receipt.add_deposit_refund": "− Deduct paid deposit",
+    "receipt.term_number": "Term {n}",
     "receipt.remove_item": "Remove",
     "receipt.schedule_title": "Class schedule:",
     "settings.wipe_all_data": "Delete ALL website data",
@@ -199,6 +201,7 @@ const I18N_STRINGS = {
     "packages.col_renewal_count": "Terms",
     "packages.empty_students": "No students yet.",
     "packages.search_students_placeholder": "Search by name…",
+    "packages.filter_all_classes": "All classes",
     "packages.empty_packages": "No packages yet.",
 
     "private.title": "Private Students",
@@ -316,6 +319,8 @@ const I18N_STRINGS = {
     "receipt.print": "列印",
     "receipt.add_item": "+ 加項目",
     "receipt.add_violin_item": "+ 加小提琴項目",
+    "receipt.add_deposit_refund": "− 扣返已收按金",
+    "receipt.term_number": "第{n}期",
     "receipt.remove_item": "刪除",
     "receipt.schedule_title": "上堂日期:",
     "settings.wipe_all_data": "清空網站所有資料",
@@ -494,6 +499,7 @@ const I18N_STRINGS = {
     "packages.col_renewal_count": "報讀期數",
     "packages.empty_students": "仲未有學生。",
     "packages.search_students_placeholder": "搜尋姓名…",
+    "packages.filter_all_classes": "全部班別",
     "packages.empty_packages": "仲未有套票。",
 
     "private.title": "私人學生",

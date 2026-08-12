@@ -19,9 +19,41 @@
   .weekday-pill.wd-6 { background: #a8d8d4; color: #1c5652; }
   .class-time-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+  .student-filter-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+  .search-wrap { position: relative; width: 100%; max-width: 260px; }
+  .search-wrap .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; opacity: 0.6; }
+  #student-search { width: 100%; padding-left: 30px; border-radius: 8px; border: 1px solid #d9d0c3; }
+  #student-class-filter { border-radius: 8px; border: 1px solid #d9d0c3; min-width: 160px; }
+  .student-name-cell { cursor: pointer; }
+  .student-name-cell:hover .student-name-link { text-decoration: underline; }
+  .student-name-cell .gender-tag { display: block; font-size: 11px; color: #8a8074; font-weight: normal; }
+  .whatsapp-link { color: #1e6b34; text-decoration: none; }
+  .whatsapp-link:hover { text-decoration: underline; }
+  .icon-delete-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #c9c0b3; padding: 2px 4px; border-radius: 4px; }
+  .icon-delete-btn:hover { color: #8a2e2e; background: #fdf2f2; }
+
   .toggle-btn-group { display: flex; gap: 8px; }
-  .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d9d0c3; border-radius: 6px; background: #fff; color: #6b5c4f; cursor: pointer; font-size: 14px; }
-  .toggle-btn.active { background: #7a3b2e; border-color: #7a3b2e; color: #fff; }
+  .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d9d0c3; border-radius: 6px; background: #ece7dd; color: #6b5c4f; cursor: pointer; font-size: 14px; }
+  .toggle-btn.active { background: #c5a059; border-color: #c5a059; color: #3d2b1f; font-weight: 600; }
+
+  /* Wider dialogs (student edit/new) with fields grouped 2-per-row and a
+     footer that stays put below a scrollable body, instead of every field
+     stacking single-file and pushing Save off the bottom of the screen. */
+  dialog.wide-dialog { border: none; border-radius: 10px; padding: 0; width: 560px; max-width: 92vw; background: #fff; }
+  dialog.wide-dialog .dialog-body { padding: 20px 24px; max-height: 70vh; overflow-y: auto; }
+  dialog.wide-dialog .dialog-body h1 { margin-top: 0; }
+  dialog.wide-dialog .field-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-bottom: 10px; }
+  dialog.wide-dialog label { display: block; }
+  dialog.wide-dialog label > span { display: block; margin-bottom: 4px; }
+  dialog.wide-dialog label input, dialog.wide-dialog label select { width: 100%; box-sizing: border-box; }
+  dialog.wide-dialog .full-width { display: flex; flex-direction: column; gap: 10px; }
+  dialog.wide-dialog .dialog-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid #eee; }
+  .ghost-btn { background: none; border: none; color: #6b5c4f; cursor: pointer; padding: 8px 10px; font: inherit; }
+  .ghost-btn:hover { color: #2a2420; }
+  @media (max-width: 600px) {
+    dialog.wide-dialog { width: 96vw; }
+    dialog.wide-dialog .field-grid-2col { grid-template-columns: 1fr; }
+  }
   tr.row-withdrawn { color: #b0a89c; background: #faf8f4; }
   tr.row-withdrawn a { color: #b0a89c; }
   #grid-wrap { overflow-x: auto; }
@@ -124,19 +156,23 @@
       <h1 style="margin:0;" data-i18n="packages.students_title">Students</h1>
       <button class="primary" id="new-student-btn" data-i18n="packages.new_student">+ New student</button>
     </div>
-    <input type="text" id="student-search" data-i18n-placeholder="packages.search_students_placeholder" placeholder="Search by name…" style="width:100%; max-width:280px; margin-bottom:10px;" />
+    <div class="student-filter-row">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="student-search" data-i18n-placeholder="packages.search_students_placeholder" placeholder="Search by name…" />
+      </div>
+      <select id="student-class-filter"><option value="" data-i18n="packages.filter_all_classes">All classes</option></select>
+    </div>
     <table>
       <thead><tr>
         <th data-i18n="student.name">Name</th>
-        <th data-i18n="student.gender">Gender</th>
         <th data-i18n="enroll.col_class">Class</th>
         <th data-i18n="student.phone">WhatsApp number</th>
         <th data-i18n="packages.col_renewal_count">Terms</th>
         <th data-i18n="packages.col_status">Status</th>
-        <th data-i18n="packages.col_detail">Detail</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
     <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
@@ -193,24 +229,26 @@
   </div>
 </main>
 
-<dialog id="student-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
-  <form id="student-form" class="card" style="margin:0; box-shadow:none;">
-    <h1 id="student-dialog-title" data-i18n="dialog.new_student">New student</h1>
-    <input type="hidden" id="student-contact-id" />
-    <input type="hidden" id="student-id" />
-    <div style="display:flex; flex-direction:column; gap:10px;">
-      <label><span data-i18n="student.name">Name</span> <input type="text" id="student-name" required /></label>
-      <label><span data-i18n="student.phone">WhatsApp number</span> <input type="text" id="student-phone" /></label>
-      <label><span data-i18n="student.gender">Gender</span>
-        <select id="student-gender">
-          <option value="male" data-i18n="gender.male">Male</option>
-          <option value="female" data-i18n="gender.female">Female</option>
-        </select>
-      </label>
-      <label><span data-i18n="student.age">Age</span> <input type="number" id="student-age" min="0" step="1" /></label>
-      <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
-      <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
-      <label><span data-i18n="student.needs_violin">Needs to buy a violin?</span>
+<dialog id="student-dialog" class="wide-dialog">
+  <form id="student-form">
+    <div class="dialog-body">
+      <h1 id="student-dialog-title" data-i18n="dialog.new_student">New student</h1>
+      <input type="hidden" id="student-contact-id" />
+      <input type="hidden" id="student-id" />
+      <div class="field-grid-2col">
+        <label><span data-i18n="student.name">Name</span> <input type="text" id="student-name" required /></label>
+        <label><span data-i18n="student.gender">Gender</span>
+          <select id="student-gender">
+            <option value="male" data-i18n="gender.male">Male</option>
+            <option value="female" data-i18n="gender.female">Female</option>
+          </select>
+        </label>
+        <label><span data-i18n="student.phone">WhatsApp number</span> <input type="text" id="student-phone" /></label>
+        <label><span data-i18n="student.age">Age</span> <input type="number" id="student-age" min="0" step="1" /></label>
+        <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
+        <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      </div>
+      <label class="full-width"><span data-i18n="student.needs_violin">Needs to buy a violin?</span>
         <div class="toggle-btn-group" id="student-needs-violin-group">
           <button type="button" class="toggle-btn" data-value="buy" data-i18n="common.yes">Yes</button>
           <button type="button" class="toggle-btn" data-value="borrow" data-i18n="student.violin_borrow">Borrow</button>
@@ -218,15 +256,15 @@
         </div>
         <input type="hidden" id="student-needs-violin" value="not_needed" />
       </label>
-      <div id="student-edit-class-field" style="display:none; flex-direction:column; gap:10px; border-top:1px solid #e5ddd0; padding-top:10px;">
+      <div id="student-edit-class-field" class="full-width" style="display:none; flex-direction:column; gap:10px; border-top:1px solid #e5ddd0; padding-top:10px;">
         <label><span data-i18n="enroll.col_class">Class</span>
           <select id="student-edit-class"></select>
         </label>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button type="button" class="link" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
-        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
-      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="ghost-btn" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+      <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
     </div>
   </form>
 </dialog>
@@ -624,7 +662,7 @@
     await loadPayments();
   }
 
-  // Groups classes by weekday (Sun→Sat) so a <select> can present them under
+  // Groups classes by weekday (Mon→Sun) so a <select> can present them under
   // <optgroup> headers — with the day already conveyed by the group, each
   // option only needs its time and name, not another "(星期X ...)" repeat.
   function groupClassesByWeekday(list) {
@@ -633,8 +671,12 @@
       if (!byDay.has(c.weekly_day_of_week)) byDay.set(c.weekly_day_of_week, []);
       byDay.get(c.weekly_day_of_week).push(c);
     });
+    // weekly_day_of_week is Sun(0)..Sat(6) throughout this app (matches JS
+    // Date.getDay()) — remap to Mon(0)..Sun(6) just for sort order here, so
+    // the list reads as a normal work week instead of starting mid-week.
+    const mondayFirst = (day) => (day + 6) % 7;
     return [...byDay.entries()]
-      .sort((a, b) => a[0] - b[0])
+      .sort((a, b) => mondayFirst(a[0]) - mondayFirst(b[0]))
       .map(([day, items]) => [day, items.sort((a, b) => a.weekly_start_time.localeCompare(b.weekly_start_time))]);
   }
   function buildClassOptgroupsHtml(list, suffixFor) {
@@ -650,6 +692,12 @@
     const select = document.getElementById("enroll-class");
     select.innerHTML = `<option value="" data-i18n="enroll.select_class_placeholder">Select a group class</option>`
       + buildClassOptgroupsHtml(classes);
+
+    const filter = document.getElementById("student-class-filter");
+    const prevFilter = filter.value;
+    filter.innerHTML = `<option value="" data-i18n="packages.filter_all_classes">All classes</option>`
+      + buildClassOptgroupsHtml(classes);
+    if (prevFilter && classes.some(c => c.id === prevFilter)) filter.value = prevFilter;
   }
 
   // ---------- Attendance (merged in from the old standalone Attendance page) ----------
@@ -1865,7 +1913,7 @@
     tbody.querySelectorAll("button[data-enroll-student]").forEach(btn => {
       btn.addEventListener("click", () => openEnrollDialog(students.find(s => s.id === btn.dataset.enrollStudent)));
     });
-    tbody.querySelectorAll("button[data-view-detail]").forEach(btn => {
+    tbody.querySelectorAll("[data-view-detail]").forEach(btn => {
       btn.addEventListener("click", () => {
         const student = students.find(s => s.id === btn.dataset.viewDetail);
         document.getElementById("student-detail-name").textContent = student?.contacts?.name ?? "";
@@ -1888,25 +1936,28 @@
     });
   }
 
-  // Actively searching bypasses the collapse-to-3 limit entirely and shows
-  // every match directly — a search is a specific lookup, not browsing.
+  // Actively searching or filtering by class bypasses the collapse-to-3
+  // limit entirely and shows every match directly — that's a specific
+  // lookup, not browsing.
   function renderStudentRows() {
     const tbody = document.getElementById("student-rows");
     const btn = document.getElementById("student-toggle-btn");
     const searchText = document.getElementById("student-search").value.trim().toLowerCase();
-    const filtered = searchText
-      ? studentRowsCache.filter(r => r.name.toLowerCase().includes(searchText))
-      : studentRowsCache;
+    const classFilter = document.getElementById("student-class-filter").value;
+    let filtered = studentRowsCache;
+    if (searchText) filtered = filtered.filter(r => r.name.toLowerCase().includes(searchText));
+    if (classFilter) filtered = filtered.filter(r => r.classId === classFilter);
 
-    if (searchText) {
+    if (searchText || classFilter) {
       btn.style.display = "none";
-      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="8" class="empty">${t("packages.empty_students")}</td></tr>`;
+      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="6" class="empty">${t("packages.empty_students")}</td></tr>`;
       attachStudentRowListeners(tbody);
     } else {
-      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 8, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
+      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 6, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
     }
   }
   document.getElementById("student-search").addEventListener("input", renderStudentRows);
+  document.getElementById("student-class-filter").addEventListener("change", renderStudentRows);
 
   async function loadStudents() {
     const tbody = document.getElementById("student-rows");
@@ -1916,18 +1967,22 @@
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
     students = data;
 
     const rowsHtml = await Promise.all(data.map(async (s) => {
-      // "Current" enrollment = this student's most recently created package, if any.
-      const { data: pkgs } = await supabaseClient
+      // One query for every package this student has ever had, instead of
+      // a separate "just the latest" query — "current" (most recently
+      // created) and "joined"/lifetime-totals (earliest start_date first)
+      // are just two different client-side sorts of the same rows.
+      const { data: allOwnPkgsRaw } = await supabaseClient
         .from("packages")
-        .select("id, class_id, start_date, total_lessons, price, status, cancelled_at, classes(name, weekly_day_of_week, weekly_start_time)")
-        .eq("student_id", s.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const pkg = pkgs?.[0];
+        .select("id, class_id, start_date, total_lessons, price, status, cancelled_at, created_at, classes(name, weekly_day_of_week, weekly_start_time)")
+        .eq("student_id", s.id);
+      const allOwnPkgs = [...(allOwnPkgsRaw ?? [])].sort((a, b) => a.start_date.localeCompare(b.start_date));
+      const pkg = allOwnPkgsRaw?.length
+        ? [...allOwnPkgsRaw].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+        : undefined;
       s.currentPkg = pkg ?? null;
       const isWithdrawn = pkg?.status === "cancelled";
       const withdrawnDateCell = pkg?.cancelled_at
@@ -1941,8 +1996,6 @@
       // renewals don't count as re-joining. Also used to compute lifetime
       // totals — every package ever (including cancelled ones, since the
       // fee was already collected up front before a mid-term cancel).
-      const { data: allOwnPkgs } = await supabaseClient
-        .from("packages").select("id, class_id, start_date, total_lessons, price").eq("student_id", s.id).order("start_date", { ascending: true });
       const joinDateCell = allOwnPkgs?.[0]
         ? new Date(`${allOwnPkgs[0].start_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" })
         : "—";
@@ -1954,22 +2007,29 @@
 
       // "已請假" and "累計已付" are both cumulative across every package this
       // student has ever had — not just the current one — and share the same
-      // per-package attendance query, so they're computed together in one pass.
+      // per-package attendance query, so they're computed together in one
+      // pass. Each package's own appointments+attendance lookup runs
+      // concurrently (Promise.all) instead of one package waiting on the
+      // last — a student with several renewal terms previously queued up
+      // that many round-trips back-to-back, which is what made this table
+      // slow to load.
       const ownIncomingCreditAmounts = await getIncomingCreditAmounts((allOwnPkgs ?? []).map(p => p.id));
-      let totalLeavesUsed = 0, totalDeduction = 0;
-      for (const p of (allOwnPkgs ?? [])) {
+      const perPackageResults = await Promise.all((allOwnPkgs ?? []).map(async (p) => {
         const pAppts = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
         const pApptIds = pAppts.map(a => a.id);
-        if (pApptIds.length) {
-          const { data: pAtt } = await supabaseClient.from("attendance")
-            .select("status, make_up_status")
-            .eq("student_id", s.id).in("appointment_id", pApptIds);
-          const rows = pAtt ?? [];
-          totalLeavesUsed += rows.filter(r => r.status === "leave").length;
-          totalDeduction += rows.filter(isDeductible).length * (p.price / p.total_lessons);
-        }
-        totalDeduction += ownIncomingCreditAmounts.get(p.id) ?? 0;
-      }
+        const incomingCredit = ownIncomingCreditAmounts.get(p.id) ?? 0;
+        if (!pApptIds.length) return { leaves: 0, deduction: incomingCredit };
+        const { data: pAtt } = await supabaseClient.from("attendance")
+          .select("status, make_up_status")
+          .eq("student_id", s.id).in("appointment_id", pApptIds);
+        const rows = pAtt ?? [];
+        return {
+          leaves: rows.filter(r => r.status === "leave").length,
+          deduction: rows.filter(isDeductible).length * (p.price / p.total_lessons) + incomingCredit,
+        };
+      }));
+      const totalLeavesUsed = perPackageResults.reduce((sum, r) => sum + r.leaves, 0);
+      const totalDeduction = perPackageResults.reduce((sum, r) => sum + r.deduction, 0);
       const leavesCell = `${totalLeavesUsed}`;
       const totalPaid = Math.round(Math.max(0, (allOwnPkgs ?? []).reduce((sum, p) => sum + (p.price ?? 0), 0) - totalDeduction));
 
@@ -1987,25 +2047,29 @@
       const rawPhone = s.contacts?.whatsapp_number ?? "";
       const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
       const whatsappCell = rawPhone && digitsOnly
-        ? `<a href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">${rawPhone}</a>`
+        ? `<a class="whatsapp-link" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
         : "—";
+      const violinIcon = s.contacts?.violin_status === "buy" ? ' <span title="' + t("student.needs_violin") + '">🎻</span>'
+        : s.contacts?.violin_status === "borrow" ? ' <span title="' + t("student.violin_borrow") + '">🔄</span>' : "";
+      const genderTag = s.contacts?.gender ? `<span class="gender-tag">${t("gender." + s.contacts.gender)}</span>` : "";
 
       const html = `
         <tr${isWithdrawn ? ' class="row-withdrawn"' : ""}>
-          <td>${s.contacts?.name ?? ""}${s.contacts?.violin_status === "buy" ? ' <span title="' + t("student.needs_violin") + '">🎻</span>' : s.contacts?.violin_status === "borrow" ? ' <span title="' + t("student.violin_borrow") + '">🔄</span>' : ""}</td>
-          <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
+          <td class="student-name-cell" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-age="${s.contacts?.age ?? "—"}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">
+            <span class="student-name-link">${s.contacts?.name ?? ""}${violinIcon}</span>
+            ${genderTag}
+          </td>
           <td>${classCell}</td>
           <td>${whatsappCell}</td>
           <td>${renewalCountCell}</td>
           <td>${statusCell}</td>
-          <td><button class="link" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-age="${s.contacts?.age ?? "—"}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">${t("packages.col_detail")}</button></td>
           <td style="white-space:nowrap;">
             <button class="link" data-edit-student="${s.id}">${t("student.edit")}</button>
             ${enrollActionBtn}
-            <button class="link" data-delete-student="${s.id}" style="color:#8a2e2e;">${t("student.delete")}</button>
+            <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
           </td>
         </tr>`;
-      return { isWithdrawn, name: s.contacts?.name ?? "", html };
+      return { isWithdrawn, name: s.contacts?.name ?? "", classId: pkg?.class_id ?? "", html };
     }));
 
     // Withdrawn students (latest package cancelled) sink to the bottom,

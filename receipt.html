@@ -59,7 +59,7 @@
   .item-schedule .schedule-line { font-size: 12px; line-height: 1.6; }
   .item-schedule .schedule-line .struck { text-decoration: line-through; color: #a89b8a; }
 
-  #add-item-btn, #add-violin-item-btn { font-size: 12px; margin: 8px 12px 16px 0; }
+  #add-item-btn, #add-violin-item-btn, #add-deposit-refund-btn { font-size: 12px; margin: 8px 12px 16px 0; }
 
 
   .total-row { display: flex; justify-content: flex-end; background: #e2d6bb; padding: 8px 14px; margin-bottom: 24px; }
@@ -260,6 +260,7 @@
     </table>
     <button type="button" class="link no-print" id="add-item-btn" data-i18n="receipt.add_item">+ Add item</button>
     <button type="button" class="link no-print" id="add-violin-item-btn" style="display:none;" data-i18n="receipt.add_violin_item">+ Add violin item</button>
+    <button type="button" class="link no-print" id="add-deposit-refund-btn" data-i18n="receipt.add_deposit_refund">− Deduct paid deposit</button>
 
     <div class="total-row">
       <span class="total-label">TOTAL</span>
@@ -426,6 +427,15 @@
     (VIOLIN_ITEMS[currentViolinStatus] ?? []).forEach(addItemRow);
   });
 
+  // Group class enrollment collects a $200 deposit upfront (to help make
+  // sure a student actually shows up) — this button just adds a negative
+  // line so the current total reflects the $200 already in hand from an
+  // earlier receipt; it doesn't touch that earlier receipt itself. Applies
+  // to every student, not just violin rentals, so it's always visible.
+  document.getElementById("add-deposit-refund-btn").addEventListener("click", () => {
+    addItemRow({ description: "Deposit (Previously Paid)", unitPrice: -200, qty: 1 });
+  });
+
   // ---------- Student + term pickers (auto-fill convenience) ----------
   // Custom searchable combobox — a native <select> can't put a search box
   // inside its own dropdown, so this is a text "display" field that opens a
@@ -534,11 +544,16 @@
       p.effectivePrice = effectivePrice(p, lessons);
     }));
 
+    // Term numbers count ALL of this student's packages chronologically
+    // (earliest = Term 1) — same "第1期/第2期…" convention the Payments tab
+    // uses — independent of this dropdown's own most-recent-first order,
+    // so two same-named terms in the list are still tellable apart without
+    // showing the date/price a student might see over someone's shoulder.
+    const chronological = [...pkgs].sort((a, b) => a.start_date.localeCompare(b.start_date));
+    const termNumberById = new Map(chronological.map((p, i) => [p.id, i + 1]));
+
     packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`
-      + pkgs.map(p => {
-          const dateLabel = new Date(`${p.start_date}T00:00:00`).toLocaleDateString("en-HK", { dateStyle: "medium" });
-          return `<option value="${p.id}">${p.classes?.name ?? ""} — ${dateLabel} ($${p.effectivePrice})</option>`;
-        }).join("");
+      + pkgs.map(p => `<option value="${p.id}">${p.classes?.name ?? ""}（${tf("receipt.term_number", { n: termNumberById.get(p.id) })}）</option>`).join("");
     packageSelect.disabled = false;
     packageSelect.dataset.pkgs = JSON.stringify(pkgs);
   }
