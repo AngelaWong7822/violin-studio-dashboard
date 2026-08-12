@@ -467,7 +467,7 @@ const I18N_STRINGS = {
     "makeup.pending": "事先請假(今期扣)",
     "makeup.made_up": "補堂日子",
     "makeup.deferred_to_next_package": "突發請假(下期扣)",
-    "makeup.combined_with_private": "請假(疊埋上私人堂)",
+    "makeup.combined_with_private": "請假(特別補堂處理)",
     "makeup.remark_placeholder": "例如:8月3日私人堂補返",
 
     "payments.title": "付款",

@@ -7,6 +7,18 @@
 <link rel="stylesheet" href="shared.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+  /* One color per weekday so a scan down the Classes table sorts by day at
+     a glance, without having to read "(星期X)" text embedded in a sentence. */
+  .weekday-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-right: 6px; white-space: nowrap; }
+  .weekday-pill.wd-0 { background: #f5dba3; color: #6b4f14; }
+  .weekday-pill.wd-1 { background: #c3ceda; color: #364a5e; }
+  .weekday-pill.wd-2 { background: #bfdcc0; color: #2c5530; }
+  .weekday-pill.wd-3 { background: #e8c3d0; color: #6e2f43; }
+  .weekday-pill.wd-4 { background: #d4c6ea; color: #4b3878; }
+  .weekday-pill.wd-5 { background: #f2c9a3; color: #6e3f14; }
+  .weekday-pill.wd-6 { background: #a8d8d4; color: #1c5652; }
+  .class-time-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
   .toggle-btn-group { display: flex; gap: 8px; }
   .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d9d0c3; border-radius: 6px; background: #fff; color: #6b5c4f; cursor: pointer; font-size: 14px; }
   .toggle-btn.active { background: #7a3b2e; border-color: #7a3b2e; color: #fff; }
@@ -25,6 +37,10 @@
   .att-toggle:disabled { opacity: 0.55; cursor: default; }
   .att-toggle.att-attended { background: #1e6b34; color: #fff; }
   .att-toggle.att-leave { background: #b8863a; color: #fff; }
+  /* A leave with a make-up date already picked is "resolved" — light green
+     instead of the same gold as a still-unprocessed leave, so it's obvious
+     at a glance which ones still need a decision. */
+  .att-toggle.att-leave-madeup { background: #cdeed4; color: #1e6b34; }
   .att-toggle.att-no_show { background: #8a2e2e; color: #fff; }
   .visitor-badge { color: #8a6314; font-weight: 600; }
   #grid-table td.visitor-locked { color: #cfc7ba; background: #faf8f4; }
@@ -575,11 +591,13 @@
       const { data: enrolled } = await supabaseClient
         .from("packages").select("student_id").eq("class_id", cls.id).eq("status", "active");
       const enrolledCount = new Set((enrolled ?? []).map(p => p.student_id)).size;
-      const timeLabel = `${cls.weekly_start_time.slice(0, 5)} (${t("weekday_full." + cls.weekly_day_of_week)})`;
+      const start = cls.weekly_start_time.slice(0, 5);
+      const end = new Date(new Date(`2000-01-01T${cls.weekly_start_time}`).getTime() + cls.duration_minutes * 60000).toTimeString().slice(0, 5);
+      const timeLabel = `<span class="weekday-pill wd-${cls.weekly_day_of_week}">${t("weekday_full." + cls.weekly_day_of_week)}</span>${start} - ${end}`;
       return `
         <tr>
           <td>${cls.name}</td>
-          <td>${timeLabel}</td>
+          <td class="class-time-cell">${timeLabel}</td>
           <td>${enrolledCount}</td>
           <td>${lessonCount ?? 0}</td>
           <td style="white-space:nowrap;">
@@ -606,10 +624,32 @@
     await loadPayments();
   }
 
+  // Groups classes by weekday (Sun→Sat) so a <select> can present them under
+  // <optgroup> headers — with the day already conveyed by the group, each
+  // option only needs its time and name, not another "(星期X ...)" repeat.
+  function groupClassesByWeekday(list) {
+    const byDay = new Map();
+    list.forEach(c => {
+      if (!byDay.has(c.weekly_day_of_week)) byDay.set(c.weekly_day_of_week, []);
+      byDay.get(c.weekly_day_of_week).push(c);
+    });
+    return [...byDay.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([day, items]) => [day, items.sort((a, b) => a.weekly_start_time.localeCompare(b.weekly_start_time))]);
+  }
+  function buildClassOptgroupsHtml(list, suffixFor) {
+    return groupClassesByWeekday(list).map(([day, items]) => {
+      const options = items.map(c =>
+        `<option value="${c.id}">${c.weekly_start_time.slice(0, 5)} — ${c.name}${suffixFor ? suffixFor(c) : ""}</option>`
+      ).join("");
+      return `<optgroup label="${t("weekday_full." + day)}">${options}</optgroup>`;
+    }).join("");
+  }
+
   function populateClassSelect() {
     const select = document.getElementById("enroll-class");
     select.innerHTML = `<option value="" data-i18n="enroll.select_class_placeholder">Select a group class</option>`
-      + classes.map(c => `<option value="${c.id}">${c.name} (${t("day." + c.weekly_day_of_week)} ${c.weekly_start_time.slice(0, 5)})</option>`).join("");
+      + buildClassOptgroupsHtml(classes);
   }
 
   // ---------- Attendance (merged in from the old standalone Attendance page) ----------
@@ -646,9 +686,9 @@
     }
 
     const prev = attendanceClassSelect.value;
-    attendanceClassSelect.innerHTML = selectableClasses.map(c =>
-      `<option value="${c.id}">${c.name} (${t("day." + c.weekly_day_of_week)} ${c.weekly_start_time.slice(0, 5)})${classes.some(ac => ac.id === c.id) ? "" : ` · ${t("class.cancelled_suffix")}`}</option>`
-    ).join("");
+    attendanceClassSelect.innerHTML = buildClassOptgroupsHtml(selectableClasses, c =>
+      classes.some(ac => ac.id === c.id) ? "" : ` · ${t("class.cancelled_suffix")}`
+    );
     if (prev && selectableClasses.some(c => c.id === prev)) attendanceClassSelect.value = prev;
     await loadClassGrid(attendanceClassSelect.value);
   }
@@ -744,6 +784,13 @@
   // Short inline note under a "leave" cell so the make-up outcome is visible
   // without scrolling down to the pending-decisions list — e.g. "→8/8" if
   // made up in another session, "下期扣" if deferred to the next package.
+  function attToggleClass(row) {
+    if (row?.status !== "leave") return `att-${row?.status || "unset"}`;
+    const resolved = (row.make_up_status === "made_up" && row.made_up_appointment_id)
+      || (row.make_up_status === "combined_with_private" && row.make_up_remark);
+    return resolved ? "att-leave-madeup" : "att-leave";
+  }
+
   function makeupNoteHtml(row, allGroupAppts) {
     if (!row || row.status !== "leave") return "";
     if (row.make_up_status === "made_up" && row.made_up_appointment_id) {
@@ -829,7 +876,7 @@
         const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
         return `
           <td${colClass(isWithdrawn, isVisitor)}>
-            <button type="button" class="att-toggle att-${row?.status || "unset"}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
+            <button type="button" class="att-toggle ${attToggleClass(row)}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
             ${makeupNoteHtml(row, allGroupAppts)}
             ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#8a2e2e; font-size:10px;">${t("student.delete")}</button>` : ""}
           </td>`;
@@ -2029,7 +2076,7 @@
     const classField = document.getElementById("student-edit-class-field");
     if (pkg && pkg.status === "active") {
       const classSelectEl = document.getElementById("student-edit-class");
-      classSelectEl.innerHTML = classes.map(c => `<option value="${c.id}">${c.name} (${t("day." + c.weekly_day_of_week)} ${c.weekly_start_time.slice(0, 5)})</option>`).join("");
+      classSelectEl.innerHTML = buildClassOptgroupsHtml(classes);
       classSelectEl.value = pkg.class_id;
       classField.style.display = "flex";
     } else {
