@@ -13,6 +13,20 @@
   .lead-card .name { font-weight: 600; }
   .lead-card .meta { color: #8a8074; font-size: 12px; margin-top: 2px; }
   .lead-card select, .lead-card input { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
+  .consultation-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .consult-time-label { font-size: 11px; white-space: nowrap; }
+  .consultation-row input.consult-time-input { width: auto; flex: 1 1 auto; min-width: 150px; margin-top: 0; font-size: 11px; padding: 3px 4px; }
+  .cancel-consultation-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid #d9a3a3;
+    border-radius: 5px;
+    background: #fdf2f2;
+    color: #8a2e2e;
+    cursor: pointer;
+  }
+  .cancel-consultation-btn:hover { background: #fbe4e4; }
+  .delete-lead-btn { font-size: 11px; margin-top: 8px; color: #8a2e2e; }
   @media (max-width: 800px) { #board { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -102,6 +116,15 @@
 
   const STATUSES = ["inquired", "consultation_booked", "attended", "converted", "lost"];
 
+  // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the *local* timezone —
+  // building it from the local getters (not toISOString, which is UTC)
+  // keeps the value shown matching what the clock on the wall would say.
+  function toDatetimeLocalValue(isoString) {
+    const d = new Date(isoString);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   async function loadFollowUps() {
     const tbody = document.getElementById("followup-rows");
     const { data, error } = await supabaseClient
@@ -123,7 +146,7 @@
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, created_at, lost_reason, preferred_times, consultation_appointment_id, contacts(name, whatsapp_number, source, level, age, social_media_name)")
+      .select("id, status, created_at, lost_reason, preferred_times, consultation_appointment_id, contacts(name, whatsapp_number, source, level, age, social_media_name), appointments!leads_consultation_appointment_fk(scheduled_start, status)")
       .order("created_at", { ascending: false });
 
     const board = document.getElementById("board");
@@ -164,6 +187,55 @@
           ${metaParts.length ? `<div class="meta">${metaParts.join(" · ")}</div>` : ""}
           <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
         `;
+
+        // Only shown while there's still a live, upcoming booking to act
+        // on — not once it's cancelled (appointment row stays around for
+        // history, lead just no longer points at it) or already attended
+        // (marking "attended" also marks the appointment "completed", so
+        // there's nothing left to cancel).
+        const appt = lead.appointments;
+        if (lead.consultation_appointment_id && appt && appt.status !== "cancelled" && status !== "attended") {
+          const consultRow = document.createElement("div");
+          consultRow.className = "meta consultation-row";
+          const timeLabel = document.createElement("span");
+          timeLabel.className = "consult-time-label";
+          timeLabel.textContent = t("lead.consultation_time") + ":";
+          consultRow.appendChild(timeLabel);
+          const timeInput = document.createElement("input");
+          timeInput.type = "datetime-local";
+          timeInput.className = "consult-time-input";
+          timeInput.value = toDatetimeLocalValue(appt.scheduled_start);
+          timeInput.addEventListener("change", async () => {
+            if (!timeInput.value) return;
+            // Consultations are a fixed 20min, same as when first booked —
+            // rescheduling just shifts the whole window to the new start.
+            const start = new Date(timeInput.value);
+            const end = new Date(start.getTime() + 20 * 60 * 1000);
+            const { error } = await supabaseClient
+              .from("appointments")
+              .update({ scheduled_start: start.toISOString(), scheduled_end: end.toISOString() })
+              .eq("id", lead.consultation_appointment_id);
+            if (error) { alert("Update failed: " + error.message); return; }
+            await loadBoard();
+          });
+          consultRow.appendChild(timeInput);
+          const cancelBtn = document.createElement("button");
+          cancelBtn.type = "button";
+          cancelBtn.className = "cancel-consultation-btn";
+          cancelBtn.textContent = t("lead.cancel_consultation");
+          cancelBtn.addEventListener("click", async () => {
+            if (!confirm(t("lead.cancel_consultation_confirm"))) return;
+            const { error: apptError } = await supabaseClient
+              .from("appointments").update({ status: "cancelled" }).eq("id", lead.consultation_appointment_id);
+            if (apptError) { alert("Cancel failed: " + apptError.message); return; }
+            const { error: leadError } = await supabaseClient
+              .from("leads").update({ consultation_appointment_id: null }).eq("id", lead.id);
+            if (leadError) { alert("Update failed: " + leadError.message); return; }
+            await loadBoard();
+          });
+          consultRow.appendChild(cancelBtn);
+          card.appendChild(consultRow);
+        }
 
         const select = document.createElement("select");
         STATUSES.forEach(s => {
@@ -219,11 +291,40 @@
           card.appendChild(lostReasonInput);
         }
 
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "link delete-lead-btn";
+        deleteBtn.textContent = t("lead.delete");
+        deleteBtn.addEventListener("click", () => deleteLead(lead));
+        card.appendChild(deleteBtn);
+
         col.appendChild(card);
       });
 
       board.appendChild(col);
     });
+  }
+
+  // Removes the lead from the pipeline only — the underlying contacts row
+  // is left alone (not cascaded), since the same contact can also be a
+  // students/private-students record; deleting it would silently wipe that
+  // person's whole enrollment history too.
+  async function deleteLead(lead) {
+    if (!confirm(tf("lead.delete_confirm", { name: lead.contacts?.name ?? "" }))) return;
+
+    // appointments.lead_id points back at this row, so deleting it outright
+    // would hit that foreign key. Cancel first (status update is what the
+    // calendar-sync webhook reacts to — it only fires on INSERT/UPDATE, so
+    // a straight delete would leave a stale Google Calendar event behind)
+    // then unlink, clearing the way for the lead delete below.
+    const { error: apptError } = await supabaseClient
+      .from("appointments").update({ status: "cancelled", lead_id: null }).eq("lead_id", lead.id);
+    if (apptError) { alert("Delete failed: " + apptError.message); return; }
+
+    const { error } = await supabaseClient.from("leads").delete().eq("id", lead.id);
+    if (error) { alert("Delete failed: " + error.message); return; }
+    await loadFollowUps();
+    await loadBoard();
   }
 
   const dialog = document.getElementById("lead-dialog");

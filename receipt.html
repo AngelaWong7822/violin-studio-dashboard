@@ -7,17 +7,32 @@
 <link rel="stylesheet" href="shared.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  #receipt-sheet {
+  /* Scoped to this page only — warmer than shared.css's default body tone,
+     so the white receipt paper reads as a physical sheet sitting on a desk. */
+  body { background: #f4f1ea; }
+
+  #receipt-sheet, #terms-page {
     background: #fff;
     max-width: 560px;
     margin: 0 auto;
     padding: 32px 40px;
     font-family: Georgia, "Times New Roman", serif;
     color: #2a2420;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
   }
-  #receipt-sheet .logo-row { text-align: center; margin-bottom: 2px; }
-  #receipt-sheet .logo-row img { height: 64px; }
-  #receipt-sheet .studio-title { text-align: center; letter-spacing: 5px; font-size: 15px; margin: 2px 0 20px; }
+  #receipt-sheet .logo-row, #terms-page .logo-row { text-align: center; margin-bottom: 2px; }
+  #receipt-sheet .logo-row img, #terms-page .logo-row img { height: 64px; }
+  #receipt-sheet .studio-title, #terms-page .studio-title { text-align: center; letter-spacing: 5px; font-size: 15px; margin: 2px 0 20px; }
+  /* Only shown when the selected student is buying (not borrowing) a
+     violin — stacked below the receipt on screen as a preview of the
+     second printed page, separated with its own top margin. */
+  #terms-page { margin-top: 24px; }
+  .terms-block { font-size: 12px; line-height: 1.8; }
+  .terms-block .terms-heading { font-weight: 700; margin: 16px 0 6px; }
+  .terms-block .terms-heading:first-child { margin-top: 0; }
+  .terms-block ol { margin: 0; padding-left: 20px; }
+  .terms-block li { margin-bottom: 4px; }
   .receipt-meta { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; gap: 16px; padding: 12px 16px; background: #faf8f4; border: 1px solid #ede6d8; border-radius: 4px; }
   .receipt-meta label { font-size: 10px; letter-spacing: 1.5px; color: #8a6314; display: block; margin-bottom: 4px; text-transform: uppercase; }
   .receipt-meta input { border: none; border-bottom: 1px solid #ddd4c8; font-family: inherit; font-size: 13px; padding: 2px 0; background: transparent; }
@@ -44,7 +59,7 @@
   .item-schedule .schedule-line { font-size: 12px; line-height: 1.6; }
   .item-schedule .schedule-line .struck { text-decoration: line-through; color: #a89b8a; }
 
-  #add-item-btn { font-size: 12px; margin: 8px 0 16px; }
+  #add-item-btn, #add-violin-item-btn { font-size: 12px; margin: 8px 12px 16px 0; }
 
 
   .total-row { display: flex; justify-content: flex-end; background: #e2d6bb; padding: 8px 14px; margin-bottom: 24px; }
@@ -59,11 +74,46 @@
   .receipt-footer .signature-block img.signature-img { height: 44px; display: block; margin: 0 auto; }
   .receipt-footer .signature-block .sig-line { width: 130px; border-top: 1px solid #4a4038; margin-top: 4px; padding-top: 4px; font-size: 11px; letter-spacing: 1px; color: #6b5c4f; }
 
-  #receipt-controls { max-width: 700px; margin: 0 auto 12px; padding: 10px 16px; }
+  /* shared.css gives every .card overflow-x:auto so wide data tables can
+     scroll instead of being crushed on mobile — but setting overflow-x
+     alone makes the browser force overflow-y to "auto" too, which clips
+     the student combo dropdown below (it's an absolutely-positioned child
+     that intentionally extends past the card's own bottom edge). This card
+     has no wide table, so it doesn't need the scroll behavior anyway. */
+  #receipt-controls {
+    max-width: 560px;
+    margin: 0 auto 4px;
+    padding: 14px 16px;
+    overflow: visible;
+    background: #fff;
+    border: 1px solid #ede6d8;
+    border-radius: 4px 4px 0 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
   #receipt-controls .control-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-  #receipt-controls label { font-size: 11px; display: block; margin-bottom: 3px; }
-  #receipt-controls select { min-width: 200px; }
-  #receipt-controls button.primary { padding: 7px 14px; }
+  #receipt-controls label { font-size: 11px; display: block; margin-bottom: 3px; color: #8a6314; letter-spacing: .5px; }
+  #receipt-controls select { min-width: 200px; border-color: #d9d0c3; }
+  #receipt-controls input:focus, #receipt-controls select:focus, #receipt-controls .combo-display:focus {
+    outline: none;
+    border-color: #8a6314;
+    box-shadow: 0 0 0 2px rgba(138, 99, 20, 0.15);
+  }
+  #receipt-controls button.primary {
+    padding: 8px 18px;
+    background: #c5a059;
+    border-color: #c5a059;
+    color: #3d2b1f;
+    font-weight: 600;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(197, 160, 89, 0.35);
+  }
+  #receipt-controls button.primary:hover { background: #b6924a; border-color: #b6924a; }
+  /* A visual seam, not a real gap — the paper "grows" out of the control
+     bar above it rather than floating separately. */
+  #receipt-sheet { margin-top: 0; border-radius: 0 0 4px 4px; }
+  /* Overrides shared.css's nav-active color for this page only — the
+     default is a bit heavy sitting above the lighter receipt paper below. */
+  header.topnav a.active { background: #8a6314; }
 
   /* Searchable combobox: a text field that opens a panel with its own
      search box at the top and a scrollable option list below, instead of
@@ -115,7 +165,10 @@
     @page { margin: 0; }
     body { background: #fff; }
     header.topnav, #receipt-controls, .no-print { display: none !important; }
-    #receipt-sheet { box-shadow: none; padding: 36px 42px; max-width: none; }
+    #receipt-sheet, #terms-page { box-shadow: none; padding: 36px 42px; max-width: none; }
+    /* Terms page always starts on its own sheet, never sharing a page with
+       the receipt above it. */
+    #terms-page { page-break-before: always; margin-top: 0; }
     /* position:fixed pins the footer to the page box itself, so it sits at
        the bottom of the printed page without inflating the document's own
        height — min-height:100vh was tried first but "vh" in print is
@@ -206,6 +259,7 @@
       <tbody id="item-rows"></tbody>
     </table>
     <button type="button" class="link no-print" id="add-item-btn" data-i18n="receipt.add_item">+ Add item</button>
+    <button type="button" class="link no-print" id="add-violin-item-btn" style="display:none;" data-i18n="receipt.add_violin_item">+ Add violin item</button>
 
     <div class="total-row">
       <span class="total-label">TOTAL</span>
@@ -223,6 +277,31 @@
         <img src="signature.png" alt="" class="signature-img" onerror="this.style.display='none'" />
         <div class="sig-line">Signature</div>
       </div>
+    </div>
+  </div>
+
+  <div id="terms-page" style="display:none;">
+    <div class="logo-row"><img src="logo.png" alt="" /></div>
+    <div class="studio-title">TOM'S VIOLIN STUDIO</div>
+    <div class="terms-block">
+      <p class="terms-heading">條款與細則</p>
+      <ol>
+        <li>所有產品只提供瑕疵品退換服務，其他退換原因均一律不接受。</li>
+        <li>同一張訂單只可進行一次退貨服務，請買家將所有貨品檢查完畢。</li>
+        <li>所有產品必須在當天起的七天內展開退貨流程。</li>
+        <li>所有產品必須經過合理保養，例如不得有磨損或損壞，且其狀態必須可讓本公司轉售該產品，才能進行退貨。</li>
+        <li>未經授權的維修，誤用，碰撞，疏忽，事故，改裝，不正確安裝所造成的貨品問題，撕毀，塗改標貼，防偽，標記等，均不給予7天兌換貨品。</li>
+        <li>如有任何爭議，本公司Tom's Violin studio將保留最終決定權。</li>
+      </ol>
+      <p class="terms-heading">Terms and Conditions</p>
+      <ol>
+        <li>Only defected items are allowed for exchange, no refund will be entertained.</li>
+        <li>Buyer should examine the product thoroughly and the product on one receipt can be exchanged once only.</li>
+        <li>All product can be exchanged once within 7 days from the date of purchase.</li>
+        <li>Sold items requested for exchange must be in a good and acceptable resell-able condition.</li>
+        <li>Any unauthorised alternation made to the sold items are not eligible for 7 days exchange policy.</li>
+        <li>In case of any dispute, Tom's Violin studio's decision shall be final.</li>
+      </ol>
     </div>
   </div>
 </main>
@@ -332,6 +411,21 @@
 
   document.getElementById("add-item-btn").addEventListener("click", () => addItemRow());
 
+  // Not a per-term charge — the button only appears when the student's own
+  // profile (Packages page) says they need a violin, and stays a manual
+  // click so it's never silently re-added on every renewal/reprint.
+  const VIOLIN_ITEMS = {
+    buy: [{ description: "1/4 Size Beginner Violin Outfit", unitPrice: 1200, qty: 1 }],
+    borrow: [
+      { description: "Violin Rental Fee (1 Month)", unitPrice: 200, qty: 1 },
+      { description: "Violin Rental Deposit (Refundable)", unitPrice: 500, qty: 1 },
+    ],
+  };
+  let currentViolinStatus = "not_needed";
+  document.getElementById("add-violin-item-btn").addEventListener("click", () => {
+    (VIOLIN_ITEMS[currentViolinStatus] ?? []).forEach(addItemRow);
+  });
+
   // ---------- Student + term pickers (auto-fill convenience) ----------
   // Custom searchable combobox — a native <select> can't put a search box
   // inside its own dropdown, so this is a text "display" field that opens a
@@ -379,7 +473,7 @@
   async function loadStudents() {
     const { data } = await supabaseClient
       .from("students")
-      .select("id, contacts(name)")
+      .select("id, contacts(name, violin_status)")
       .eq("active", true)
       .order("created_at", { ascending: false });
 
@@ -406,6 +500,12 @@
     packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`;
     packageSelect.disabled = true;
     document.getElementById("receipt-issued-to").value = student?.contacts?.name ?? "";
+    currentViolinStatus = student?.contacts?.violin_status ?? "not_needed";
+    document.getElementById("add-violin-item-btn").style.display = currentViolinStatus === "not_needed" ? "none" : "";
+    // The terms-and-conditions page only applies to an outright purchase,
+    // not a rental — a borrowed violin gets returned, so there's nothing to
+    // "sell" that these exchange/refund terms would govern.
+    document.getElementById("terms-page").style.display = currentViolinStatus === "buy" ? "" : "none";
     if (!studentId) return;
 
     const { data: pkgs } = await supabaseClient
