@@ -41,14 +41,23 @@
   .receipt-meta .date-field input { width: 120px; text-align: right; }
 
   #item-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
+  /* Background on the row (not just each th) so the gold band always fills
+     the table's full width even when the trailing "remove item" column is
+     hidden/shrunk for print — a cell's own background only covers its own
+     (possibly zero-width) box, but the row's shows through underneath it
+     regardless, so there's no gap no matter how that column ends up sized. */
+  #item-table thead tr { background: #e2d6bb; }
   #item-table thead th { background: #e2d6bb; text-align: center; padding: 7px 8px; font-size: 10px; letter-spacing: 1px; color: #4a4038; }
   #item-table thead th.desc { text-align: left; }
   #item-table col.col-desc { width: auto; }
   #item-table col.col-price, #item-table col.col-qty, #item-table col.col-total { width: 62px; }
   #item-table col.col-actions { width: 20px; }
-  #item-table tbody td { padding: 8px; border-bottom: 1px solid #f0ece5; vertical-align: top; }
+  #item-table tbody td { padding: 8px; border-bottom: 1px solid #d9d0c3; vertical-align: top; }
   #item-table tbody input { border: none; background: transparent; font-family: inherit; font-size: 12px; width: 100%; padding: 2px 0; text-align: center; }
   #item-table tbody textarea.item-desc { border: none; background: transparent; font-family: inherit; font-weight: 600; font-size: 12px; width: 100%; padding: 2px 0; resize: none; overflow: hidden; line-height: 1.4; display: block; }
+  /* Screen-only placeholder for the print-safe mirror below — swapped in
+     via @media print, where <textarea> printing can't be trusted. */
+  .item-desc-print { display: none; }
   #item-table .num-cell { text-align: center; }
   #item-table .row-total { text-align: center; white-space: nowrap; }
   #item-table .remove-item-btn { border: none; background: transparent; color: #b0a89c; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
@@ -198,6 +207,11 @@
     #item-table tbody td { padding: 8px; }
     #item-table tbody input, #item-table tbody textarea.item-desc { font-size: 12px; }
     .item-schedule .schedule-line { font-size: 12px; }
+
+    /* <textarea> print rendering can't be trusted across browsers (see the
+       addItemRow comment) — print the plain mirror div instead. */
+    #item-table tbody textarea.item-desc { display: none; }
+    .item-desc-print { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
   }
 </style>
 </head>
@@ -402,7 +416,7 @@
       ? `<div class="item-schedule"><div class="schedule-title">${t("receipt.schedule_title")}</div>${scheduleLines.join("")}</div>`
       : "";
     tr.innerHTML = `
-      <td><textarea class="item-desc" rows="1"></textarea>${scheduleHtml}</td>
+      <td><textarea class="item-desc" rows="1"></textarea><div class="item-desc-print"></div>${scheduleHtml}</td>
       <td class="num-cell"><input type="number" class="item-price" value="${unitPrice}" step="0.01" /></td>
       <td class="qty-cell"><input type="number" class="item-qty" value="${qty}" min="0" step="1" /></td>
       <td class="row-total">$0</td>
@@ -410,8 +424,15 @@
     `;
     tbody.appendChild(tr);
     const descEl = tr.querySelector(".item-desc");
+    const descPrintEl = tr.querySelector(".item-desc-print");
+    // <textarea> printing is unreliable across browsers (iOS Safari in
+    // particular sometimes only prints whatever fit before it was last
+    // focused, not the full value) — a plain element mirroring the same
+    // text is what actually gets shown on the printed page.
+    const syncPrintText = () => { descPrintEl.textContent = descEl.value; };
     descEl.value = description;
-    descEl.addEventListener("input", () => autoGrowTextarea(descEl));
+    syncPrintText();
+    descEl.addEventListener("input", () => { autoGrowTextarea(descEl); syncPrintText(); });
     autoGrowTextarea(descEl);
     tr.querySelectorAll("input").forEach(el => el.addEventListener("input", recalcTotals));
     tr.querySelector(".remove-item-btn").addEventListener("click", () => { tr.remove(); recalcTotals(); });
