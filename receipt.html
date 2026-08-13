@@ -169,12 +169,14 @@
     /* Terms page always starts on its own sheet, never sharing a page with
        the receipt above it. */
     #terms-page { page-break-before: always; margin-top: 0; }
-    /* position:fixed pins the footer to the page box itself, so it sits at
-       the bottom of the printed page without inflating the document's own
-       height — min-height:100vh was tried first but "vh" in print is
-       measured against the browser's on-screen viewport, not the actual
-       page size, and pushed the footer onto a second, otherwise-blank page. */
-    .receipt-footer { position: fixed; left: 42px; right: 42px; bottom: 36px; }
+    /* Both min-height:100vh and position:fixed were tried to pin this to
+       the bottom of the printed page, but print-engine behavior for both
+       is inconsistent across browsers — 100vh measures against the
+       on-screen viewport in some, and position:fixed's coordinate origin
+       during pagination isn't the physical page in others (iOS Safari
+       rendered it floating mid-page, overlapping the item table). Plain
+       document flow is the one thing every engine agrees on. */
+    .receipt-footer { margin-top: 40px; }
     /* table-layout:fixed still reserves the "remove item" column's width
        even once its th/td are hidden above — without this the header row's
        gold band falls short of the TOTAL row's, which has no such column. */
