@@ -59,7 +59,7 @@
   .item-schedule .schedule-line { font-size: 12px; line-height: 1.6; }
   .item-schedule .schedule-line .struck { text-decoration: line-through; color: #a89b8a; }
 
-  #add-item-btn, #add-violin-item-btn, #add-deposit-refund-btn { font-size: 12px; margin: 8px 12px 16px 0; }
+  #add-item-btn, #add-violin-item-btn, #add-deposit-refund-btn, #add-makeup-conversion-btn { font-size: 12px; margin: 8px 12px 16px 0; }
 
 
   .total-row { display: flex; justify-content: flex-end; background: #e2d6bb; padding: 8px 14px; margin-bottom: 24px; }
@@ -181,6 +181,23 @@
        even once its th/td are hidden above — without this the header row's
        gold band falls short of the TOTAL row's, which has no such column. */
     #item-table col.col-actions { width: 0; }
+
+    /* iOS Safari renders "print" using the phone's own screen width rather
+       than a real page size, so @media (max-width:600px) stays active at
+       the same time as @media print — every property that breakpoint
+       shrinks for a phone SCREEN needs restating back to its desktop value
+       here, or the printed page comes out phone-cramped on an iPhone even
+       though it's correct on desktop. */
+    .receipt-meta { flex-direction: row; align-items: flex-start; gap: 16px; }
+    .receipt-meta .date-field { text-align: right; }
+    .receipt-meta .issued-to input { width: 200px; }
+    .receipt-meta .date-field input { width: 120px; }
+    #item-table { font-size: 12px; }
+    #item-table thead th { padding: 7px 8px; font-size: 10px; }
+    #item-table col.col-price, #item-table col.col-qty, #item-table col.col-total { width: 62px; }
+    #item-table tbody td { padding: 8px; }
+    #item-table tbody input, #item-table tbody textarea.item-desc { font-size: 12px; }
+    .item-schedule .schedule-line { font-size: 12px; }
   }
 </style>
 </head>
@@ -263,6 +280,7 @@
     <button type="button" class="link no-print" id="add-item-btn" data-i18n="receipt.add_item">+ Add item</button>
     <button type="button" class="link no-print" id="add-violin-item-btn" style="display:none;" data-i18n="receipt.add_violin_item">+ Add violin item</button>
     <button type="button" class="link no-print" id="add-deposit-refund-btn" data-i18n="receipt.add_deposit_refund">− Deduct paid deposit</button>
+    <button type="button" class="link no-print" id="add-makeup-conversion-btn" data-i18n="receipt.add_makeup_conversion">+ Add make-up conversion</button>
 
     <div class="total-row">
       <span class="total-label">TOTAL</span>
@@ -436,6 +454,13 @@
   // to every student, not just violin rentals, so it's always visible.
   document.getElementById("add-deposit-refund-btn").addEventListener("click", () => {
     addItemRow({ description: "Deposit (Previously Paid)", unitPrice: -200, qty: 1 });
+  });
+
+  // Same idea as the deposit shortcut — a standing paid service (turning
+  // two missed group make-ups into one private make-up lesson), not tied
+  // to any student's violin status, so it's always visible too.
+  document.getElementById("add-makeup-conversion-btn").addEventListener("click", () => {
+    addItemRow({ description: "Conversion of 2 Group Make-up classes to 1 Private Make-up class", unitPrice: 100, qty: 1 });
   });
 
   // ---------- Student + term pickers (auto-fill convenience) ----------
