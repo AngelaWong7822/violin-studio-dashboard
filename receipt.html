@@ -6,6 +6,7 @@
 <title>Violin Studio — Receipt</title>
 <link rel="stylesheet" href="shared.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <style>
   /* Scoped to this page only — warmer than shared.css's default body tone,
      so the white receipt paper reads as a physical sheet sitting on a desk. */
@@ -164,6 +165,24 @@
     #receipt-controls button.primary { width: 100%; }
   }
 
+  /* Off-screen container the "Save as PDF" flow renders a clean snapshot
+     into (see buildPdfSnapshot) — a plain class instead of @media print so
+     it looks the same regardless of the phone's actual viewport width,
+     sidestepping the @media (max-width:600px)-vs-print conflict entirely
+     rather than fighting it like the print stylesheet below has to. */
+  .pdf-render { position: fixed; left: -9999px; top: 0; width: 650px; background: #fff; }
+  .pdf-render #receipt-sheet, .pdf-render #terms-page { box-shadow: none; max-width: none; }
+  .pdf-render #terms-page { margin-top: 0; }
+  .pdf-render .no-print { display: none !important; }
+  .pdf-render #item-table col.col-actions { width: 0; }
+  .pdf-render #item-table thead tr { background: #e2d6bb; }
+  /* !important because the base rule (#item-table tbody textarea.item-desc)
+     has an ID in it and would otherwise outrank this class-only selector
+     regardless of source order, leaving the textarea visible alongside its
+     .item-desc-print mirror and printing the description twice. */
+  .pdf-render textarea.item-desc { display: none !important; }
+  .pdf-render .item-desc-print { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
+
   @media print {
     /* Chrome/most browsers skip printing background colors by default —
        without this the table header band and TOTAL row print white. */
@@ -254,6 +273,7 @@
         <select id="receipt-package-select" disabled><option value="" data-i18n="receipt.select_package_placeholder">Select a term</option></select>
       </div>
       <button class="primary" id="print-receipt-btn" data-i18n="receipt.print">Print</button>
+      <button type="button" class="link" id="save-pdf-btn" data-i18n="receipt.save_pdf">Save as PDF</button>
     </div>
   </div>
 
@@ -630,6 +650,67 @@
   });
 
   document.getElementById("print-receipt-btn").addEventListener("click", () => window.print());
+
+  // Builds a plain, off-screen copy of the receipt (and terms page, if
+  // shown) for html2pdf to render — a straight cloneNode isn't enough
+  // because form controls don't carry their live, user-edited value into
+  // a clone (only their original HTML), so every input/textarea is
+  // swapped for plain text showing what's actually on screen right now.
+  function buildPdfSnapshot() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pdf-render";
+
+    const sheetClone = document.getElementById("receipt-sheet").cloneNode(true);
+
+    const issuedToClone = sheetClone.querySelector("#receipt-issued-to");
+    const issuedToText = document.createElement("div");
+    issuedToText.textContent = document.getElementById("receipt-issued-to").value;
+    issuedToText.style.cssText = "font-family:inherit; font-size:13px; border-bottom:1px solid #ddd4c8; padding:2px 0;";
+    issuedToClone.replaceWith(issuedToText);
+
+    const dateValue = document.getElementById("receipt-date").value;
+    const dateClone = sheetClone.querySelector("#receipt-date");
+    const dateText = document.createElement("div");
+    dateText.textContent = dateValue ? new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-HK", { dateStyle: "medium" }) : "";
+    dateText.style.cssText = "font-family:inherit; font-size:13px; border-bottom:1px solid #ddd4c8; padding:2px 0; text-align:right;";
+    dateClone.replaceWith(dateText);
+
+    const livePriceInputs = document.querySelectorAll("#item-rows .item-price");
+    const liveQtyInputs = document.querySelectorAll("#item-rows .item-qty");
+    sheetClone.querySelectorAll(".item-price").forEach((el, i) => el.setAttribute("value", livePriceInputs[i].value));
+    sheetClone.querySelectorAll(".item-qty").forEach((el, i) => el.setAttribute("value", liveQtyInputs[i].value));
+
+    wrapper.appendChild(sheetClone);
+    if (document.getElementById("terms-page").style.display !== "none") {
+      wrapper.appendChild(document.getElementById("terms-page").cloneNode(true));
+    }
+    return wrapper;
+  }
+
+  document.getElementById("save-pdf-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("save-pdf-btn");
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "…";
+    const wrapper = buildPdfSnapshot();
+    document.body.appendChild(wrapper);
+    try {
+      const studentName = document.getElementById("receipt-issued-to").value.trim();
+      const filename = `Receipt${studentName ? " - " + studentName : ""}.pdf`;
+      await html2pdf().set({
+        margin: 0,
+        filename,
+        html2canvas: { scale: 2, backgroundColor: "#ffffff" },
+        jsPDF: { unit: "px", format: [wrapper.scrollWidth, wrapper.scrollHeight], orientation: "portrait" },
+      }).from(wrapper).save();
+    } catch (err) {
+      alert("Save failed: " + err.message);
+    } finally {
+      document.body.removeChild(wrapper);
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  });
 
   addItemRow();
   await loadStudents();
