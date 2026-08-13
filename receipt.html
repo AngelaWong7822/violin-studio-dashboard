@@ -170,7 +170,21 @@
      it looks the same regardless of the phone's actual viewport width,
      sidestepping the @media (max-width:600px)-vs-print conflict entirely
      rather than fighting it like the print stylesheet below has to. */
-  .pdf-render { position: fixed; left: -9999px; top: 0; width: 650px; background: #fff; }
+  /* Georgia/Times New Roman have no Chinese glyphs — the browser silently
+     falls back to a system CJK font on screen and in real printing, but
+     html2canvas draws text itself and doesn't reliably follow that same
+     fallback, so Chinese names/text were coming out blank in the PDF.
+     Layering common CJK fonts (per platform) ahead of the generic
+     fallback fixes that without changing the on-screen/print look. */
+  .pdf-render, .pdf-render * { font-family: Georgia, "Times New Roman", "PingFang HK", "Microsoft JhengHei", "Noto Sans TC", "Noto Sans HK", sans-serif !important; }
+  /* Confirmed by directly testing it: html2canvas returns a zero-height
+     (i.e. blank) capture for anything positioned fixed OR absolute —
+     that's what was producing the real blank-PDF report. Only normal
+     document flow (position:static) measures correctly, so this has to
+     sit inline in the page rather than float over or off of it; it's
+     inserted at the very top of <body>, so the trade-off is a brief
+     visual push-down of the real page while the PDF is being built. */
+  .pdf-render { position: static; width: 650px; background: #fff; }
   .pdf-render #receipt-sheet, .pdf-render #terms-page { box-shadow: none; max-width: none; }
   .pdf-render #terms-page { margin-top: 0; }
   .pdf-render .no-print { display: none !important; }
