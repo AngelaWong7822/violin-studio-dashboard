@@ -720,10 +720,54 @@
     sheetClone.querySelectorAll(".item-qty").forEach((el, i) => el.setAttribute("value", liveQtyInputs[i].value));
 
     wrapper.appendChild(sheetClone);
-    if (document.getElementById("terms-page").style.display !== "none") {
-      wrapper.appendChild(document.getElementById("terms-page").cloneNode(true));
-    }
     return wrapper;
+  }
+
+  // A separate off-screen snapshot for just the terms page, captured and
+  // added as its own PDF page rather than appended below the receipt in
+  // the same capture — html2pdf's built-in page-break option turned out to
+  // stretch/distort the receipt to fill a full page instead of keeping its
+  // own proportions (verified directly by inspecting the placed image's
+  // width/height in the PDF's content stream), so two independent
+  // fit-to-width captures is the reliable way to get a clean page 2.
+  function buildTermsPdfSnapshot() {
+    if (document.getElementById("terms-page").style.display === "none") return null;
+    const wrapper = document.createElement("div");
+    wrapper.className = "pdf-render";
+    wrapper.appendChild(document.getElementById("terms-page").cloneNode(true));
+    return wrapper;
+  }
+
+  // Captures one off-screen .pdf-render wrapper to a raw canvas.
+  // html2pdf.js keeps its bundled html2canvas/jsPDF private (neither is
+  // exposed on window), so going through its own worker chain — just to
+  // get a canvas back — is the only way to reach it directly.
+  async function captureToCanvas(wrapper) {
+    document.body.appendChild(wrapper);
+    try {
+      // Without an explicit width/height, html2canvas measures this element
+      // at ~794px wide regardless of its real (verified via
+      // getBoundingClientRect) 650px CSS width — confirmed directly by
+      // capturing at scale:1 and comparing. That extra blank margin is what
+      // was pushing the receipt off-center in the exported PDF, so this
+      // always passes the wrapper's real size straight through.
+      const rect = wrapper.getBoundingClientRect();
+      return await html2pdf().set({
+        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, width: rect.width, height: rect.height },
+      }).from(wrapper).toCanvas().get("canvas");
+    } finally {
+      document.body.removeChild(wrapper);
+    }
+  }
+
+  // Adds a captured canvas to the given jsPDF doc as a full page, fit to
+  // the page width with height following the canvas's own aspect ratio
+  // (never distorted, never exceeding one page).
+  function addCanvasAsPage(pdf, canvas) {
+    const pageWidthMM = pdf.internal.pageSize.getWidth();
+    const pageHeightMM = pdf.internal.pageSize.getHeight();
+    const heightMM = Math.min(canvas.height * (pageWidthMM / canvas.width), pageHeightMM);
+    pdf.addImage(canvas, "JPEG", 0, 0, pageWidthMM, heightMM);
   }
 
   document.getElementById("save-pdf-btn").addEventListener("click", async () => {
@@ -736,6 +780,7 @@
     try {
       const studentName = document.getElementById("receipt-issued-to").value.trim();
       const filename = `Receipt${studentName ? " - " + studentName : ""}.pdf`;
+
       // A custom pixel-matched page size (via jsPDF's unit:"px") turned out
       // to be an unreliable combination in this library — verified directly
       // that the image it draws ends up sized using a fixed ~4/3 (96/72dpi)
@@ -743,18 +788,41 @@
       // off the right/bottom edge (exactly the "squeezed left, footer
       // missing" report). format:"a4" is the standard, most-used html2pdf
       // path, which correctly scales content to fit instead.
+      //
+      // Without an explicit width/height, html2canvas measures this element
+      // at ~794px wide regardless of its real (verified via
+      // getBoundingClientRect) 650px CSS width — confirmed directly by
+      // capturing at scale:1 and comparing. That extra blank margin is what
+      // was pushing the receipt off-center in the exported PDF, so we pass
+      // the wrapper's real size straight through.
+      const rect = wrapper.getBoundingClientRect();
       const worker = html2pdf().set({
         margin: 0,
         filename,
-        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
+        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, width: rect.width, height: rect.height },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       }).from(wrapper);
-      // Defensive: drop any extra page beyond the first in case content
-      // still spills over by a hair.
       const pdf = await worker.toPdf().get("pdf");
-      const pageCount = pdf.internal.getNumberOfPages();
+      // Defensive: drop any extra page beyond the first in case the
+      // receipt alone still spills over by a hair.
+      let pageCount = pdf.internal.getNumberOfPages();
       for (let i = pageCount; i > 1; i--) pdf.deletePage(i);
-      await worker.save();
+
+      // The terms page (when shown) is captured and placed completely
+      // separately, as its own page — html2pdf's built-in page-break
+      // option was tried here first, but it stretches/distorts the
+      // receipt to fill a full page instead of keeping its own
+      // proportions (verified directly by inspecting the placed image's
+      // width/height in the PDF's content stream), so two independent
+      // fit-to-width captures is the reliable way to get a clean page 2.
+      const termsWrapper = buildTermsPdfSnapshot();
+      if (termsWrapper) {
+        const termsCanvas = await captureToCanvas(termsWrapper);
+        pdf.addPage();
+        addCanvasAsPage(pdf, termsCanvas);
+      }
+
+      pdf.save(filename);
     } catch (err) {
       alert("Save failed: " + err.message);
     } finally {
