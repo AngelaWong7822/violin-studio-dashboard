@@ -55,10 +55,10 @@
   #item-table col.col-actions { width: 20px; }
   #item-table tbody td { padding: 8px; border-bottom: 1px solid #d9d0c3; vertical-align: top; }
   #item-table tbody input { border: none; background: transparent; font-family: inherit; font-size: 12px; width: 100%; padding: 2px 0; text-align: center; }
-  #item-table tbody textarea.item-desc { border: none; background: transparent; font-family: inherit; font-weight: 600; font-size: 12px; width: 100%; padding: 2px 0; resize: none; overflow: hidden; line-height: 1.4; display: block; }
+  #item-table tbody textarea.item-desc { border: none; background: transparent; font-family: inherit; font-weight: 600; font-size: 12px; width: 100%; padding: 2px 0; resize: none; overflow: hidden; line-height: 1.4; display: block; word-break: break-word; }
   /* Screen-only placeholder for the print-safe mirror below — swapped in
      via @media print, where <textarea> printing can't be trusted. */
-  .item-desc-print { display: none; }
+  .item-desc-print { display: none; line-height: 1.4; word-break: break-word; }
   #item-table .num-cell { text-align: center; }
   #item-table .row-total { text-align: center; white-space: nowrap; }
   #item-table .remove-item-btn { border: none; background: transparent; color: #b0a89c; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
@@ -66,7 +66,7 @@
 
   .item-schedule { margin-top: 6px; font-weight: normal; }
   .item-schedule .schedule-title { font-size: 10px; letter-spacing: 1px; color: #8a6314; text-transform: uppercase; margin-bottom: 3px; }
-  .item-schedule .schedule-line { font-size: 12px; line-height: 1.6; }
+  .item-schedule .schedule-line { font-size: 12px; line-height: 1.6; word-break: break-word; }
   .item-schedule .schedule-line .struck { text-decoration: line-through; color: #a89b8a; }
 
   #add-item-btn, #add-violin-item-btn, #add-deposit-refund-btn, #add-makeup-conversion-btn { font-size: 12px; margin: 8px 12px 16px 0; }
@@ -138,7 +138,14 @@
   .combo-option:hover, .combo-option.active { background: #f5f2ec; }
   .combo-empty { padding: 7px 10px; font-size: 13px; color: #8a8074; }
 
-  @media (max-width: 600px) {
+  /* "screen and" (not just a bare max-width) keeps this from ever applying
+     during print — iOS Safari in particular renders "print" using the
+     phone's own screen width, so a bare @media (max-width:600px) stayed
+     active there too, fighting the @media print block below for the same
+     properties. Scoping to screen media removes that conflict at the
+     source, instead of restating every affected property back to its
+     desktop value inside @media print to win the fight one by one. */
+  @media screen and (max-width: 600px) {
     #receipt-sheet { padding: 20px 16px; }
     /* ISSUED TO / DATE stack instead of sitting side by side, which left
        almost no room for either field's input on a phone-width screen. */
@@ -203,8 +210,11 @@
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     /* A zero page margin leaves no room for the browser's own header
        (date/title) and footer (URL/page number), so they don't print;
-       #receipt-sheet's own padding below replaces that lost margin. */
-    @page { margin: 0; }
+       #receipt-sheet's own padding below replaces that lost margin.
+       Explicit A4 sizing keeps the physical page consistent regardless of
+       whatever default paper size a given device/OS print driver would
+       otherwise pick. */
+    @page { size: A4 portrait; margin: 0; }
     body { background: #fff; }
     header.topnav, #receipt-controls, .no-print { display: none !important; }
     #receipt-sheet, #terms-page { box-shadow: none; padding: 36px 42px; max-width: none; }
@@ -224,12 +234,10 @@
        gold band falls short of the TOTAL row's, which has no such column. */
     #item-table col.col-actions { width: 0; }
 
-    /* iOS Safari renders "print" using the phone's own screen width rather
-       than a real page size, so @media (max-width:600px) stays active at
-       the same time as @media print — every property that breakpoint
-       shrinks for a phone SCREEN needs restating back to its desktop value
-       here, or the printed page comes out phone-cramped on an iPhone even
-       though it's correct on desktop. */
+    /* Belt-and-suspenders: the mobile breakpoint above is now scoped to
+       "screen" so it can't apply here at all, but restating the desktop
+       values explicitly too costs nothing and covers any print engine
+       that doesn't honor that scoping correctly. */
     .receipt-meta { flex-direction: row; align-items: flex-start; gap: 16px; }
     .receipt-meta .date-field { text-align: right; }
     .receipt-meta .issued-to input { width: 200px; }
