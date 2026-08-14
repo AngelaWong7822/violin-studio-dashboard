@@ -194,16 +194,16 @@
   .pdf-render { position: static; width: 650px; background: #fff; }
   .pdf-render #receipt-sheet, .pdf-render #terms-page { box-shadow: none; max-width: none; }
   .pdf-render #terms-page { margin-top: 0; }
-  /* Pins the studio-info/signature block to the bottom of an A4-proportioned
-     "page" instead of it just sitting wherever the content happens to end —
-     safe to do here (unlike the two failed attempts at this for native
-     browser printing) because this is a fixed pixel height *we* choose and
-     render via html2canvas, not a browser print engine's own pagination,
-     which is what made min-height:100vh and position:fixed unreliable
-     there. 919px keeps the box at the same 210:297 ratio as real A4 at the
-     650px width this snapshot always renders at. */
-  .pdf-render #receipt-sheet { display: flex; flex-direction: column; min-height: 919px; }
-  .pdf-render .receipt-footer { margin-top: auto; }
+  /* A margin-top:auto flex pin-to-bottom trick was tried here (mirroring
+     the A4-proportioned "page" idea) but proved unsafe too: confirmed by
+     directly measuring pixels in the captured canvas that html2canvas
+     renders the footer as fully blank once its margin-top exceeds
+     roughly 100-150px, regardless of whether it comes from flex auto-
+     margin or an explicit value, and regardless of flex vs block layout
+     or min-height on the parent. Same conclusion as native print's own
+     pin-to-bottom failures: just let the footer sit in normal flow
+     with a fixed, modest gap instead. */
+  .pdf-render .receipt-footer { margin-top: 40px; }
   .pdf-render .no-print { display: none !important; }
   .pdf-render #item-table col.col-actions { width: 0; }
   .pdf-render #item-table thead tr { background: #e2d6bb; }
@@ -517,6 +517,13 @@
   let currentViolinStatus = "not_needed";
   document.getElementById("add-violin-item-btn").addEventListener("click", () => {
     (VIOLIN_ITEMS[currentViolinStatus] ?? []).forEach(addItemRow);
+    // The terms-and-conditions page only applies to an outright purchase
+    // (not a rental — a borrowed violin gets returned, nothing's actually
+    // "sold" for these exchange/refund terms to govern), and only once
+    // this button's actually been clicked for this receipt.
+    if (currentViolinStatus === "buy") {
+      document.getElementById("terms-page").style.display = "";
+    }
   });
 
   // Group class enrollment collects a $200 deposit upfront (to help make
@@ -611,10 +618,13 @@
     document.getElementById("receipt-issued-to").value = student?.contacts?.name ?? "";
     currentViolinStatus = student?.contacts?.violin_status ?? "not_needed";
     document.getElementById("add-violin-item-btn").style.display = currentViolinStatus === "not_needed" ? "none" : "";
-    // The terms-and-conditions page only applies to an outright purchase,
-    // not a rental — a borrowed violin gets returned, so there's nothing to
-    // "sell" that these exchange/refund terms would govern.
-    document.getElementById("terms-page").style.display = currentViolinStatus === "buy" ? "" : "none";
+    // Reset here rather than deciding it from currentViolinStatus alone —
+    // it should only appear once "+ Add violin item" is actually clicked
+    // (see that handler below), not just because this student's profile
+    // says they need to buy one, or every receipt ever printed for them
+    // would carry the terms page even when this one has nothing to do
+    // with a violin purchase.
+    document.getElementById("terms-page").style.display = "none";
     if (!studentId) return;
 
     const { data: pkgs } = await supabaseClient
@@ -726,17 +736,21 @@
     try {
       const studentName = document.getElementById("receipt-issued-to").value.trim();
       const filename = `Receipt${studentName ? " - " + studentName : ""}.pdf`;
+      // A custom pixel-matched page size (via jsPDF's unit:"px") turned out
+      // to be an unreliable combination in this library — verified directly
+      // that the image it draws ends up sized using a fixed ~4/3 (96/72dpi)
+      // conversion independent of the declared page size, so content spilled
+      // off the right/bottom edge (exactly the "squeezed left, footer
+      // missing" report). format:"a4" is the standard, most-used html2pdf
+      // path, which correctly scales content to fit instead.
       const worker = html2pdf().set({
         margin: 0,
         filename,
         html2canvas: { scale: 2, backgroundColor: "#ffffff" },
-        jsPDF: { unit: "px", format: [wrapper.scrollWidth, wrapper.scrollHeight], orientation: "portrait" },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       }).from(wrapper);
-      // A custom page size matched exactly to content still occasionally
-      // leaves jsPDF thinking a sliver of content overflowed onto a second,
-      // otherwise-blank page (sub-pixel rounding between the canvas and
-      // the declared page size) — drop anything past page 1 rather than
-      // chase the exact rounding cause.
+      // Defensive: drop any extra page beyond the first in case content
+      // still spills over by a hair.
       const pdf = await worker.toPdf().get("pdf");
       const pageCount = pdf.internal.getNumberOfPages();
       for (let i = pageCount; i > 1; i--) pdf.deletePage(i);
