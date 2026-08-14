@@ -194,6 +194,16 @@
   .pdf-render { position: static; width: 650px; background: #fff; }
   .pdf-render #receipt-sheet, .pdf-render #terms-page { box-shadow: none; max-width: none; }
   .pdf-render #terms-page { margin-top: 0; }
+  /* Pins the studio-info/signature block to the bottom of an A4-proportioned
+     "page" instead of it just sitting wherever the content happens to end —
+     safe to do here (unlike the two failed attempts at this for native
+     browser printing) because this is a fixed pixel height *we* choose and
+     render via html2canvas, not a browser print engine's own pagination,
+     which is what made min-height:100vh and position:fixed unreliable
+     there. 919px keeps the box at the same 210:297 ratio as real A4 at the
+     650px width this snapshot always renders at. */
+  .pdf-render #receipt-sheet { display: flex; flex-direction: column; min-height: 919px; }
+  .pdf-render .receipt-footer { margin-top: auto; }
   .pdf-render .no-print { display: none !important; }
   .pdf-render #item-table col.col-actions { width: 0; }
   .pdf-render #item-table thead tr { background: #e2d6bb; }
@@ -294,8 +304,7 @@
         <label for="receipt-package-select"><span data-i18n="receipt.pick_package">Term</span></label>
         <select id="receipt-package-select" disabled><option value="" data-i18n="receipt.select_package_placeholder">Select a term</option></select>
       </div>
-      <button class="primary" id="print-receipt-btn" data-i18n="receipt.print">Print</button>
-      <button type="button" class="link" id="save-pdf-btn" data-i18n="receipt.save_pdf">Save as PDF</button>
+      <button type="button" class="primary" id="save-pdf-btn" data-i18n="receipt.save_pdf">Save as PDF</button>
     </div>
   </div>
 
@@ -671,8 +680,6 @@
     addItemRow({ description, unitPrice: pkg.effectivePrice, qty: 1, scheduleLines });
   });
 
-  document.getElementById("print-receipt-btn").addEventListener("click", () => window.print());
-
   // Builds a plain, off-screen copy of the receipt (and terms page, if
   // shown) for html2pdf to render — a straight cloneNode isn't enough
   // because form controls don't carry their live, user-edited value into
@@ -719,12 +726,21 @@
     try {
       const studentName = document.getElementById("receipt-issued-to").value.trim();
       const filename = `Receipt${studentName ? " - " + studentName : ""}.pdf`;
-      await html2pdf().set({
+      const worker = html2pdf().set({
         margin: 0,
         filename,
         html2canvas: { scale: 2, backgroundColor: "#ffffff" },
         jsPDF: { unit: "px", format: [wrapper.scrollWidth, wrapper.scrollHeight], orientation: "portrait" },
-      }).from(wrapper).save();
+      }).from(wrapper);
+      // A custom page size matched exactly to content still occasionally
+      // leaves jsPDF thinking a sliver of content overflowed onto a second,
+      // otherwise-blank page (sub-pixel rounding between the canvas and
+      // the declared page size) — drop anything past page 1 rather than
+      // chase the exact rounding cause.
+      const pdf = await worker.toPdf().get("pdf");
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = pageCount; i > 1; i--) pdf.deletePage(i);
+      await worker.save();
     } catch (err) {
       alert("Save failed: " + err.message);
     } finally {
