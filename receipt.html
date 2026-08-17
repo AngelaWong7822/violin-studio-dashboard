@@ -6,13 +6,13 @@
 <title>Violin Studio — Receipt</title>
 <link rel="stylesheet" href="shared.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <style>
   /* Scoped to this page only — warmer than shared.css's default body tone,
      so the white receipt paper reads as a physical sheet sitting on a desk. */
   body { background: #f4f1ea; }
 
-  #receipt-sheet, #terms-page {
+  #receipt-sheet {
     background: #fff;
     max-width: 560px;
     margin: 0 auto;
@@ -22,18 +22,9 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
     border-radius: 4px;
   }
-  #receipt-sheet .logo-row, #terms-page .logo-row { text-align: center; margin-bottom: 2px; }
-  #receipt-sheet .logo-row img, #terms-page .logo-row img { height: 64px; }
-  #receipt-sheet .studio-title, #terms-page .studio-title { text-align: center; letter-spacing: 5px; font-size: 15px; margin: 2px 0 20px; }
-  /* Only shown when the selected student is buying (not borrowing) a
-     violin — stacked below the receipt on screen as a preview of the
-     second printed page, separated with its own top margin. */
-  #terms-page { margin-top: 24px; }
-  .terms-block { font-size: 12px; line-height: 1.8; }
-  .terms-block .terms-heading { font-weight: 700; margin: 16px 0 6px; }
-  .terms-block .terms-heading:first-child { margin-top: 0; }
-  .terms-block ol { margin: 0; padding-left: 20px; }
-  .terms-block li { margin-bottom: 4px; }
+  #receipt-sheet .logo-row { text-align: center; margin-bottom: 2px; }
+  #receipt-sheet .logo-row img { height: 64px; }
+  #receipt-sheet .studio-title { text-align: center; letter-spacing: 5px; font-size: 15px; margin: 2px 0 20px; }
   .receipt-meta { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; gap: 16px; padding: 12px 16px; background: #faf8f4; border: 1px solid #ede6d8; border-radius: 4px; }
   .receipt-meta label { font-size: 10px; letter-spacing: 1.5px; color: #8a6314; display: block; margin-bottom: 4px; text-transform: uppercase; }
   .receipt-meta input { border: none; border-bottom: 1px solid #ddd4c8; font-family: inherit; font-size: 13px; padding: 2px 0; background: transparent; }
@@ -172,76 +163,6 @@
     #receipt-controls button.primary { width: 100%; }
   }
 
-  /* Off-screen container the "Save as PDF" flow renders a clean snapshot
-     into (see buildPdfSnapshot) — a plain class instead of @media print so
-     it looks the same regardless of the phone's actual viewport width,
-     sidestepping the @media (max-width:600px)-vs-print conflict entirely
-     rather than fighting it like the print stylesheet below has to. */
-  /* Georgia/Times New Roman have no Chinese glyphs — the browser silently
-     falls back to a system CJK font on screen and in real printing, but
-     html2canvas draws text itself and doesn't reliably follow that same
-     fallback, so Chinese names/text were coming out blank in the PDF.
-     Layering common CJK fonts (per platform) ahead of the generic
-     fallback fixes that without changing the on-screen/print look. */
-  .pdf-render, .pdf-render * { font-family: Georgia, "Times New Roman", "PingFang HK", "Microsoft JhengHei", "Noto Sans TC", "Noto Sans HK", sans-serif !important; }
-  /* Real iOS Safari auto-inflates text size for readability
-     (-webkit-text-size-adjust:auto is the default) even inside a fixed-
-     width off-screen element like this one — confirmed by comparing a
-     real-phone PDF against desktop: the terms page rendered ~1.9x taller
-     on the phone despite identical CSS, pushing it onto a needless extra
-     page. Disabling it here only affects this snapshot wrapper, not the
-     live on-screen mobile pages or the desktop PDF. */
-  .pdf-render, .pdf-render * { -webkit-text-size-adjust: 100% !important; text-size-adjust: 100% !important; }
-  /* Confirmed by directly testing it: html2canvas returns a zero-height
-     (i.e. blank) capture for anything positioned fixed OR absolute —
-     that's what was producing the real blank-PDF report. Only normal
-     document flow (position:static) measures correctly, so this has to
-     sit inline in the page rather than float over or off of it; it's
-     inserted at the very top of <body>, so the trade-off is a brief
-     visual push-down of the real page while the PDF is being built. */
-  .pdf-render { position: static; width: 650px; background: #fff; }
-  .pdf-render #receipt-sheet, .pdf-render #terms-page { box-shadow: none; max-width: none; }
-  .pdf-render #terms-page { margin-top: 0; }
-  /* A margin-top:auto flex pin-to-bottom trick was tried here (mirroring
-     the A4-proportioned "page" idea) but proved unsafe too: confirmed by
-     directly measuring pixels in the captured canvas that html2canvas
-     renders the footer as fully blank once its margin-top exceeds
-     roughly 100-150px, regardless of whether it comes from flex auto-
-     margin or an explicit value, and regardless of flex vs block layout
-     or min-height on the parent. Same conclusion as native print's own
-     pin-to-bottom failures: just let the footer sit in normal flow
-     with a fixed, modest gap instead. */
-  .pdf-render .receipt-footer { margin-top: 40px; }
-  .pdf-render .no-print { display: none !important; }
-  .pdf-render #item-table col.col-actions { width: 0; }
-  .pdf-render #item-table thead tr { background: #e2d6bb; }
-  /* !important because the base rule (#item-table tbody textarea.item-desc)
-     has an ID in it and would otherwise outrank this class-only selector
-     regardless of source order, leaving the textarea visible alongside its
-     .item-desc-print mirror and printing the description twice. */
-  .pdf-render textarea.item-desc { display: none !important; }
-  .pdf-render .item-desc-print { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
-
-  /* Same fix as @media print's own "belt-and-suspenders" block below, for
-     the same reason: the mobile breakpoint matches on the real device's
-     screen width, not this element's own fixed 650px width, so on an
-     actual phone it was still shrinking these — stacking ISSUED TO/DATE,
-     shrinking the table font and its price/qty/total columns — inside the
-     PDF snapshot too. Each selector here has one more class than its
-     mobile-breakpoint counterpart, so it wins on specificity regardless of
-     which one is declared first. */
-  .pdf-render #receipt-sheet { padding: 32px 40px; }
-  .pdf-render .receipt-meta { flex-direction: row; align-items: flex-start; gap: 16px; }
-  .pdf-render .receipt-meta .date-field { text-align: right; }
-  .pdf-render .receipt-meta .issued-to input { width: 200px; }
-  .pdf-render .receipt-meta .date-field input { width: 120px; }
-  .pdf-render #item-table { font-size: 12px; }
-  .pdf-render #item-table thead th { padding: 7px 8px; font-size: 10px; }
-  .pdf-render #item-table col.col-price, .pdf-render #item-table col.col-qty, .pdf-render #item-table col.col-total { width: 62px; }
-  .pdf-render #item-table tbody td { padding: 8px; }
-  .pdf-render #item-table tbody input, .pdf-render #item-table tbody textarea.item-desc { font-size: 12px; }
-  .pdf-render .item-schedule .schedule-line { font-size: 12px; }
-
   @media print {
     /* Chrome/most browsers skip printing background colors by default —
        without this the table header band and TOTAL row print white. */
@@ -255,10 +176,10 @@
     @page { size: A4 portrait; margin: 0; }
     body { background: #fff; }
     header.topnav, #receipt-controls, .no-print { display: none !important; }
-    #receipt-sheet, #terms-page { box-shadow: none; padding: 36px 42px; max-width: none; }
-    /* Terms page always starts on its own sheet, never sharing a page with
-       the receipt above it. */
-    #terms-page { page-break-before: always; margin-top: 0; }
+    /* This manual Ctrl+P fallback only ever prints the receipt sheet — the
+       terms page is generated purely inside the "Save as PDF" flow now
+       (see the native PDF section below), not from any on-screen element. */
+    #receipt-sheet { box-shadow: none; padding: 36px 42px; max-width: none; }
     /* Both min-height:100vh and position:fixed were tried to pin this to
        the bottom of the printed page, but print-engine behavior for both
        is inconsistent across browsers — 100vh measures against the
@@ -393,31 +314,6 @@
       </div>
     </div>
   </div>
-
-  <div id="terms-page" style="display:none;">
-    <div class="logo-row"><img src="logo.png" alt="" /></div>
-    <div class="studio-title">TOM'S VIOLIN STUDIO</div>
-    <div class="terms-block">
-      <p class="terms-heading">條款與細則</p>
-      <ol>
-        <li>所有產品只提供瑕疵品退換服務，其他退換原因均一律不接受。</li>
-        <li>同一張訂單只可進行一次退貨服務，請買家將所有貨品檢查完畢。</li>
-        <li>所有產品必須在當天起的七天內展開退貨流程。</li>
-        <li>所有產品必須經過合理保養，例如不得有磨損或損壞，且其狀態必須可讓本公司轉售該產品，才能進行退貨。</li>
-        <li>未經授權的維修，誤用，碰撞，疏忽，事故，改裝，不正確安裝所造成的貨品問題，撕毀，塗改標貼，防偽，標記等，均不給予7天兌換貨品。</li>
-        <li>如有任何爭議，本公司Tom's Violin studio將保留最終決定權。</li>
-      </ol>
-      <p class="terms-heading">Terms and Conditions</p>
-      <ol>
-        <li>Only defected items are allowed for exchange, no refund will be entertained.</li>
-        <li>Buyer should examine the product thoroughly and the product on one receipt can be exchanged once only.</li>
-        <li>All product can be exchanged once within 7 days from the date of purchase.</li>
-        <li>Sold items requested for exchange must be in a good and acceptable resell-able condition.</li>
-        <li>Any unauthorised alternation made to the sold items are not eligible for 7 days exchange policy.</li>
-        <li>In case of any dispute, Tom's Violin studio's decision shall be final.</li>
-      </ol>
-    </div>
-  </div>
 </main>
 
 <script src="supabase-config.js"></script>
@@ -453,11 +349,12 @@
   // A rescheduled lesson (whole-class move, e.g. a typhoon) shows its
   // original date struck through with an arrow to the date it actually
   // landed on — same convention as the studio's paper receipt template.
-  function scheduleLineHtml(appt) {
-    if (appt.rescheduled_from) {
-      return `<div class="schedule-line"><span class="struck">${formatDateLabel(appt.rescheduled_from)}</span> → ${formatDateLabel(appt.scheduled_start)}</div>`;
-    }
-    return `<div class="schedule-line">${formatDateLabel(appt.scheduled_start)}</div>`;
+  // Structured (not pre-rendered HTML) so both the on-screen row and the
+  // native PDF generator can render it their own way from the same data.
+  function scheduleLineData(appt) {
+    return appt.rescheduled_from
+      ? { struckText: formatDateLabel(appt.rescheduled_from), text: formatDateLabel(appt.scheduled_start) }
+      : { struckText: null, text: formatDateLabel(appt.scheduled_start) };
   }
 
   // Same rules the Packages page's Payments tab uses, so a term's price on
@@ -492,7 +389,11 @@
     const tbody = document.getElementById("item-rows");
     const tr = document.createElement("tr");
     const scheduleHtml = scheduleLines && scheduleLines.length
-      ? `<div class="item-schedule"><div class="schedule-title">${t("receipt.schedule_title")}</div>${scheduleLines.join("")}</div>`
+      ? `<div class="item-schedule"><div class="schedule-title">${t("receipt.schedule_title")}</div>${scheduleLines.map(l =>
+          l.struckText
+            ? `<div class="schedule-line"><span class="struck">${l.struckText}</span> → ${l.text}</div>`
+            : `<div class="schedule-line">${l.text}</div>`
+        ).join("")}</div>`
       : "";
     tr.innerHTML = `
       <td><textarea class="item-desc" rows="1"></textarea><div class="item-desc-print"></div>${scheduleHtml}</td>
@@ -501,6 +402,12 @@
       <td class="row-total">$0</td>
       <td class="no-print"><button type="button" class="remove-item-btn" title="${t("receipt.remove_item")}">×</button></td>
     `;
+    // Kept as a plain JS property (not re-derived from the rendered HTML
+    // above) so the native PDF generator has the same structured data to
+    // draw from directly, instead of having to parse it back out of the
+    // DOM — there's no on-screen way to edit the schedule once added, so
+    // this never needs to be kept in sync with anything else.
+    tr._scheduleLines = scheduleLines || [];
     tbody.appendChild(tr);
     const descEl = tr.querySelector(".item-desc");
     const descPrintEl = tr.querySelector(".item-desc-print");
@@ -543,6 +450,10 @@
     ],
   };
   let currentViolinStatus = "not_needed";
+  // Read by the native PDF generator to decide whether to append the terms
+  // page — no on-screen element backs this any more (see buildTermsPdfPage
+  // below), just this plain flag.
+  let showTermsPage = false;
   document.getElementById("add-violin-item-btn").addEventListener("click", () => {
     (VIOLIN_ITEMS[currentViolinStatus] ?? []).forEach(addItemRow);
     // The terms-and-conditions page only applies to an outright purchase
@@ -550,7 +461,7 @@
     // "sold" for these exchange/refund terms to govern), and only once
     // this button's actually been clicked for this receipt.
     if (currentViolinStatus === "buy") {
-      document.getElementById("terms-page").style.display = "";
+      showTermsPage = true;
     }
   });
 
@@ -652,7 +563,7 @@
     // says they need to buy one, or every receipt ever printed for them
     // would carry the terms page even when this one has nothing to do
     // with a violin purchase.
-    document.getElementById("terms-page").style.display = "none";
+    showTermsPage = false;
     if (!studentId) return;
 
     const { data: pkgs } = await supabaseClient
@@ -703,7 +614,7 @@
     if (!pkg) return;
 
     const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
-    const scheduleLines = appts.map(scheduleLineHtml);
+    const scheduleLines = appts.map(scheduleLineData);
 
     const cls = pkg.classes;
     let description = cls?.name ?? "";
@@ -718,135 +629,339 @@
     addItemRow({ description, unitPrice: pkg.effectivePrice, qty: 1, scheduleLines });
   });
 
-  // Builds a plain, off-screen copy of the receipt (and terms page, if
-  // shown) for html2pdf to render — a straight cloneNode isn't enough
-  // because form controls don't carry their live, user-edited value into
-  // a clone (only their original HTML), so every input/textarea is
-  // swapped for plain text showing what's actually on screen right now.
-  function buildPdfSnapshot() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "pdf-render";
+  // ---------- Native PDF generation ----------
+  // Draws the receipt directly with jsPDF's own text/shape/image APIs
+  // instead of screenshotting the on-screen DOM (the old html2pdf.js +
+  // html2canvas approach) — that approach ran through whatever browser
+  // engine the user's own device happened to have, and iOS Safari kept
+  // diverging from the desktop Chrome environment this was built and
+  // tested in (text auto-inflation, input-element rendering, viewport-
+  // dependent media queries mid-capture...), each one only surfacing once
+  // a real phone hit it. Drawing directly with jsPDF never touches the
+  // browser's own rendering pipeline at all, so the output is identical
+  // regardless of what device or browser generates it.
+  const PDF = { PAGE_W: 595.28, PAGE_H: 841.89, MARGIN: 50 };
+  PDF.CONTENT_W = PDF.PAGE_W - PDF.MARGIN * 2;
+  PDF.COL_PRICE_W = 70;
+  PDF.COL_QTY_W = 50;
+  PDF.COL_TOTAL_W = 75;
+  PDF.COL_DESC_W = PDF.CONTENT_W - PDF.COL_PRICE_W - PDF.COL_QTY_W - PDF.COL_TOTAL_W;
+  PDF.COL_DESC_X = PDF.MARGIN;
+  PDF.COL_PRICE_X = PDF.COL_DESC_X + PDF.COL_DESC_W;
+  PDF.COL_QTY_X = PDF.COL_PRICE_X + PDF.COL_PRICE_W;
+  PDF.COL_TOTAL_X = PDF.COL_QTY_X + PDF.COL_QTY_W;
+  PDF.BOTTOM_LIMIT = PDF.PAGE_H - 60;
 
-    const sheetClone = document.getElementById("receipt-sheet").cloneNode(true);
+  const PDF_COLORS = {
+    text: [42, 36, 32],
+    gold: [138, 99, 20],
+    headerBg: [226, 214, 187],
+    headerText: [74, 64, 56],
+    border: [217, 208, 195],
+    metaBg: [250, 248, 244],
+    metaBorder: [237, 230, 216],
+    metaLine: [221, 212, 200],
+    sigText: [107, 92, 79],
+    struck: [168, 155, 138],
+  };
 
-    const issuedToClone = sheetClone.querySelector("#receipt-issued-to");
-    const issuedToText = document.createElement("div");
-    issuedToText.textContent = document.getElementById("receipt-issued-to").value;
-    issuedToText.style.cssText = "font-family:inherit; font-size:13px; border-bottom:1px solid #ddd4c8; padding:2px 0;";
-    issuedToClone.replaceWith(issuedToText);
+  const TERMS_AND_CONDITIONS_EN = [
+    "Only defected items are allowed for exchange, no refund will be entertained.",
+    "Buyer should examine the product thoroughly and the product on one receipt can be exchanged once only.",
+    "All product can be exchanged once within 7 days from the date of purchase.",
+    "Sold items requested for exchange must be in a good and acceptable resell-able condition.",
+    "Any unauthorised alternation made to the sold items are not eligible for 7 days exchange policy.",
+    "In case of any dispute, Tom's Violin studio's decision shall be final.",
+  ];
 
+  // jsPDF embeds whatever image data it's given as-is — passing the raw
+  // PNGs directly (logo.png alone is roughly 950x950) bloated a single
+  // receipt to several MB, way too big to send over WhatsApp/email.
+  // Re-encoding each one as a JPEG onto a plain white background (all
+  // three only ever appear on white anyway, so the lost transparency
+  // doesn't show) instead gets a normal-sized PDF back.
+  function loadImageAsJpeg(url, quality = 0.85) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        resolve({ dataUrl: canvas.toDataURL("image/jpeg", quality), width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
+  // jsPDF's text() has no built-in letter-spacing/tracking — this fakes it
+  // by drawing one character at a time with a fixed gap, matching the
+  // brand's spaced-out header style (e.g. "TOM'S VIOLIN STUDIO").
+  function drawTrackedText(doc, text, x, y, { align = "left", spacing = 0 } = {}) {
+    if (!spacing) { doc.text(text, x, y, { align }); return; }
+    const chars = [...text];
+    const widths = chars.map(c => doc.getTextWidth(c));
+    const totalW = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
+    let cx = x;
+    if (align === "center") cx = x - totalW / 2;
+    else if (align === "right") cx = x - totalW;
+    chars.forEach((c, i) => {
+      doc.text(c, cx, y);
+      cx += widths[i] + spacing;
+    });
+  }
+
+  function drawPdfPageHeader(doc, logoImg, y) {
+    if (logoImg) {
+      const h = 42;
+      const w = h * (logoImg.width / logoImg.height);
+      doc.addImage(logoImg.dataUrl, "JPEG", PDF.PAGE_W / 2 - w / 2, y, w, h);
+      y += h + 10;
+    }
+    doc.setFont("times", "normal");
+    doc.setFontSize(13);
+    doc.setTextColor(...PDF_COLORS.text);
+    drawTrackedText(doc, "TOM'S VIOLIN STUDIO", PDF.PAGE_W / 2, y, { align: "center", spacing: 3 });
+    return y + 28;
+  }
+
+  function drawMetaBox(doc, y, issuedTo, dateText) {
+    const boxH = 50, padX = 16, labelY = y + 18, valueY = y + 36;
+    doc.setFillColor(...PDF_COLORS.metaBg);
+    doc.setDrawColor(...PDF_COLORS.metaBorder);
+    doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, boxH, 3, 3, "FD");
+
+    doc.setFont("times", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...PDF_COLORS.gold);
+    drawTrackedText(doc, "ISSUED TO:", PDF.MARGIN + padX, labelY, { spacing: 1 });
+    drawTrackedText(doc, "DATE:", PDF.PAGE_W - PDF.MARGIN - padX, labelY, { align: "right", spacing: 1 });
+
+    doc.setFontSize(13);
+    doc.setTextColor(...PDF_COLORS.text);
+    doc.text(issuedTo || "", PDF.MARGIN + padX, valueY);
+    doc.text(dateText || "", PDF.PAGE_W - PDF.MARGIN - padX, valueY, { align: "right" });
+
+    doc.setDrawColor(...PDF_COLORS.metaLine);
+    doc.line(PDF.MARGIN + padX, valueY + 4, PDF.MARGIN + padX + 150, valueY + 4);
+
+    return y + boxH + 24;
+  }
+
+  function drawTableHeader(doc, y) {
+    const h = 26;
+    doc.setFillColor(...PDF_COLORS.headerBg);
+    doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
+    doc.setFont("times", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_COLORS.headerText);
+    doc.text("DESCRIPTION", PDF.COL_DESC_X + 8, y + h / 2 + 3);
+    doc.text("UNIT PRICE", PDF.COL_PRICE_X + PDF.COL_PRICE_W / 2, y + h / 2 + 3, { align: "center" });
+    doc.text("QTY", PDF.COL_QTY_X + PDF.COL_QTY_W / 2, y + h / 2 + 3, { align: "center" });
+    doc.text("TOTAL", PDF.COL_TOTAL_X + PDF.COL_TOTAL_W / 2, y + h / 2 + 3, { align: "center" });
+    return y + h;
+  }
+
+  function collectReceiptItems() {
+    return [...document.querySelectorAll("#item-rows tr")].map(tr => {
+      const price = parseFloat(tr.querySelector(".item-price").value) || 0;
+      const qty = parseFloat(tr.querySelector(".item-qty").value) || 0;
+      return {
+        description: tr.querySelector(".item-desc").value,
+        price, qty, total: price * qty,
+        scheduleLines: tr._scheduleLines || [],
+      };
+    });
+  }
+
+  // Measures a row's full height before drawing anything — needed to know
+  // whether it still fits on the current page (see buildReceiptPage) before
+  // committing to draw it there.
+  function measureItemRow(doc, item) {
+    const padX = 8;
+    const maxW = PDF.COL_DESC_W - padX * 2;
+    doc.setFont("times", "bold");
+    doc.setFontSize(11);
+    const descLines = doc.splitTextToSize(item.description || "", maxW);
+    let h = 10 + descLines.length * 14;
+
+    const scheduleLines = [];
+    if (item.scheduleLines.length) {
+      h += 14;
+      doc.setFont("times", "normal");
+      doc.setFontSize(10);
+      item.scheduleLines.forEach(line => {
+        if (line.struckText) {
+          scheduleLines.push(line);
+          h += 13;
+        } else {
+          const wrapped = doc.splitTextToSize(line.text, maxW);
+          scheduleLines.push({ ...line, wrapped });
+          h += wrapped.length * 13;
+        }
+      });
+    }
+    return { descLines, scheduleLines, height: h + 10 };
+  }
+
+  function drawItemRow(doc, y, item, measured) {
+    const padX = 8;
+    let cy = y + 16;
+    doc.setFont("times", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...PDF_COLORS.text);
+    measured.descLines.forEach(line => { doc.text(line, PDF.COL_DESC_X + padX, cy); cy += 14; });
+
+    if (measured.scheduleLines.length) {
+      doc.setFont("times", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...PDF_COLORS.gold);
+      // Hardcoded rather than t("receipt.schedule_title") — the PDF is
+      // English-only regardless of the app's current language toggle (see
+      // TERMS_AND_CONDITIONS_EN above for the same reasoning), and jsPDF's
+      // built-in fonts can't render CJK glyphs at all, which is exactly
+      // what happens if this reads the Chinese translation: silent mojibake
+      // instead of a visible error.
+      doc.text("CLASS SCHEDULE:", PDF.COL_DESC_X + padX, cy);
+      cy += 14;
+      doc.setFontSize(10);
+      measured.scheduleLines.forEach(line => {
+        if (line.struckText) {
+          doc.setTextColor(...PDF_COLORS.struck);
+          const struckW = doc.getTextWidth(line.struckText);
+          doc.text(line.struckText, PDF.COL_DESC_X + padX, cy);
+          doc.setDrawColor(...PDF_COLORS.struck);
+          doc.line(PDF.COL_DESC_X + padX, cy - 3, PDF.COL_DESC_X + padX + struckW, cy - 3);
+          doc.setTextColor(...PDF_COLORS.text);
+          // "->" not "→" — the Unicode arrow isn't in jsPDF's standard
+          // font encoding and renders as garbage instead of a visible error.
+          doc.text(` -> ${line.text}`, PDF.COL_DESC_X + padX + struckW, cy);
+          cy += 13;
+        } else {
+          doc.setTextColor(...PDF_COLORS.text);
+          line.wrapped.forEach(wline => { doc.text(wline, PDF.COL_DESC_X + padX, cy); cy += 13; });
+        }
+      });
+    }
+
+    doc.setFont("times", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(...PDF_COLORS.text);
+    const valueY = y + 16;
+    doc.text(item.price.toLocaleString(), PDF.COL_PRICE_X + PDF.COL_PRICE_W / 2, valueY, { align: "center" });
+    doc.text(String(item.qty), PDF.COL_QTY_X + PDF.COL_QTY_W / 2, valueY, { align: "center" });
+    doc.text(`$${item.total.toLocaleString()}`, PDF.COL_TOTAL_X + PDF.COL_TOTAL_W / 2, valueY, { align: "center" });
+
+    doc.setDrawColor(...PDF_COLORS.border);
+    doc.line(PDF.MARGIN, y + measured.height, PDF.MARGIN + PDF.CONTENT_W, y + measured.height);
+    return y + measured.height;
+  }
+
+  function drawTotalRow(doc, y, total) {
+    const h = 26;
+    doc.setFillColor(...PDF_COLORS.headerBg);
+    doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
+    doc.setFont("times", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_COLORS.headerText);
+    doc.text("TOTAL", PDF.COL_TOTAL_X - 16, y + h / 2 + 3, { align: "right" });
+    doc.setFont("times", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...PDF_COLORS.text);
+    doc.text(`$${total.toLocaleString()}`, PDF.MARGIN + PDF.CONTENT_W - 8, y + h / 2 + 3, { align: "right" });
+    return y + h + 32;
+  }
+
+  function drawFooter(doc, y, stampImg, signatureImg) {
+    doc.setFont("times", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...PDF_COLORS.text);
+    doc.text("TOM'S VIOLIN STUDIO", PDF.MARGIN, y);
+    doc.setFont("times", "normal");
+    doc.setFontSize(10);
+    doc.text("Contact number: 95179962", PDF.MARGIN, y + 16);
+    doc.text("Address: 9A Spark City(Mong Kok),", PDF.MARGIN, y + 30);
+    doc.text("Tong Mi Road 25, Mong Kok", PDF.MARGIN, y + 44);
+
+    const sigCenterX = PDF.PAGE_W - PDF.MARGIN - 65;
+    let sigY = y - 14;
+    if (stampImg) {
+      const h = 60;
+      const w = h * (stampImg.width / stampImg.height);
+      doc.addImage(stampImg.dataUrl, "JPEG", sigCenterX - w / 2, sigY, w, h);
+      sigY += h + 6;
+    }
+    if (signatureImg) {
+      const h = 36;
+      const w = h * (signatureImg.width / signatureImg.height);
+      doc.addImage(signatureImg.dataUrl, "JPEG", sigCenterX - w / 2, sigY, w, h);
+      sigY += h + 6;
+    }
+    doc.setDrawColor(...PDF_COLORS.headerText);
+    doc.line(sigCenterX - 55, sigY, sigCenterX + 55, sigY);
+    doc.setFont("times", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_COLORS.sigText);
+    drawTrackedText(doc, "Signature", sigCenterX, sigY + 12, { align: "center", spacing: 1 });
+  }
+
+  function buildReceiptPage(doc, images) {
+    let y = 40;
+    y = drawPdfPageHeader(doc, images.logo, y);
+
+    const issuedTo = document.getElementById("receipt-issued-to").value;
     const dateValue = document.getElementById("receipt-date").value;
-    const dateClone = sheetClone.querySelector("#receipt-date");
-    const dateText = document.createElement("div");
-    dateText.textContent = dateValue ? new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-HK", { dateStyle: "medium" }) : "";
-    dateText.style.cssText = "font-family:inherit; font-size:13px; border-bottom:1px solid #ddd4c8; padding:2px 0; text-align:right;";
-    dateClone.replaceWith(dateText);
+    const dateText = dateValue
+      ? new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-HK", { dateStyle: "medium" })
+      : "";
+    y = drawMetaBox(doc, y, issuedTo, dateText);
+    y = drawTableHeader(doc, y);
 
-    // <input> form controls are a known weak spot for html2canvas — it has
-    // to manually reconstruct their appearance rather than using native OS
-    // chrome, and real iOS Safari was rendering the price/qty text visibly
-    // off-center from their column headers even though the live DOM (and
-    // a Chrome-based capture) measured it as perfectly centered. Swapping
-    // them for plain text is the same fix already used above for
-    // ISSUED TO/DATE, for the same underlying reason.
-    const livePriceInputs = document.querySelectorAll("#item-rows .item-price");
-    const liveQtyInputs = document.querySelectorAll("#item-rows .item-qty");
-    sheetClone.querySelectorAll(".item-price").forEach((el, i) => {
-      const text = document.createElement("div");
-      text.textContent = livePriceInputs[i].value;
-      text.style.cssText = "font-family:inherit; font-size:12px; text-align:center;";
-      el.replaceWith(text);
-    });
-    sheetClone.querySelectorAll(".item-qty").forEach((el, i) => {
-      const text = document.createElement("div");
-      text.textContent = liveQtyInputs[i].value;
-      text.style.cssText = "font-family:inherit; font-size:12px; text-align:center;";
-      el.replaceWith(text);
+    const items = collectReceiptItems();
+    items.forEach(item => {
+      const measured = measureItemRow(doc, item);
+      if (y + measured.height > PDF.BOTTOM_LIMIT) {
+        doc.addPage();
+        y = 40;
+        y = drawTableHeader(doc, y);
+      }
+      y = drawItemRow(doc, y, item, measured);
     });
 
-    wrapper.appendChild(sheetClone);
-    return wrapper;
-  }
-
-  // A separate off-screen snapshot for just the terms page, captured and
-  // added as its own PDF page rather than appended below the receipt in
-  // the same capture — html2pdf's built-in page-break option turned out to
-  // stretch/distort the receipt to fill a full page instead of keeping its
-  // own proportions (verified directly by inspecting the placed image's
-  // width/height in the PDF's content stream), so two independent
-  // fit-to-width captures is the reliable way to get a clean page 2.
-  function buildTermsPdfSnapshot() {
-    if (document.getElementById("terms-page").style.display === "none") return null;
-    const wrapper = document.createElement("div");
-    wrapper.className = "pdf-render";
-    wrapper.appendChild(document.getElementById("terms-page").cloneNode(true));
-    return wrapper;
-  }
-
-  // Captures one off-screen .pdf-render wrapper to a raw canvas.
-  // html2pdf.js keeps its bundled html2canvas/jsPDF private (neither is
-  // exposed on window), so going through its own worker chain — just to
-  // get a canvas back — is the only way to reach it directly.
-  async function captureToCanvas(wrapper) {
-    document.body.appendChild(wrapper);
-    try {
-      // Without an explicit width/height, html2canvas measures this element
-      // at ~794px wide regardless of its real (verified via
-      // getBoundingClientRect) 650px CSS width — confirmed directly by
-      // capturing at scale:1 and comparing. That extra blank margin is what
-      // was pushing the receipt off-center in the exported PDF, so this
-      // always passes the wrapper's real size straight through.
-      const rect = wrapper.getBoundingClientRect();
-      // A windowWidth override was tried here too, to stop the mobile CSS
-      // breakpoint (see the .pdf-render restatement rules above) from
-      // matching during capture on a real phone. Confirmed directly by
-      // capturing at a simulated 375px-wide viewport with and without it
-      // that it's actually unnecessary AND actively harmful: the
-      // restatement rules alone already fix the breakpoint issue (their
-      // effect is visible in the live DOM before html2canvas ever runs), but
-      // windowWidth on its own additionally corrupted the crop region —
-      // width/height above crop relative to this element's real on-page
-      // position, which no longer lines up once windowWidth changes the
-      // internal render viewport size, so the right portion (DATE, the
-      // TOTAL amount, the stamp/signature) was silently cropped away.
-      return await html2pdf().set({
-        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, width: rect.width, height: rect.height },
-      }).from(wrapper).toCanvas().get("canvas");
-    } finally {
-      document.body.removeChild(wrapper);
+    const grandTotal = items.reduce((sum, it) => sum + it.total, 0);
+    if (y + 26 + 130 > PDF.BOTTOM_LIMIT) {
+      doc.addPage();
+      y = 40;
     }
+    y = drawTotalRow(doc, y, grandTotal);
+    drawFooter(doc, y + 20, images.stamp, images.signature);
   }
 
-  // Adds a captured canvas to the given jsPDF doc, always fit to the page
-  // width, splitting into as many additional pages as needed when it's
-  // taller than one page — a fixed-height cap here previously just cropped
-  // anything past the first page (e.g. the tail end of the terms text once
-  // a longer receipt pushed it to overflow), silently losing content
-  // instead of continuing it onto a page 3.
-  //
-  // isFirstPageOfDoc: true draws straight onto the doc's existing page 1
-  // (jsPDF's pageSize getters need at least one page to already exist —
-  // there's no page to measure right after the bootstrap page is deleted —
-  // so callers keep that first page around and let this overwrite it)
-  // instead of calling addPage() first.
-  function addCanvasAsPages(pdf, canvas, isFirstPageOfDoc) {
-    const pageWidthMM = pdf.internal.pageSize.getWidth();
-    const pageHeightMM = pdf.internal.pageSize.getHeight();
-    const pxPerMM = canvas.width / pageWidthMM;
-    const pageHeightPx = Math.floor(pageHeightMM * pxPerMM);
-    let renderedPx = 0;
-    let firstSlice = true;
-    while (renderedPx < canvas.height) {
-      const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
-      const slice = document.createElement("canvas");
-      slice.width = canvas.width;
-      slice.height = sliceHeightPx;
-      slice.getContext("2d").drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
-      if (!(isFirstPageOfDoc && firstSlice)) pdf.addPage();
-      pdf.addImage(slice, "JPEG", 0, 0, pageWidthMM, sliceHeightPx / pxPerMM);
-      renderedPx += sliceHeightPx;
-      firstSlice = false;
-    }
+  function buildTermsPage(doc, images) {
+    doc.addPage();
+    let y = 40;
+    y = drawPdfPageHeader(doc, images.logo, y);
+    y += 14;
+
+    doc.setFont("times", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...PDF_COLORS.text);
+    doc.text("Terms and Conditions", PDF.MARGIN, y);
+    y += 22;
+
+    doc.setFont("times", "normal");
+    doc.setFontSize(11);
+    const numberW = 20;
+    TERMS_AND_CONDITIONS_EN.forEach((clause, i) => {
+      const wrapped = doc.splitTextToSize(clause, PDF.CONTENT_W - numberW);
+      doc.text(`${i + 1}.`, PDF.MARGIN, y);
+      wrapped.forEach((line, li) => doc.text(line, PDF.MARGIN + numberW, y + li * 15));
+      y += wrapped.length * 15 + 8;
+    });
   }
 
   document.getElementById("save-pdf-btn").addEventListener("click", async () => {
@@ -858,43 +973,17 @@
       const studentName = document.getElementById("receipt-issued-to").value.trim();
       const filename = `Receipt${studentName ? " - " + studentName : ""}.pdf`;
 
-      // A custom pixel-matched page size (via jsPDF's unit:"px") turned out
-      // to be an unreliable combination in this library — verified directly
-      // that the image it draws ends up sized using a fixed ~4/3 (96/72dpi)
-      // conversion independent of the declared page size, so content spilled
-      // off the right/bottom edge (exactly the "squeezed left, footer
-      // missing" report). format:"a4" plus manually placing each page's own
-      // image (via addCanvasAsPages) is the reliable path instead.
-      //
-      // The receipt and terms page are captured completely separately, each
-      // as its own image — html2pdf's built-in page-break option was tried
-      // here first, but it stretches/distorts the receipt to fill a full
-      // page instead of keeping its own proportions (verified directly by
-      // inspecting the placed image's width/height in the PDF's content
-      // stream). Getting an actual jsPDF document instance also has to go
-      // through html2pdf's worker chain (neither it nor html2canvas is
-      // exposed on window) — a tiny throwaway div bootstraps one, and its
-      // single placeholder page is discarded once real content exists.
-      const dummy = document.createElement("div");
-      dummy.style.cssText = "width:10px; height:10px;";
-      document.body.appendChild(dummy);
-      let pdf;
-      try {
-        pdf = await html2pdf().set({ jsPDF: { unit: "mm", format: "a4", orientation: "portrait" } }).from(dummy).toPdf().get("pdf");
-      } finally {
-        document.body.removeChild(dummy);
-      }
+      const [logo, stamp, signature] = await Promise.all([
+        loadImageAsJpeg("logo.png"),
+        loadImageAsJpeg("stamp.png"),
+        loadImageAsJpeg("signature.png"),
+      ]);
 
-      const receiptCanvas = await captureToCanvas(buildPdfSnapshot());
-      addCanvasAsPages(pdf, receiptCanvas, true);
+      const doc = new jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+      buildReceiptPage(doc, { logo, stamp, signature });
+      if (showTermsPage) buildTermsPage(doc, { logo });
 
-      const termsWrapper = buildTermsPdfSnapshot();
-      if (termsWrapper) {
-        const termsCanvas = await captureToCanvas(termsWrapper);
-        addCanvasAsPages(pdf, termsCanvas, false);
-      }
-
-      pdf.save(filename);
+      doc.save(filename);
     } catch (err) {
       alert("Save failed: " + err.message);
     } finally {
