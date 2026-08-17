@@ -184,6 +184,14 @@
      Layering common CJK fonts (per platform) ahead of the generic
      fallback fixes that without changing the on-screen/print look. */
   .pdf-render, .pdf-render * { font-family: Georgia, "Times New Roman", "PingFang HK", "Microsoft JhengHei", "Noto Sans TC", "Noto Sans HK", sans-serif !important; }
+  /* Real iOS Safari auto-inflates text size for readability
+     (-webkit-text-size-adjust:auto is the default) even inside a fixed-
+     width off-screen element like this one — confirmed by comparing a
+     real-phone PDF against desktop: the terms page rendered ~1.9x taller
+     on the phone despite identical CSS, pushing it onto a needless extra
+     page. Disabling it here only affects this snapshot wrapper, not the
+     live on-screen mobile pages or the desktop PDF. */
+  .pdf-render, .pdf-render * { -webkit-text-size-adjust: 100% !important; text-size-adjust: 100% !important; }
   /* Confirmed by directly testing it: html2canvas returns a zero-height
      (i.e. blank) capture for anything positioned fixed OR absolute —
      that's what was producing the real blank-PDF report. Only normal
