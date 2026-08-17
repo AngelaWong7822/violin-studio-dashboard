@@ -665,6 +665,14 @@
     struck: [168, 155, 138],
   };
 
+  const TERMS_AND_CONDITIONS_ZH = [
+    "所有產品只提供瑕疵品退換服務，其他退換原因均一律不接受。",
+    "同一張訂單只可進行一次退貨服務，請買家將所有貨品檢查完畢。",
+    "所有產品必須在當天起的七天內展開退貨流程。",
+    "所有產品必須經過合理保養，例如不得有磨損或損壞，且其狀態必須可讓本公司轉售該產品，才能進行退貨。",
+    "未經授權的維修，誤用，碰撞，疏忽，事故，改裝，不正確安裝所造成的貨品問題，撕毀，塗改標貼，防偽，標記等，均不給予7天兌換貨品。",
+    "如有任何爭議，本公司Tom's Violin studio將保留最終決定權。",
+  ];
   const TERMS_AND_CONDITIONS_EN = [
     "Only defected items are allowed for exchange, no refund will be entertained.",
     "Buyer should examine the product thoroughly and the product on one receipt can be exchanged once only.",
@@ -673,6 +681,46 @@
     "Any unauthorised alternation made to the sold items are not eligible for 7 days exchange policy.",
     "In case of any dispute, Tom's Violin studio's decision shall be final.",
   ];
+
+  // jsPDF's built-in fonts (Helvetica/Times/etc) have zero Chinese glyph
+  // coverage — drawing any CJK text with them silently produces garbage,
+  // not an error, which is exactly what happened before this: a student's
+  // Chinese name or the app's current language ("chinese schedule label")
+  // came out as mojibake. Pinned to a specific commit (not a branch) so
+  // the file never changes — jsdelivr serves commit-pinned URLs as
+  // max-age=1yr immutable, so after the first PDF ever generated on a
+  // given device this is effectively free from browser cache. jsPDF's own
+  // embedding subsets the font down to only the glyphs actually used in
+  // the document, so the *output* PDF stays small regardless of the
+  // ~7MB source font — confirmed directly: a test PDF with a full line of
+  // Chinese text still came out under 300KB.
+  const CJK_FONT_URL = "https://cdn.jsdelivr.net/gh/google/fonts@352f6b7d9d6cc4fa9e242b931291d31b21a6dc84/ofl/notosanstc/NotoSansTC[wght].ttf";
+  const CJK_FONT_NAME = "NotoSansTC";
+  let cjkFontLoadPromise = null;
+  function loadCjkFontIntoPdf(doc) {
+    if (!cjkFontLoadPromise) {
+      cjkFontLoadPromise = fetch(CJK_FONT_URL)
+        .then(res => res.arrayBuffer())
+        .then(buf => {
+          const bytes = new Uint8Array(buf);
+          let binary = "";
+          const chunkSize = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+          return btoa(binary);
+        });
+    }
+    return cjkFontLoadPromise.then(base64 => {
+      doc.addFileToVFS(`${CJK_FONT_NAME}.ttf`, base64);
+      // This is a variable font (one file covers its whole weight range),
+      // but PDF viewers don't render variable-font weight axes — jsPDF
+      // just embeds its default instance, so "bold" text drawn with it
+      // comes out the same visual weight as "normal". A worthwhile
+      // trade-off for correct Chinese rendering everywhere rather than
+      // chasing down a separate static bold CJK font file too.
+      doc.addFont(`${CJK_FONT_NAME}.ttf`, CJK_FONT_NAME, "normal");
+      doc.addFont(`${CJK_FONT_NAME}.ttf`, CJK_FONT_NAME, "bold");
+    });
+  }
 
   // jsPDF embeds whatever image data it's given as-is — passing the raw
   // PNGs directly (logo.png alone is roughly 950x950) bloated a single
@@ -722,7 +770,7 @@
       doc.addImage(logoImg.dataUrl, "JPEG", PDF.PAGE_W / 2 - w / 2, y, w, h);
       y += h + 10;
     }
-    doc.setFont("times", "normal");
+    doc.setFont(CJK_FONT_NAME, "normal");
     doc.setFontSize(13);
     doc.setTextColor(...PDF_COLORS.text);
     drawTrackedText(doc, "TOM'S VIOLIN STUDIO", PDF.PAGE_W / 2, y, { align: "center", spacing: 3 });
@@ -735,7 +783,7 @@
     doc.setDrawColor(...PDF_COLORS.metaBorder);
     doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, boxH, 3, 3, "FD");
 
-    doc.setFont("times", "normal");
+    doc.setFont(CJK_FONT_NAME, "normal");
     doc.setFontSize(8);
     doc.setTextColor(...PDF_COLORS.gold);
     drawTrackedText(doc, "ISSUED TO:", PDF.MARGIN + padX, labelY, { spacing: 1 });
@@ -756,7 +804,7 @@
     const h = 26;
     doc.setFillColor(...PDF_COLORS.headerBg);
     doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
-    doc.setFont("times", "bold");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.headerText);
     doc.text("DESCRIPTION", PDF.COL_DESC_X + 8, y + h / 2 + 3);
@@ -784,7 +832,7 @@
   function measureItemRow(doc, item) {
     const padX = 8;
     const maxW = PDF.COL_DESC_W - padX * 2;
-    doc.setFont("times", "bold");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(11);
     const descLines = doc.splitTextToSize(item.description || "", maxW);
     let h = 10 + descLines.length * 14;
@@ -792,7 +840,7 @@
     const scheduleLines = [];
     if (item.scheduleLines.length) {
       h += 14;
-      doc.setFont("times", "normal");
+      doc.setFont(CJK_FONT_NAME, "normal");
       doc.setFontSize(10);
       item.scheduleLines.forEach(line => {
         if (line.struckText) {
@@ -811,22 +859,19 @@
   function drawItemRow(doc, y, item, measured) {
     const padX = 8;
     let cy = y + 16;
-    doc.setFont("times", "bold");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(11);
     doc.setTextColor(...PDF_COLORS.text);
     measured.descLines.forEach(line => { doc.text(line, PDF.COL_DESC_X + padX, cy); cy += 14; });
 
     if (measured.scheduleLines.length) {
-      doc.setFont("times", "normal");
+      doc.setFont(CJK_FONT_NAME, "normal");
       doc.setFontSize(9);
       doc.setTextColor(...PDF_COLORS.gold);
-      // Hardcoded rather than t("receipt.schedule_title") — the PDF is
-      // English-only regardless of the app's current language toggle (see
-      // TERMS_AND_CONDITIONS_EN above for the same reasoning), and jsPDF's
-      // built-in fonts can't render CJK glyphs at all, which is exactly
-      // what happens if this reads the Chinese translation: silent mojibake
-      // instead of a visible error.
-      doc.text("CLASS SCHEDULE:", PDF.COL_DESC_X + padX, cy);
+      // .toUpperCase() is a no-op on Chinese text, so this stays safe for
+      // either language — matches the on-screen label's CSS
+      // text-transform:uppercase, which obviously doesn't apply here.
+      doc.text(t("receipt.schedule_title").toUpperCase(), PDF.COL_DESC_X + padX, cy);
       cy += 14;
       doc.setFontSize(10);
       measured.scheduleLines.forEach(line => {
@@ -848,7 +893,7 @@
       });
     }
 
-    doc.setFont("times", "normal");
+    doc.setFont(CJK_FONT_NAME, "normal");
     doc.setFontSize(11);
     doc.setTextColor(...PDF_COLORS.text);
     const valueY = y + 16;
@@ -865,11 +910,11 @@
     const h = 26;
     doc.setFillColor(...PDF_COLORS.headerBg);
     doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
-    doc.setFont("times", "normal");
+    doc.setFont(CJK_FONT_NAME, "normal");
     doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.headerText);
     doc.text("TOTAL", PDF.COL_TOTAL_X - 16, y + h / 2 + 3, { align: "right" });
-    doc.setFont("times", "bold");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(12);
     doc.setTextColor(...PDF_COLORS.text);
     doc.text(`$${total.toLocaleString()}`, PDF.MARGIN + PDF.CONTENT_W - 8, y + h / 2 + 3, { align: "right" });
@@ -877,11 +922,11 @@
   }
 
   function drawFooter(doc, y, stampImg, signatureImg) {
-    doc.setFont("times", "bold");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(11);
     doc.setTextColor(...PDF_COLORS.text);
     doc.text("TOM'S VIOLIN STUDIO", PDF.MARGIN, y);
-    doc.setFont("times", "normal");
+    doc.setFont(CJK_FONT_NAME, "normal");
     doc.setFontSize(10);
     doc.text("Contact number: 95179962", PDF.MARGIN, y + 16);
     doc.text("Address: 9A Spark City(Mong Kok),", PDF.MARGIN, y + 30);
@@ -903,7 +948,7 @@
     }
     doc.setDrawColor(...PDF_COLORS.headerText);
     doc.line(sigCenterX - 55, sigY, sigCenterX + 55, sigY);
-    doc.setFont("times", "normal");
+    doc.setFont(CJK_FONT_NAME, "normal");
     doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.sigText);
     drawTrackedText(doc, "Signature", sigCenterX, sigY + 12, { align: "center", spacing: 1 });
@@ -941,27 +986,37 @@
     drawFooter(doc, y + 20, images.stamp, images.signature);
   }
 
+  function drawTermsList(doc, y, heading, clauses) {
+    const numberW = 20;
+    if (y + 22 > PDF.BOTTOM_LIMIT) { doc.addPage(); y = 40; }
+    doc.setFont(CJK_FONT_NAME, "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...PDF_COLORS.text);
+    doc.text(heading, PDF.MARGIN, y);
+    y += 22;
+
+    doc.setFont(CJK_FONT_NAME, "normal");
+    doc.setFontSize(11);
+    clauses.forEach((clause, i) => {
+      const wrapped = doc.splitTextToSize(clause, PDF.CONTENT_W - numberW);
+      const blockH = wrapped.length * 15 + 8;
+      if (y + blockH > PDF.BOTTOM_LIMIT) { doc.addPage(); y = 40; }
+      doc.text(`${i + 1}.`, PDF.MARGIN, y);
+      wrapped.forEach((line, li) => doc.text(line, PDF.MARGIN + numberW, y + li * 15));
+      y += blockH;
+    });
+    return y;
+  }
+
   function buildTermsPage(doc, images) {
     doc.addPage();
     let y = 40;
     y = drawPdfPageHeader(doc, images.logo, y);
     y += 14;
 
-    doc.setFont("times", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(...PDF_COLORS.text);
-    doc.text("Terms and Conditions", PDF.MARGIN, y);
-    y += 22;
-
-    doc.setFont("times", "normal");
-    doc.setFontSize(11);
-    const numberW = 20;
-    TERMS_AND_CONDITIONS_EN.forEach((clause, i) => {
-      const wrapped = doc.splitTextToSize(clause, PDF.CONTENT_W - numberW);
-      doc.text(`${i + 1}.`, PDF.MARGIN, y);
-      wrapped.forEach((line, li) => doc.text(line, PDF.MARGIN + numberW, y + li * 15));
-      y += wrapped.length * 15 + 8;
-    });
+    y = drawTermsList(doc, y, "條款與細則", TERMS_AND_CONDITIONS_ZH);
+    y += 14;
+    drawTermsList(doc, y, "Terms and Conditions", TERMS_AND_CONDITIONS_EN);
   }
 
   document.getElementById("save-pdf-btn").addEventListener("click", async () => {
@@ -973,13 +1028,14 @@
       const studentName = document.getElementById("receipt-issued-to").value.trim();
       const filename = `Receipt${studentName ? " - " + studentName : ""}.pdf`;
 
+      const doc = new jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
       const [logo, stamp, signature] = await Promise.all([
         loadImageAsJpeg("logo.png"),
         loadImageAsJpeg("stamp.png"),
         loadImageAsJpeg("signature.png"),
+        loadCjkFontIntoPdf(doc),
       ]);
 
-      const doc = new jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
       buildReceiptPage(doc, { logo, stamp, signature });
       if (showTermsPage) buildTermsPage(doc, { logo });
 
