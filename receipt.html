@@ -780,16 +780,20 @@
       // was pushing the receipt off-center in the exported PDF, so this
       // always passes the wrapper's real size straight through.
       const rect = wrapper.getBoundingClientRect();
-      // html2canvas's own internal render viewport (windowWidth/Height)
-      // defaults to the real device's actual viewport — on a phone that's
-      // under 600px, so @media screen and (max-width:600px) was matching
-      // during capture even though this wrapper is a fixed 650px wide,
-      // stacking ISSUED TO/DATE and shrinking the item table exactly like
-      // it should for the real on-screen mobile layout, just not for this
-      // off-screen snapshot. Forcing a desktop-sized render viewport here
-      // keeps that breakpoint from ever matching, on any device.
+      // A windowWidth override was tried here too, to stop the mobile CSS
+      // breakpoint (see the .pdf-render restatement rules above) from
+      // matching during capture on a real phone. Confirmed directly by
+      // capturing at a simulated 375px-wide viewport with and without it
+      // that it's actually unnecessary AND actively harmful: the
+      // restatement rules alone already fix the breakpoint issue (their
+      // effect is visible in the live DOM before html2canvas ever runs), but
+      // windowWidth on its own additionally corrupted the crop region —
+      // width/height above crop relative to this element's real on-page
+      // position, which no longer lines up once windowWidth changes the
+      // internal render viewport size, so the right portion (DATE, the
+      // TOTAL amount, the stamp/signature) was silently cropped away.
       return await html2pdf().set({
-        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, width: rect.width, height: rect.height, windowWidth: 1024, windowHeight: Math.max(rect.height, 768) },
+        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, width: rect.width, height: rect.height },
       }).from(wrapper).toCanvas().get("canvas");
     } finally {
       document.body.removeChild(wrapper);
