@@ -222,6 +222,26 @@
   .pdf-render textarea.item-desc { display: none !important; }
   .pdf-render .item-desc-print { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
 
+  /* Same fix as @media print's own "belt-and-suspenders" block below, for
+     the same reason: the mobile breakpoint matches on the real device's
+     screen width, not this element's own fixed 650px width, so on an
+     actual phone it was still shrinking these — stacking ISSUED TO/DATE,
+     shrinking the table font and its price/qty/total columns — inside the
+     PDF snapshot too. Each selector here has one more class than its
+     mobile-breakpoint counterpart, so it wins on specificity regardless of
+     which one is declared first. */
+  .pdf-render #receipt-sheet { padding: 32px 40px; }
+  .pdf-render .receipt-meta { flex-direction: row; align-items: flex-start; gap: 16px; }
+  .pdf-render .receipt-meta .date-field { text-align: right; }
+  .pdf-render .receipt-meta .issued-to input { width: 200px; }
+  .pdf-render .receipt-meta .date-field input { width: 120px; }
+  .pdf-render #item-table { font-size: 12px; }
+  .pdf-render #item-table thead th { padding: 7px 8px; font-size: 10px; }
+  .pdf-render #item-table col.col-price, .pdf-render #item-table col.col-qty, .pdf-render #item-table col.col-total { width: 62px; }
+  .pdf-render #item-table tbody td { padding: 8px; }
+  .pdf-render #item-table tbody input, .pdf-render #item-table tbody textarea.item-desc { font-size: 12px; }
+  .pdf-render .item-schedule .schedule-line { font-size: 12px; }
+
   @media print {
     /* Chrome/most browsers skip printing background colors by default —
        without this the table header band and TOTAL row print white. */
@@ -760,8 +780,16 @@
       // was pushing the receipt off-center in the exported PDF, so this
       // always passes the wrapper's real size straight through.
       const rect = wrapper.getBoundingClientRect();
+      // html2canvas's own internal render viewport (windowWidth/Height)
+      // defaults to the real device's actual viewport — on a phone that's
+      // under 600px, so @media screen and (max-width:600px) was matching
+      // during capture even though this wrapper is a fixed 650px wide,
+      // stacking ISSUED TO/DATE and shrinking the item table exactly like
+      // it should for the real on-screen mobile layout, just not for this
+      // off-screen snapshot. Forcing a desktop-sized render viewport here
+      // keeps that breakpoint from ever matching, on any device.
       return await html2pdf().set({
-        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, width: rect.width, height: rect.height },
+        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, width: rect.width, height: rect.height, windowWidth: 1024, windowHeight: Math.max(rect.height, 768) },
       }).from(wrapper).toCanvas().get("canvas");
     } finally {
       document.body.removeChild(wrapper);
