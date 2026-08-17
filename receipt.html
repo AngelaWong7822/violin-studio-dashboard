@@ -742,10 +742,27 @@
     dateText.style.cssText = "font-family:inherit; font-size:13px; border-bottom:1px solid #ddd4c8; padding:2px 0; text-align:right;";
     dateClone.replaceWith(dateText);
 
+    // <input> form controls are a known weak spot for html2canvas — it has
+    // to manually reconstruct their appearance rather than using native OS
+    // chrome, and real iOS Safari was rendering the price/qty text visibly
+    // off-center from their column headers even though the live DOM (and
+    // a Chrome-based capture) measured it as perfectly centered. Swapping
+    // them for plain text is the same fix already used above for
+    // ISSUED TO/DATE, for the same underlying reason.
     const livePriceInputs = document.querySelectorAll("#item-rows .item-price");
     const liveQtyInputs = document.querySelectorAll("#item-rows .item-qty");
-    sheetClone.querySelectorAll(".item-price").forEach((el, i) => el.setAttribute("value", livePriceInputs[i].value));
-    sheetClone.querySelectorAll(".item-qty").forEach((el, i) => el.setAttribute("value", liveQtyInputs[i].value));
+    sheetClone.querySelectorAll(".item-price").forEach((el, i) => {
+      const text = document.createElement("div");
+      text.textContent = livePriceInputs[i].value;
+      text.style.cssText = "font-family:inherit; font-size:12px; text-align:center;";
+      el.replaceWith(text);
+    });
+    sheetClone.querySelectorAll(".item-qty").forEach((el, i) => {
+      const text = document.createElement("div");
+      text.textContent = liveQtyInputs[i].value;
+      text.style.cssText = "font-family:inherit; font-size:12px; text-align:center;";
+      el.replaceWith(text);
+    });
 
     wrapper.appendChild(sheetClone);
     return wrapper;
