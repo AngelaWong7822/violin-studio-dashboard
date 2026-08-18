@@ -1,0 +1,11 @@
+{
+  "name": "Tom's Violin Studio",
+  "short_name": "Violin Studio",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f7f5f2",
+  "theme_color": "#3d2b1f",
+  "icons": [
+    { "src": "logo.png", "sizes": "933x952", "type": "image/png" }
+  ]
+}
