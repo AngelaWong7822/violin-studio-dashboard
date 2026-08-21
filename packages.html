@@ -88,7 +88,11 @@
   .makeup-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0ece5; font-size: 13px; }
   .makeup-row select { font-size: 13px; padding: 4px 6px; }
   #grid-table.hide-withdrawn .withdrawn-col { display: none; }
-  #grid-table.hide-visitors .visitor-col { display: none; }
+  /* :not(.visitor-has-upcoming) is the auto-reveal exception — a make-up
+     visitor attending the very next lesson stays visible even with the
+     toggle off, since that's exactly the kind of thing easy to overlook
+     with the column hidden by default. */
+  #grid-table.hide-visitors .visitor-col:not(.visitor-has-upcoming) { display: none; }
   #grid-lock-toggle-btn { font-size: 16px; width: 32px; height: 32px; padding: 0; line-height: 1; border-radius: 50%; border: 1px solid #d9d0c3; background: #fff; color: #6b5c4f; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
   #grid-lock-toggle-btn.locked { background: #f5f2ec; color: #8a6314; border-color: #e5ddd0; }
   #grid-section.edit-locked { pointer-events: none; opacity: 0.65; user-select: none; }
@@ -873,6 +877,19 @@
     // glance which row is "up next" without having to scan every date.
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     const nextUpcomingAppt = appts.find(a => new Date(a.scheduled_start) >= startOfToday);
+    // A make-up visitor on the very next lesson is exactly the kind of
+    // thing that's easy to miss with the visitor column hidden behind its
+    // toggle by default — auto-reveal just that visitor's column (not the
+    // whole toggle) so it can't be overlooked, without cluttering the grid
+    // with every other one-off make-up ever recorded. Naturally reverts
+    // once that date is no longer the soonest upcoming one.
+    const visitorsWithUpcoming = new Set(
+      nextUpcomingAppt
+        ? visitorRoster
+            .map(([studentId]) => studentId)
+            .filter(studentId => attendanceRows.some(r => r.appointment_id === nextUpcomingAppt.id && r.student_id === studentId))
+        : [],
+    );
     // Enrolled students first, then withdrawn (kept for history), then
     // one-off make-up visitors — both withdrawn and visitor columns lock to
     // "-" outside a row they actually have, so neither reads as an open
@@ -886,14 +903,14 @@
     // Withdrawn and visitor columns each have their own show/hide toggle
     // ("顯示已退出學生" / "顯示已補堂學生") — both default to hidden so a
     // one-off make-up slot doesn't sit there cluttering the grid forever.
-    function colClass(isWithdrawn, isVisitor) {
+    function colClass(isWithdrawn, isVisitor, studentId) {
       if (isWithdrawn) return ' class="withdrawn-col"';
-      if (isVisitor) return ' class="visitor-col"';
+      if (isVisitor) return ` class="visitor-col${visitorsWithUpcoming.has(studentId) ? " visitor-has-upcoming" : ""}"`;
       return "";
     }
     const headRow = `<tr><th class="date-col" data-i18n="attendance.grid_col_date">Date</th>${columns.map(c => {
       const badge = c.isWithdrawn ? t("attendance.withdrawn_student") : c.isVisitor ? t("attendance.makeup_visitor") : "";
-      return `<th${colClass(c.isWithdrawn, c.isVisitor)}>${c.name}${badge ? ` <span class="visitor-badge">(${badge})</span>` : ""}</th>`;
+      return `<th${colClass(c.isWithdrawn, c.isVisitor, c.studentId)}>${c.name}${badge ? ` <span class="visitor-badge">(${badge})</span>` : ""}</th>`;
     }).join("")}</tr>`;
 
     // Shared by the per-date cells and the divider row's per-student "mark
@@ -914,7 +931,7 @@
         : "";
       const cells = columns.map(({ studentId, isVisitor, isWithdrawn }) => {
         const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
-        const colCls = isWithdrawn ? "withdrawn-col " : isVisitor ? "visitor-col " : "";
+        const colCls = isWithdrawn ? "withdrawn-col " : isVisitor ? `visitor-col${visitorsWithUpcoming.has(studentId) ? " visitor-has-upcoming" : ""} ` : "";
 
         if ((isVisitor || isWithdrawn) && !row) {
           return `<td class="${colCls}visitor-locked">-</td>`;
@@ -926,7 +943,7 @@
         }
         const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
         return `
-          <td${colClass(isWithdrawn, isVisitor)}>
+          <td${colClass(isWithdrawn, isVisitor, studentId)}>
             <button type="button" class="att-toggle ${attToggleClass(row)}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
             ${makeupNoteHtml(row, allGroupAppts)}
             ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#8a2e2e; font-size:10px;">${t("student.delete")}</button>` : ""}
@@ -954,10 +971,10 @@
             ${tf("attendance.term_divider", { n: batchIndex + 1, count: batch.length })}
           </td>
           ${columns.map(({ studentId, isVisitor, isWithdrawn }) => {
-            if (!isOpen) return `<td${colClass(isWithdrawn, isVisitor)}></td>`;
+            if (!isOpen) return `<td${colClass(isWithdrawn, isVisitor, studentId)}></td>`;
             const eligible = batch.some(a => isEligibleCell(a, studentId, isVisitor, isWithdrawn));
-            if (!eligible) return `<td${colClass(isWithdrawn, isVisitor)}></td>`;
-            return `<td${colClass(isWithdrawn, isVisitor)}><button type="button" class="link mark-all-attended-btn" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.mark_all_attended_title")}">${t("attendance.mark_all_attended")}</button></td>`;
+            if (!eligible) return `<td${colClass(isWithdrawn, isVisitor, studentId)}></td>`;
+            return `<td${colClass(isWithdrawn, isVisitor, studentId)}><button type="button" class="link mark-all-attended-btn" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.mark_all_attended_title")}">${t("attendance.mark_all_attended")}</button></td>`;
           }).join("")}
         </tr>`;
       return isOpen ? dividerRow + batch.map(dateRowHtml).join("") : dividerRow;
