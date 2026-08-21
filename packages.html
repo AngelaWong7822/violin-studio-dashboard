@@ -865,18 +865,18 @@
       const dateLabel = target
         ? `${new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" })} (${t("day." + new Date(target.scheduled_start).getDay())}) ${new Date(target.scheduled_start).toLocaleTimeString(localeForDates(), { timeStyle: "short" })}`
         : "?";
-      return `<div style="font-size:10px; color:#1e6b34;">→${dateLabel}</div>`;
+      return `<div style="font-size:10px; color:#1e6b34; white-space:normal;">→${dateLabel}</div>`;
     }
     if (row.make_up_status === "deferred_to_next_package") {
-      return `<div style="font-size:10px; color:#8a6314;">${t("makeup.deferred_to_next_package")}</div>`;
+      return `<div style="font-size:10px; color:#8a6314; white-space:normal;">${t("makeup.deferred_to_next_package")}</div>`;
     }
     if (row.make_up_status === "pending") {
-      return `<div style="font-size:10px; color:#8a2e2e;">${t("makeup.pending")}</div>`;
+      return `<div style="font-size:10px; color:#8a2e2e; white-space:normal;">${t("makeup.pending")}</div>`;
     }
     if (row.make_up_status === "combined_with_private" && row.make_up_remark) {
-      return `<div style="font-size:10px; color:#1e6b34;">${row.make_up_remark}${combinedExtraSuffix(row)}</div>`;
+      return `<div style="font-size:10px; color:#1e6b34; white-space:normal;">${row.make_up_remark}${combinedExtraSuffix(row)}</div>`;
     }
-    return `<div style="font-size:10px; color:#8a2e2e; font-weight:600;">${t("makeup.unprocessed")}</div>`;
+    return `<div style="font-size:10px; color:#8a2e2e; font-weight:600; white-space:normal;">${t("makeup.unprocessed")}</div>`;
   }
 
   function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap) {
