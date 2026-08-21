@@ -178,6 +178,8 @@ const I18N_STRINGS = {
     "makeup.deferred_to_next_package": "Deferred to next package",
     "makeup.combined_with_private": "Leave (combined with private lesson)",
     "makeup.remark_placeholder": "e.g. made up during the Aug 3 private lesson",
+    "makeup.extra_fee_placeholder": "Extra fee",
+    "makeup.extra_fee_label": "Extra",
 
     "payments.title": "Payments",
     "payments.unpaid_only": "Show unpaid only",
@@ -185,6 +187,7 @@ const I18N_STRINGS = {
     "payments.col_student": "Student",
     "payments.col_renewal_count": "Terms",
     "payments.col_total_amount": "Total amount",
+    "payments.col_extra_fee": "Extra fee",
     "payments.term_label": "Term {n}:",
     "payments.mark_all_paid": "Mark all paid",
     "payments.mark_all_paid_confirm": "Mark every lesson in this term as paid?",
@@ -478,6 +481,8 @@ const I18N_STRINGS = {
     "makeup.deferred_to_next_package": "突發請假(下期扣)",
     "makeup.combined_with_private": "請假(特別補堂處理)",
     "makeup.remark_placeholder": "例如:8月3日私人堂補返",
+    "makeup.extra_fee_placeholder": "額外收費",
+    "makeup.extra_fee_label": "額外",
 
     "payments.title": "付款",
     "payments.unpaid_only": "只顯示未付",
@@ -485,6 +490,7 @@ const I18N_STRINGS = {
     "payments.col_student": "學生",
     "payments.col_renewal_count": "報讀期數",
     "payments.col_total_amount": "總金額",
+    "payments.col_extra_fee": "額外收費",
     "payments.term_label": "第{n}期:",
     "payments.mark_all_paid": "全部已付",
     "payments.mark_all_paid_confirm": "確定要將呢期所有堂一次過設做已付?",

@@ -108,6 +108,7 @@
   .term-card-header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; color: #4a4038; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0ece5; }
   .term-card-header .term-label { font-weight: 600; color: #6b5c4f; }
   .term-card-header .term-price { color: #8a8074; }
+  .term-card-header .term-extra-fee { color: #1e6b34; font-weight: 600; }
   .term-card.term-card-collapsed { background: #f5f2ec; }
   .term-card.term-card-collapsed .term-card-header { cursor: pointer; color: #a89f92; border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
   .term-card.term-card-collapsed .term-card-header .term-label,
@@ -229,9 +230,10 @@
         <th data-i18n="payments.col_student">Student</th>
         <th data-i18n="payments.col_renewal_count">Terms</th>
         <th data-i18n="payments.col_total_amount">Total amount</th>
+        <th data-i18n="payments.col_extra_fee">Extra fee</th>
         <th data-i18n="schedule.col_paid">Paid</th>
       </tr></thead>
-      <tbody id="payment-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      <tbody id="payment-rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
@@ -777,7 +779,7 @@
     if (apptIds.length) {
       const { data } = await supabaseClient
         .from("attendance")
-        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, deferred_credit_used_in_package_id, deferred_credit_amount, students(contacts(name))")
+        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, students(contacts(name))")
         .in("appointment_id", apptIds);
       attendanceRows = data ?? [];
     }
@@ -846,6 +848,16 @@
     return resolved ? "att-leave-madeup" : "att-leave";
   }
 
+  // Builds ", 18/8/2026, +$200"-style trailing text from the structured
+  // date/fee fields, appended after the free-text remark wherever it's
+  // shown — omits either part cleanly when not filled in.
+  function combinedExtraSuffix(row) {
+    const parts = [];
+    if (row.make_up_date) parts.push(new Date(`${row.make_up_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" }));
+    if (row.make_up_extra_fee != null) parts.push(`+$${row.make_up_extra_fee}`);
+    return parts.length ? `, ${parts.join(", ")}` : "";
+  }
+
   function makeupNoteHtml(row, allGroupAppts) {
     if (!row || row.status !== "leave") return "";
     if (row.make_up_status === "made_up" && row.made_up_appointment_id) {
@@ -862,7 +874,7 @@
       return `<div style="font-size:10px; color:#8a2e2e;">${t("makeup.pending")}</div>`;
     }
     if (row.make_up_status === "combined_with_private" && row.make_up_remark) {
-      return `<div style="font-size:10px; color:#1e6b34;">${row.make_up_remark}</div>`;
+      return `<div style="font-size:10px; color:#1e6b34;">${row.make_up_remark}${combinedExtraSuffix(row)}</div>`;
     }
     return `<div style="font-size:10px; color:#8a2e2e; font-weight:600;">${t("makeup.unprocessed")}</div>`;
   }
@@ -1243,6 +1255,8 @@
             ${targetOptions}
           </select>
           <input type="text" data-field="make_up_remark" value="${row.make_up_remark ?? ""}" placeholder="${t("makeup.remark_placeholder")}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
+          <input type="date" data-field="make_up_date" value="${row.make_up_date ?? ""}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
+          <input type="number" step="0.01" min="0" data-field="make_up_extra_fee" value="${row.make_up_extra_fee ?? ""}" placeholder="${t("makeup.extra_fee_placeholder")}" style="width:90px; ${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
         </div>`;
     }).join("");
 
@@ -1254,7 +1268,11 @@
         const make_up_status = sel.value;
         const payload = { make_up_status };
         if (make_up_status !== "made_up") payload.made_up_appointment_id = null;
-        if (make_up_status !== "combined_with_private") payload.make_up_remark = null;
+        if (make_up_status !== "combined_with_private") {
+          payload.make_up_remark = null;
+          payload.make_up_date = null;
+          payload.make_up_extra_fee = null;
+        }
         // Switching away from "deferred to next package" releases whatever
         // credit link it may have already claimed — otherwise that package
         // keeps a discount for a leave that no longer qualifies for one.
@@ -1308,6 +1326,26 @@
         const rowEl = input.closest(".makeup-row");
         const remark = input.value.trim() || null;
         const { error } = await supabaseClient.from("attendance").update({ make_up_remark: remark }).eq("id", rowEl.dataset.attendanceId);
+        if (error) { alert("Update failed: " + error.message); return; }
+        await loadClassGrid(attendanceClassSelect.value);
+      });
+    });
+
+    container.querySelectorAll('input[data-field="make_up_date"]').forEach(input => {
+      input.addEventListener("change", async () => {
+        const rowEl = input.closest(".makeup-row");
+        const make_up_date = input.value || null;
+        const { error } = await supabaseClient.from("attendance").update({ make_up_date }).eq("id", rowEl.dataset.attendanceId);
+        if (error) { alert("Update failed: " + error.message); return; }
+        await loadClassGrid(attendanceClassSelect.value);
+      });
+    });
+
+    container.querySelectorAll('input[data-field="make_up_extra_fee"]').forEach(input => {
+      input.addEventListener("change", async () => {
+        const rowEl = input.closest(".makeup-row");
+        const make_up_extra_fee = input.value === "" ? null : Number(input.value);
+        const { error } = await supabaseClient.from("attendance").update({ make_up_extra_fee }).eq("id", rowEl.dataset.attendanceId);
         if (error) { alert("Update failed: " + error.message); return; }
         await loadClassGrid(attendanceClassSelect.value);
       });
@@ -1394,6 +1432,15 @@
     return Math.round(Math.max(0, pkg.price - ownDeduction - (pkg.incomingCreditAmount ?? 0)));
   }
 
+  // Kept deliberately out of effectivePrice() — these are one-off extra
+  // charges she wants to see and add up herself, not folded into the normal
+  // per-package total so that number stays exactly "price / lessons" math.
+  function extraFeeTotal(lessons) {
+    return lessons
+      .filter(l => l.make_up_status === "combined_with_private" && l.make_up_extra_fee != null)
+      .reduce((sum, l) => sum + Number(l.make_up_extra_fee), 0);
+  }
+
   async function loadPayments() {
     // Per-lesson paid/leave detail lives inside each term's card; the
     // collapsed row is one per STUDENT (not per term), so a student with
@@ -1403,7 +1450,7 @@
       .select("id, class_id, student_id, start_date, total_lessons, price, students!inner(active, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
       .eq("students.active", true)
       .order("start_date", { ascending: false });
-    if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
 
     const incomingCreditAmounts = await getIncomingCreditAmounts(pkgs.map(p => p.id));
 
@@ -1415,14 +1462,14 @@
       let attRows = [];
       if (apptIds.length) {
         const { data } = await supabaseClient
-          .from("attendance").select("id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, paid")
+          .from("attendance").select("id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, paid")
           .eq("student_id", pkg.student_id).in("appointment_id", apptIds);
         attRows = data ?? [];
       }
 
       const lessons = (appts ?? []).map(a => {
         const att = attRows.find(r => r.appointment_id === a.id);
-        return { apptId: a.id, date: a.scheduled_start, status: att?.status ?? null, make_up_status: att?.make_up_status ?? null, made_up_appointment_id: att?.made_up_appointment_id ?? null, make_up_remark: att?.make_up_remark ?? null, attendanceId: att?.id ?? null, paid: att?.paid ?? false };
+        return { apptId: a.id, date: a.scheduled_start, status: att?.status ?? null, make_up_status: att?.make_up_status ?? null, made_up_appointment_id: att?.made_up_appointment_id ?? null, make_up_remark: att?.make_up_remark ?? null, make_up_date: att?.make_up_date ?? null, make_up_extra_fee: att?.make_up_extra_fee ?? null, attendanceId: att?.id ?? null, paid: att?.paid ?? false };
       });
       return { pkg, lessons };
     }));
@@ -1450,10 +1497,11 @@
     if (unpaidOnlyToggle.checked) {
       visible = visible.filter(s => s.entries.some(({ lessons }) => lessons.some(l => !l.paid)));
     }
-    if (!visible.length) { paymentRowsEl.innerHTML = `<tr><td colspan="5" class="empty">${t("payments.empty")}</td></tr>`; return; }
+    if (!visible.length) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">${t("payments.empty")}</td></tr>`; return; }
 
     paymentRowsEl.innerHTML = visible.map((student) => {
       const totalAmount = student.entries.reduce((sum, { pkg, lessons }) => sum + effectivePrice(pkg, lessons), 0);
+      const totalExtraFee = student.entries.reduce((sum, { lessons }) => sum + extraFeeTotal(lessons), 0);
       const allLessons = student.entries.flatMap(({ lessons }) => lessons);
       const paidCount = allLessons.filter(l => l.paid).length;
       const isOpen = paymentExpandedIds.has(student.studentId);
@@ -1480,7 +1528,7 @@
             statusLabel = t("makeup.pending");
             statusColor = "#8a2e2e";
           } else if (l.status === "leave" && l.make_up_status === "combined_with_private") {
-            statusLabel = `疊埋上私人堂(${l.make_up_remark ?? ""})`;
+            statusLabel = `疊埋上私人堂(${l.make_up_remark ?? ""}${combinedExtraSuffix(l)})`;
             statusColor = "#1e6b34";
           } else if (l.status === "leave") {
             statusLabel = t("makeup.unprocessed");
@@ -1505,6 +1553,7 @@
               <span>${classLabel}</span>
               <span>${startLabel}</span>
               <span class="term-price">$${effectivePrice(pkg, lessons)}</span>
+              ${extraFeeTotal(lessons) > 0 ? `<span class="term-extra-fee">${t("makeup.extra_fee_label")} +$${extraFeeTotal(lessons)}</span>` : ""}
               <span>${termPaidCount} / ${lessons.length} ${t("schedule.col_paid")}</span>
               ${isOpenTerm && termPaidCount < lessons.length ? `<button type="button" class="link mark-all-paid-btn" data-term-id="${pkg.id}">${t("payments.mark_all_paid")}</button>` : ""}
             </div>
@@ -1526,11 +1575,12 @@
           <td>${student.name}</td>
           <td>${student.entries.length}</td>
           <td>$${totalAmount}</td>
+          <td>${totalExtraFee > 0 ? `+$${totalExtraFee}` : "—"}</td>
           <td>${paidCount} / ${allLessons.length}</td>
         </tr>
         <tr class="student-detail" data-student-detail="${student.studentId}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
-          <td colspan="4">
+          <td colspan="5">
             <div class="term-cards">${cards}</div>
           </td>
         </tr>`;
