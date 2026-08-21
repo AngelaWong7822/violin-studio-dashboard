@@ -1436,9 +1436,11 @@
   // charges she wants to see and add up herself, not folded into the normal
   // per-package total so that number stays exactly "price / lessons" math.
   function extraFeeTotal(lessons) {
-    return lessons
-      .filter(l => l.make_up_status === "combined_with_private" && l.make_up_extra_fee != null)
-      .reduce((sum, l) => sum + Number(l.make_up_extra_fee), 0);
+    return extraFeeLessons(lessons).reduce((sum, l) => sum + Number(l.make_up_extra_fee), 0);
+  }
+
+  function extraFeeLessons(lessons) {
+    return lessons.filter(l => l.make_up_status === "combined_with_private" && l.make_up_extra_fee != null);
   }
 
   async function loadPayments() {
@@ -1462,14 +1464,14 @@
       let attRows = [];
       if (apptIds.length) {
         const { data } = await supabaseClient
-          .from("attendance").select("id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, paid")
+          .from("attendance").select("id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, make_up_extra_fee_paid, paid")
           .eq("student_id", pkg.student_id).in("appointment_id", apptIds);
         attRows = data ?? [];
       }
 
       const lessons = (appts ?? []).map(a => {
         const att = attRows.find(r => r.appointment_id === a.id);
-        return { apptId: a.id, date: a.scheduled_start, status: att?.status ?? null, make_up_status: att?.make_up_status ?? null, made_up_appointment_id: att?.made_up_appointment_id ?? null, make_up_remark: att?.make_up_remark ?? null, make_up_date: att?.make_up_date ?? null, make_up_extra_fee: att?.make_up_extra_fee ?? null, attendanceId: att?.id ?? null, paid: att?.paid ?? false };
+        return { apptId: a.id, date: a.scheduled_start, status: att?.status ?? null, make_up_status: att?.make_up_status ?? null, made_up_appointment_id: att?.made_up_appointment_id ?? null, make_up_remark: att?.make_up_remark ?? null, make_up_date: att?.make_up_date ?? null, make_up_extra_fee: att?.make_up_extra_fee ?? null, make_up_extra_fee_paid: att?.make_up_extra_fee_paid ?? false, attendanceId: att?.id ?? null, paid: att?.paid ?? false };
       });
       return { pkg, lessons };
     }));
@@ -1495,7 +1497,12 @@
     const studentsList = groupPackagesByStudent(paymentPackages);
     let visible = studentsList;
     if (unpaidOnlyToggle.checked) {
-      visible = visible.filter(s => s.entries.some(({ lessons }) => lessons.some(l => !l.paid)));
+      // Outstanding extra fees never affect the normal paid count/total (kept
+      // separate on purpose), but a student shouldn't silently drop off this
+      // filtered list just because their 8/8 regular lessons are settled
+      // while a combined-with-private extra fee is still owed.
+      visible = visible.filter(s => s.entries.some(({ lessons }) =>
+        lessons.some(l => !l.paid) || extraFeeLessons(lessons).some(l => !l.make_up_extra_fee_paid)));
     }
     if (!visible.length) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">${t("payments.empty")}</td></tr>`; return; }
 
@@ -1541,7 +1548,14 @@
           <tr>
             <td>${new Date(l.date).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}</td>
             <td${statusColor ? ` style="color:${statusColor}; font-weight:600;"` : ""}>${statusLabel}</td>
-            <td><input type="checkbox" data-attendance-id="${l.attendanceId ?? ""}" data-appt-id="${l.apptId}" data-student-id="${pkg.student_id}" ${l.paid ? "checked" : ""} /></td>
+            <td>
+              <input type="checkbox" data-attendance-id="${l.attendanceId ?? ""}" data-appt-id="${l.apptId}" data-student-id="${pkg.student_id}" ${l.paid ? "checked" : ""} />
+              ${l.make_up_status === "combined_with_private" && l.make_up_extra_fee != null ? `
+                <label style="display:block; font-size:11px; color:#1e6b34; font-weight:600; margin-top:2px;">
+                  <input type="checkbox" class="extra-fee-paid-toggle" data-attendance-id="${l.attendanceId ?? ""}" ${l.make_up_extra_fee_paid ? "checked" : ""} />
+                  ${t("makeup.extra_fee_label")} +$${l.make_up_extra_fee} ${t("schedule.col_paid")}
+                </label>` : ""}
+            </td>
           </tr>`;
         }).join("");
 
@@ -1604,7 +1618,7 @@
       });
     });
 
-    paymentRowsEl.querySelectorAll(".student-detail input[type=checkbox]").forEach(cb => {
+    paymentRowsEl.querySelectorAll(".student-detail input[type=checkbox]:not(.extra-fee-paid-toggle)").forEach(cb => {
       cb.addEventListener("click", (e) => e.stopPropagation());
       cb.addEventListener("change", async () => {
         const paid = cb.checked;
@@ -1664,6 +1678,23 @@
         }
         unpaid.forEach(l => { l.paid = true; });
         renderPayments();
+      });
+    });
+
+    paymentRowsEl.querySelectorAll(".extra-fee-paid-toggle").forEach(checkbox => {
+      checkbox.addEventListener("click", (e) => e.stopPropagation());
+      checkbox.addEventListener("change", async () => {
+        const attendanceId = checkbox.dataset.attendanceId;
+        const paidNow = checkbox.checked;
+        if (!attendanceId) return;
+
+        const { error } = await supabaseClient.from("attendance").update({ make_up_extra_fee_paid: paidNow }).eq("id", attendanceId);
+        if (error) { alert("Update failed: " + error.message); checkbox.checked = !paidNow; return; }
+
+        for (const { lessons } of paymentPackages) {
+          const lesson = lessons.find(l => l.attendanceId === attendanceId);
+          if (lesson) { lesson.make_up_extra_fee_paid = paidNow; break; }
+        }
       });
     });
   }
