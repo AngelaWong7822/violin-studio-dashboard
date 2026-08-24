@@ -25,6 +25,12 @@
   .att-toggle.att-attended { background: #1e6b34; color: #fff; }
   .att-toggle.att-leave { background: #b8863a; color: #fff; }
   .att-toggle.att-no_show { background: #8a2e2e; color: #fff; }
+  .pending-review-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid #f0ece5; font-size: 13px; }
+  .pending-review-row:last-child { border-bottom: none; }
+  .pending-review-row .rationale { color: #8a8074; width: 100%; }
+  .pending-review-row .confidence { color: #a89f92; }
+  .pending-review-row .link.approve { color: #1e6b34; }
+  .pending-review-row .link.reject { color: #8a2e2e; }
 </style>
 </head>
 <body>
@@ -42,12 +48,17 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <hr />
+      <a href="contacts.html" data-i18n="nav.contacts">📇 WhatsApp Contacts</a>
       <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
+  <div class="card" id="pending-reviews-card" style="display:none;">
+    <h1 style="margin:0 0 10px;" data-i18n="private.pending_reviews_title">WhatsApp bookings needing review</h1>
+    <div id="pending-reviews"></div>
+  </div>
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="private.title">Private Students</h1>
@@ -137,7 +148,7 @@
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
   initSettingsMenu();
-  window.onLangChange = load;
+  window.onLangChange = () => { load(); loadPendingReviews(); };
 
   // Private (1-on-1 / 1-on-2) students: no package/batch concept, no
   // auto-deduction — each lesson is logged and priced individually. This
@@ -171,7 +182,7 @@
     students = await Promise.all(data.map(async (s) => {
       const { data: appts } = await supabaseClient
         .from("appointments")
-        .select("id, scheduled_start, lesson_format, price")
+        .select("id, scheduled_start, lesson_format, price, created_via")
         .eq("student_id", s.id).eq("type", "lesson").is("class_id", null)
         .order("scheduled_start", { ascending: false });
 
@@ -189,10 +200,13 @@
         return {
           apptId: a.id, attendanceId: att?.id ?? null,
           when: a.scheduled_start, format: a.lesson_format, price: a.price ?? 0,
-          status: att?.status ?? null, paid: att?.paid ?? false,
+          status: att?.status ?? null, paid: att?.paid ?? false, created_via: a.created_via,
         };
       });
-      return { ...s, lessons };
+      // Badge shown next to the name so it's obvious at a glance which
+      // students the WhatsApp AI added on its own vs. ones added by hand.
+      const isAiCreated = lessons.some(l => l.created_via === "whatsapp_ai_auto" || l.created_via === "whatsapp_ai_confirmed_by_angela");
+      return { ...s, lessons, isAiCreated };
     }));
 
     render();
@@ -227,7 +241,7 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td>${s.contacts?.name ?? ""}</td>
+          <td>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}</td>
           <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
           <td>${s.contacts?.age ?? "—"}</td>
           <td>${whatsappCell}</td>
@@ -471,7 +485,89 @@
     await load();
   });
 
+  // ---------- WhatsApp bookings needing review ----------
+  // Mirrors the approve/reject logic in supabase/functions/email-actions
+  // (the same actions the review email's links trigger) so these can also
+  // be handled here without having to go find the email.
+  let pendingReviews = [];
+
+  async function resolveStudentForContact(contactId) {
+    const { data: existingStudent } = await supabaseClient
+      .from("students").select("id").eq("contact_id", contactId).eq("active", true).maybeSingle();
+    if (existingStudent) return existingStudent.id;
+
+    const { data: newStudent, error } = await supabaseClient
+      .from("students").insert({ contact_id: contactId, is_group: false, active: true }).select().single();
+    if (error) throw error;
+    return newStudent.id;
+  }
+
+  async function loadPendingReviews() {
+    const { data, error } = await supabaseClient
+      .from("pending_actions")
+      .select("id, proposed_appointment, created_at, messages(body, contacts(name, whatsapp_number))")
+      .eq("status", "awaiting_review")
+      .order("created_at", { ascending: false });
+    pendingReviews = error ? [] : (data ?? []);
+    renderPendingReviews();
+  }
+
+  function renderPendingReviews() {
+    const card = document.getElementById("pending-reviews-card");
+    const container = document.getElementById("pending-reviews");
+    if (!pendingReviews.length) { card.style.display = "none"; return; }
+    card.style.display = "";
+
+    container.innerHTML = pendingReviews.map(p => {
+      const c = p.messages?.contacts;
+      const a = p.proposed_appointment;
+      return `
+        <div class="pending-review-row" data-pending-id="${p.id}">
+          <strong>${c?.name ?? c?.whatsapp_number ?? "?"}</strong>
+          <span>${a.intent}, ${a.requested_date ?? "?"} ${a.requested_time ?? "?"}</span>
+          <span class="confidence">(${Math.round((a.confidence ?? 0) * 100)}%)</span>
+          <button type="button" class="link approve" data-approve="${p.id}">${t("private.approve")}</button>
+          <button type="button" class="link reject" data-reject="${p.id}">${t("private.reject")}</button>
+          <div class="rationale">${p.messages?.body ? `"${p.messages.body}"` : ""}${a.rationale ? " — " + a.rationale : ""}</div>
+        </div>`;
+    }).join("");
+    applyI18n();
+
+    container.querySelectorAll("[data-approve]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const p = pendingReviews.find(x => x.id === btn.dataset.approve);
+        if (!p) return;
+        const a = p.proposed_appointment;
+        if (!a.requested_date || !a.requested_time) {
+          alert(t("private.pending_missing_time"));
+          return;
+        }
+        const start = new Date(`${a.requested_date}T${a.requested_time}:00+08:00`);
+        const minutes = a.duration_minutes_guess ?? 45;
+        const end = new Date(start.getTime() + minutes * 60_000);
+        const studentId = await resolveStudentForContact(a.contact_id);
+        const { error: apptError } = await supabaseClient.from("appointments").insert({
+          type: "lesson", lesson_format: "1on1", student_id: studentId,
+          scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+          status: "confirmed", created_via: "whatsapp_ai_confirmed_by_angela",
+        });
+        if (apptError) { alert("Save failed: " + apptError.message); return; }
+        await supabaseClient.from("pending_actions").update({ status: "approved", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", p.id);
+        await loadPendingReviews();
+        await load();
+      });
+    });
+
+    container.querySelectorAll("[data-reject]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await supabaseClient.from("pending_actions").update({ status: "rejected", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", btn.dataset.reject);
+        await loadPendingReviews();
+      });
+    });
+  }
+
   await load();
+  await loadPendingReviews();
 })();
 </script>
 </body>

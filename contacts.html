@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — WhatsApp Contacts</title>
+<link rel="stylesheet" href="shared.css" />
+<link rel="icon" href="logo.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="availability.html" data-i18n="nav.availability">Availability</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="packages.html" data-i18n="nav.packages">Group Classes</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
+  <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <span class="spacer"></span>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <h1 style="margin:0 0 4px;" data-i18n="contacts.title">WhatsApp Contacts</h1>
+    <p style="margin:0 0 10px; color:#8a8074; font-size:13px;" data-i18n="contacts.subtitle">Tick "Personal" for a number that's never a client (e.g. the boyfriend's own friends) — WhatsApp messages from a personal contact are just logged, never sent to the AI for booking analysis.</p>
+    <table>
+      <thead><tr>
+        <th data-i18n="contacts.col_name">Name</th>
+        <th data-i18n="student.phone">WhatsApp number</th>
+        <th data-i18n="contacts.col_first_contact">First contact</th>
+        <th data-i18n="contacts.col_messages">Messages</th>
+        <th data-i18n="contacts.col_personal">Personal (skip AI)</th>
+      </tr></thead>
+      <tbody id="contact-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  initSettingsMenu();
+  window.onLangChange = load;
+
+  async function load() {
+    const tbody = document.getElementById("contact-rows");
+    const { data: contacts, error } = await supabaseClient
+      .from("contacts")
+      .select("id, name, whatsapp_number, first_contact_at, exclude_from_ai")
+      .not("whatsapp_number", "is", null)
+      .order("first_contact_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (!contacts.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("contacts.empty")}</td></tr>`; return; }
+
+    const counts = new Map();
+    for (const c of contacts) {
+      const { count } = await supabaseClient
+        .from("messages").select("id", { count: "exact", head: true }).eq("contact_id", c.id);
+      counts.set(c.id, count ?? 0);
+    }
+
+    tbody.innerHTML = contacts.map(c => `
+      <tr>
+        <td>${c.name ?? "—"}</td>
+        <td>${c.whatsapp_number}</td>
+        <td>${new Date(c.first_contact_at).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}</td>
+        <td>${counts.get(c.id)}</td>
+        <td><input type="checkbox" data-contact-id="${c.id}" ${c.exclude_from_ai ? "checked" : ""} /></td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("input[data-contact-id]").forEach(cb => {
+      cb.addEventListener("change", async () => {
+        const { error } = await supabaseClient
+          .from("contacts").update({ exclude_from_ai: cb.checked }).eq("id", cb.dataset.contactId);
+        if (error) { alert("Update failed: " + error.message); cb.checked = !cb.checked; }
+      });
+    });
+  }
+
+  await load();
+})();
+</script>
+</body>
+</html>
