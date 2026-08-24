@@ -59,8 +59,12 @@ header.topnav button {
   background: #fff;
 }
 .settings-menu button.danger { background: #8a2e2e; border-color: #8a2e2e; color: #fff; }
-.settings-menu a { display: block; width: 100%; box-sizing: border-box; border: 1px solid #d8cfc2; color: #2a2420; border-radius: 6px; padding: 8px 12px; text-align: center; text-decoration: none; background: #fff; }
-.settings-menu a:hover { background: #faf8f4; }
+/* Scoped through header.topnav (not just .settings-menu) so this beats
+   header.topnav a's light-on-dark link color, meant for the header bar
+   itself — the dropdown menu sits on a white background and needs dark
+   text, same as the settings-menu buttons right next to it. */
+header.topnav .settings-menu a { display: block; width: 100%; box-sizing: border-box; border: 1px solid #d8cfc2; color: #2a2420; border-radius: 6px; padding: 8px 12px; text-align: center; text-decoration: none; background: #fff; }
+header.topnav .settings-menu a:hover { background: #faf8f4; }
 #settings-lang-toggle { background: #7a3b2e; border-color: #7a3b2e; color: #fff; font-weight: 600; }
 #settings-lang-toggle:hover { background: #62301f; border-color: #62301f; }
 .settings-menu hr { border: none; border-top: 1px solid #eee; margin: 2px 0; width: 100%; }
