@@ -36,7 +36,7 @@
       <h1 style="margin:0;" data-i18n="contacts.title">WhatsApp Contacts</h1>
       <button class="primary" id="new-contact-btn" data-i18n="contacts.new_contact">+ Add number</button>
     </div>
-    <p style="margin:0 0 10px; color:#8a8074; font-size:13px;" data-i18n="contacts.subtitle">Only ticked ("Allowed") numbers are ever sent to the AI for booking analysis — everything else is logged but ignored. A brand-new client's very first message won't be caught automatically; add their number here first if you're expecting one.</p>
+    <p style="margin:0 0 10px; color:#8a8074; font-size:13px;" data-i18n="contacts.subtitle">Only shows private students — group-class students already run on a fixed schedule and never need this. Only ticked ("Allowed") numbers are ever sent to the AI for booking analysis; everything else is logged but ignored. A brand-new client's very first message won't be caught automatically; add their number here first if you're expecting one.</p>
     <table>
       <thead><tr>
         <th data-i18n="contacts.col_name">Name</th>
@@ -80,12 +80,26 @@
 
   async function load() {
     const tbody = document.getElementById("contact-rows");
-    const { data: contacts, error } = await supabaseClient
+    const { data: allContacts, error } = await supabaseClient
       .from("contacts")
       .select("id, name, whatsapp_number, first_contact_at, allowed_for_ai")
       .not("whatsapp_number", "is", null)
       .order("first_contact_at", { ascending: false });
     if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
+
+    // Booking-intent analysis only ever matters for private (1-on-1/1-on-2)
+    // students — group-class students already have a fixed recurring
+    // schedule, and leads/unknown numbers are handled through their own
+    // pipelines, not WhatsApp negotiation. So this list is scoped down to
+    // just: contacts who are a private student, plus anything manually
+    // added here already (allowed_for_ai true from the add-number form) —
+    // otherwise a just-added number would immediately vanish from its own
+    // management page.
+    const { data: privateStudents } = await supabaseClient
+      .from("students").select("contact_id").eq("is_group", false);
+    const privateContactIds = new Set((privateStudents ?? []).map(s => s.contact_id));
+    const contacts = allContacts.filter(c => privateContactIds.has(c.id) || c.allowed_for_ai);
+
     if (!contacts.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty">${t("contacts.empty")}</td></tr>`; return; }
 
     const counts = new Map();
