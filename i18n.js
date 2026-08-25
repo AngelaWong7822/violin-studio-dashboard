@@ -54,6 +54,7 @@ const I18N_STRINGS = {
     "schedule.followup_title": "Needs Follow-up",
     "schedule.followup_empty": "Nothing to follow up on right now.",
     "schedule.followup_col_attended": "Attended on",
+    "schedule.followup_days_ago": "{n}d ago",
     "schedule.followup_col_status": "Status",
     "schedule.filter_all": "All types",
     "schedule.group_lessons_count": "{n} lessons",
@@ -125,6 +126,7 @@ const I18N_STRINGS = {
     "lead.delete": "Delete customer",
     "lead.delete_confirm": "Permanently remove {name} from the leads pipeline? This cannot be undone.",
     "lead.preferred_times_placeholder": "e.g. Sat morning, Fri after 5pm",
+    "lead.notes_placeholder": "Notes",
 
     "attendance.title": "Attendance",
     "attendance.session": "Session",
@@ -365,6 +367,7 @@ const I18N_STRINGS = {
     "schedule.followup_title": "需要跟進",
     "schedule.followup_empty": "而家冇嘢要跟進。",
     "schedule.followup_col_attended": "出席日期",
+    "schedule.followup_days_ago": "{n}日前",
     "schedule.followup_col_status": "狀態",
     "schedule.filter_all": "全部類型",
     "schedule.group_lessons_count": "{n}堂",
@@ -436,6 +439,7 @@ const I18N_STRINGS = {
     "lead.delete": "刪除客戶",
     "lead.delete_confirm": "確定要永久刪除{name}呢個客戶記錄嗎?呢個動作冇得返轉頭。",
     "lead.preferred_times_placeholder": "例如:星期六朝早、星期五5點後",
+    "lead.notes_placeholder": "備註",
 
     "attendance.title": "出席",
     "attendance.session": "堂節",

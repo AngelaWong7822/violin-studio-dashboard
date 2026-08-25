@@ -12,7 +12,14 @@
 <style>
   #board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: start; }
   .col-head { font-weight: 600; font-size: 13px; color: #6b5c4f; margin-bottom: 8px; }
-  .lead-card { background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.08); font-size: 13px; }
+  .lead-card { background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.08); font-size: 13px; border-left: 4px solid #d9d0c3; }
+  .lead-card.source-facebook_ad { border-left-color: #4267B2; }
+  .lead-card.source-whatsapp_direct { border-left-color: #25D366; }
+  .lead-card.source-referral { border-left-color: #c9a15c; }
+  .lead-card.source-existing_student { border-left-color: #7a3b2e; }
+  .lead-card.source-rednote { border-left-color: #ff2442; }
+  .lead-card.source-instagram { border-left-color: #c13584; }
+  .lead-card .stage-age { color: #a89f92; font-size: 11px; }
   .lead-card .name { font-weight: 600; }
   .lead-card .meta { color: #8a8074; font-size: 12px; margin-top: 2px; }
   .lead-card select, .lead-card input { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
@@ -128,29 +135,67 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  // Reuses the same relative-time strings private.html's pending-review
+  // list uses, shown here as "time in this stage" so a stalled lead is
+  // obvious at a glance without opening each card.
+  function timeAgo(isoString) {
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+    if (seconds < 60) return t("private.time_just_now");
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return tf("private.time_minutes_ago", { n: minutes });
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return tf("private.time_hours_ago", { n: hours });
+    const days = Math.floor(hours / 24);
+    return tf("private.time_days_ago", { n: days });
+  }
+
+  // Days since attended, rounded down — used both to sort (oldest/most
+  // overdue first) and to flag anything over a week old in red so it can't
+  // be missed while scanning the list.
+  const OVERDUE_DAYS = 7;
+  function daysSince(isoString) {
+    return Math.floor((Date.now() - new Date(isoString).getTime()) / 86_400_000);
+  }
+
   async function loadFollowUps() {
     const tbody = document.getElementById("followup-rows");
     const { data, error } = await supabaseClient
       .from("leads")
       .select("id, status, contacts(name, whatsapp_number), appointments!leads_consultation_appointment_fk(scheduled_start)")
-      .in("status", ["inquired", "consultation_booked", "attended"])
-      .order("updated_at", { ascending: false });
+      .in("status", ["inquired", "consultation_booked", "attended"]);
     if (error) { tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
     if (!data.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
-    tbody.innerHTML = data.map(l => `
-      <tr>
+
+    // Oldest attended date first (most overdue at the top); anyone who
+    // hasn't attended yet (no date at all) has nothing to follow up on
+    // urgently, so those sink to the bottom.
+    const sorted = [...data].sort((a, b) => {
+      const ta = a.appointments?.scheduled_start ? new Date(a.appointments.scheduled_start).getTime() : Infinity;
+      const tb = b.appointments?.scheduled_start ? new Date(b.appointments.scheduled_start).getTime() : Infinity;
+      return ta - tb;
+    });
+
+    tbody.innerHTML = sorted.map(l => {
+      const start = l.appointments?.scheduled_start;
+      const days = start ? daysSince(start) : null;
+      const overdue = days !== null && days >= OVERDUE_DAYS;
+      const dateCell = start
+        ? `${new Date(start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}<div style="font-size:11px;${overdue ? " color:#8a2e2e; font-weight:600;" : " color:#a89f92;"}">${tf("schedule.followup_days_ago", { n: days })}</div>`
+        : "—";
+      return `
+      <tr${overdue ? ' style="background:#fdf2f2;"' : ""}>
         <td>${l.contacts?.name ?? ""}</td>
         <td>${l.contacts?.whatsapp_number ?? ""}</td>
-        <td>${l.appointments?.scheduled_start ? new Date(l.appointments.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "—"}</td>
+        <td>${dateCell}</td>
         <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span></td>
-      </tr>
-    `).join("");
+      </tr>`;
+    }).join("");
   }
 
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, created_at, lost_reason, preferred_times, consultation_appointment_id, contacts(name, whatsapp_number, source, level, age, social_media_name), appointments!leads_consultation_appointment_fk(scheduled_start, status)")
+      .select("id, contact_id, status, created_at, updated_at, lost_reason, preferred_times, consultation_appointment_id, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, status)")
       .order("created_at", { ascending: false });
 
     const board = document.getElementById("board");
@@ -184,12 +229,13 @@
         if (c?.social_media_name) metaParts.push(c.social_media_name);
 
         const card = document.createElement("div");
-        card.className = "lead-card";
+        card.className = `lead-card${c?.source ? ` source-${c.source}` : ""}`;
         card.innerHTML = `
           <div class="name">${c?.name ?? "(no name)"}</div>
           <div class="meta">${c?.whatsapp_number ?? ""}</div>
           ${metaParts.length ? `<div class="meta">${metaParts.join(" · ")}</div>` : ""}
           <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
+          <div class="meta stage-age">${timeAgo(lead.updated_at ?? lead.created_at)}</div>
         `;
 
         // Only shown while there's still a live, upcoming booking to act
@@ -279,6 +325,23 @@
           if (error) alert("Update failed: " + error.message);
         });
         card.appendChild(preferredTimesInput);
+
+        // A separate free-text field from "preferred times" — that one's
+        // specifically for scheduling preferences; general remarks (family
+        // background, how the trial went, etc.) belong on the contact's own
+        // notes column instead of overloading the times field with them.
+        const notesInput = document.createElement("input");
+        notesInput.type = "text";
+        notesInput.placeholder = t("lead.notes_placeholder");
+        notesInput.value = c?.notes ?? "";
+        notesInput.addEventListener("change", async () => {
+          const { error } = await supabaseClient
+            .from("contacts")
+            .update({ notes: notesInput.value || null })
+            .eq("id", lead.contact_id);
+          if (error) alert("Update failed: " + error.message);
+        });
+        card.appendChild(notesInput);
 
         if (status === "lost") {
           const lostReasonInput = document.createElement("input");
