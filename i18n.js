@@ -4,7 +4,6 @@
 const I18N_STRINGS = {
   en: {
     "nav.schedule": "Schedule",
-    "nav.availability": "Availability",
     "nav.leads": "Leads",
     "nav.attendance": "Attendance",
     "nav.payments": "Payments",
@@ -87,10 +86,6 @@ const I18N_STRINGS = {
     "status.cancelled": "Cancelled",
     "status.no_show": "No show",
 
-    "availability.title": "Weekly availability",
-    "availability.save": "Save",
-    "availability.description": "Tap a cell to mark yourself free at that time every week. Bookmark this page to your phone's home screen — this is the one thing worth keeping up to date so Angela can quote you a slot instantly.",
-    "availability.saved": "Saved ✓",
     "day.0": "Sun", "day.1": "Mon", "day.2": "Tue", "day.3": "Wed", "day.4": "Thu", "day.5": "Fri", "day.6": "Sat",
     "weekday_full.0": "Sunday", "weekday_full.1": "Monday", "weekday_full.2": "Tuesday", "weekday_full.3": "Wednesday", "weekday_full.4": "Thursday", "weekday_full.5": "Friday", "weekday_full.6": "Saturday",
 
@@ -313,7 +308,6 @@ const I18N_STRINGS = {
   },
   "zh-Hant": {
     "nav.schedule": "時間表",
-    "nav.availability": "得閒時間",
     "nav.leads": "客戶",
     "nav.attendance": "出席",
     "nav.payments": "付款",
@@ -396,10 +390,6 @@ const I18N_STRINGS = {
     "status.cancelled": "已取消",
     "status.no_show": "缺席",
 
-    "availability.title": "每週得閒時間",
-    "availability.save": "儲存",
-    "availability.description": "㩒一格代表你嗰個時段每星期都得閒。將呢頁加落手機主畫面——呢樣係唯一要keep住update嘅嘢,等Angela可以即刻話到客得閒時間。",
-    "availability.saved": "已儲存 ✓",
     "day.0": "日", "day.1": "一", "day.2": "二", "day.3": "三", "day.4": "四", "day.5": "五", "day.6": "六",
     "weekday_full.0": "星期日", "weekday_full.1": "星期一", "weekday_full.2": "星期二", "weekday_full.3": "星期三", "weekday_full.4": "星期四", "weekday_full.5": "星期五", "weekday_full.6": "星期六",
 
