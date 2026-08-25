@@ -233,7 +233,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <hr />
-      <a href="contacts.html" data-i18n="nav.contacts">📇 WhatsApp Contacts</a>
       <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
@@ -658,14 +657,14 @@
 
   const PDF_COLORS = {
     text: [42, 36, 32],
-    gold: [138, 99, 20],
+    gold: [95, 66, 10],
     headerBg: [226, 214, 187],
-    headerText: [74, 64, 56],
+    headerText: [38, 32, 26],
     border: [217, 208, 195],
     metaBg: [250, 248, 244],
     metaBorder: [237, 230, 216],
     metaLine: [221, 212, 200],
-    sigText: [107, 92, 79],
+    sigText: [55, 46, 38],
     struck: [168, 155, 138],
   };
 
@@ -787,7 +786,7 @@
     doc.setDrawColor(...PDF_COLORS.metaBorder);
     doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, boxH, 3, 3, "FD");
 
-    doc.setFont(CJK_FONT_NAME, "normal");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(8);
     doc.setTextColor(...PDF_COLORS.gold);
     drawTrackedText(doc, "ISSUED TO:", PDF.MARGIN + padX, labelY, { spacing: 1 });
@@ -869,7 +868,7 @@
     measured.descLines.forEach(line => { doc.text(line, PDF.COL_DESC_X + padX, cy); cy += 14; });
 
     if (measured.scheduleLines.length) {
-      doc.setFont(CJK_FONT_NAME, "normal");
+      doc.setFont(CJK_FONT_NAME, "bold");
       doc.setFontSize(9);
       doc.setTextColor(...PDF_COLORS.gold);
       // .toUpperCase() is a no-op on Chinese text, so this stays safe for
@@ -914,7 +913,7 @@
     const h = 26;
     doc.setFillColor(...PDF_COLORS.headerBg);
     doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
-    doc.setFont(CJK_FONT_NAME, "normal");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.headerText);
     doc.text("TOTAL", PDF.COL_TOTAL_X - 16, y + h / 2 + 3, { align: "right" });
@@ -930,7 +929,7 @@
     doc.setFontSize(11);
     doc.setTextColor(...PDF_COLORS.text);
     doc.text("TOM'S VIOLIN STUDIO", PDF.MARGIN, y);
-    doc.setFont(CJK_FONT_NAME, "normal");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(10);
     doc.text("Contact number: 95179962", PDF.MARGIN, y + 16);
     doc.text("Address: 9A Spark City(Mong Kok),", PDF.MARGIN, y + 30);
@@ -952,7 +951,7 @@
     }
     doc.setDrawColor(...PDF_COLORS.headerText);
     doc.line(sigCenterX - 55, sigY, sigCenterX + 55, sigY);
-    doc.setFont(CJK_FONT_NAME, "normal");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.sigText);
     drawTrackedText(doc, "Signature", sigCenterX, sigY + 12, { align: "center", spacing: 1 });

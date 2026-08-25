@@ -48,7 +48,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <hr />
-      <a href="contacts.html" data-i18n="nav.contacts">📇 WhatsApp Contacts</a>
       <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
@@ -71,11 +70,12 @@
         <th data-i18n="student.gender">Gender</th>
         <th data-i18n="student.age">Age</th>
         <th data-i18n="student.phone">WhatsApp number</th>
+        <th data-i18n="contacts.col_allowed">Allowed (AI analyzes)</th>
         <th data-i18n="private.col_total_lessons">Lessons logged</th>
         <th data-i18n="private.col_total_paid">Total paid</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
@@ -173,11 +173,11 @@
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, contacts(name, whatsapp_number, gender, age)")
+      .select("id, contact_id, contacts(name, whatsapp_number, gender, age, allowed_for_ai)")
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="9" class="empty">Error: ${error.message}</td></tr>`; return; }
 
     students = await Promise.all(data.map(async (s) => {
       const { data: appts } = await supabaseClient
@@ -215,7 +215,7 @@
   function render() {
     const tbody = document.getElementById("student-rows");
     if (!students.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty">${t("private.empty_students")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="empty">${t("private.empty_students")}</td></tr>`;
       return;
     }
 
@@ -245,6 +245,7 @@
           <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
           <td>${s.contacts?.age ?? "—"}</td>
           <td>${whatsappCell}</td>
+          <td><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /></td>
           <td>${s.lessons.length}</td>
           <td>$${totalPaid}</td>
           <td style="white-space:nowrap;">
@@ -255,7 +256,7 @@
         </tr>
         <tr class="student-detail" data-student-detail="${s.id}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
-          <td colspan="7">
+          <td colspan="8">
             <div class="lesson-table-wrap">
               ${s.lessons.length ? `
                 <table class="detail-table">
@@ -291,6 +292,15 @@
     });
     tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)); });
+    });
+
+    tbody.querySelectorAll("input[data-allowed-contact-id]").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", async () => {
+        const { error } = await supabaseClient
+          .from("contacts").update({ allowed_for_ai: cb.checked }).eq("id", cb.dataset.allowedContactId);
+        if (error) { alert("Update failed: " + error.message); cb.checked = !cb.checked; }
+      });
     });
 
     tbody.querySelectorAll("input[data-price-appt]").forEach(input => {
