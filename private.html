@@ -434,12 +434,29 @@
     const { data: appts } = await supabaseClient.from("appointments").select("id").eq("student_id", student.id).is("class_id", null);
     const apptIds = (appts ?? []).map(a => a.id);
     if (apptIds.length) {
+      // Cancel first (an UPDATE, which calendar-sync's webhook is wired to)
+      // so each Google Calendar event gets removed before the row disappears
+      // — a straight DELETE never fires that webhook and would leave the
+      // events behind. appointments.student_id has no ON DELETE CASCADE, so
+      // the rows still need to actually be deleted afterward or the
+      // upcoming student delete would fail with a foreign-key error.
+      await supabaseClient.from("appointments").update({ status: "cancelled" }).in("id", apptIds);
       await supabaseClient.from("attendance").delete().in("appointment_id", apptIds);
       const { error } = await supabaseClient.from("appointments").delete().in("id", apptIds);
       if (error) { alert("Delete failed: " + error.message); return; }
     }
     const { error: studentError } = await supabaseClient.from("students").delete().eq("id", student.id);
     if (studentError) { alert("Delete failed: " + studentError.message); return; }
+
+    // A WhatsApp-linked contact usually has message/review history too —
+    // both reference the contact (messages directly, pending_actions via
+    // message_id), and neither cascades on its own, so the contact row
+    // can't be deleted until they're cleared first.
+    const { data: msgs } = await supabaseClient.from("messages").select("id").eq("contact_id", student.contact_id);
+    const msgIds = (msgs ?? []).map(m => m.id);
+    if (msgIds.length) await supabaseClient.from("pending_actions").delete().in("message_id", msgIds);
+    await supabaseClient.from("messages").delete().eq("contact_id", student.contact_id);
+
     const { error: contactError } = await supabaseClient.from("contacts").delete().eq("id", student.contact_id);
     if (contactError) { alert("Student deleted, but couldn't remove their contact record: " + contactError.message); }
 
