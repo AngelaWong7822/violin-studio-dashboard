@@ -59,9 +59,10 @@
       <thead><tr>
         <th data-i18n="lead.name">Name</th>
         <th data-i18n="lead.phone">WhatsApp number</th>
+        <th data-i18n="schedule.followup_col_attended">Attended on</th>
         <th data-i18n="schedule.followup_col_status">Status</th>
       </tr></thead>
-      <tbody id="followup-rows"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+      <tbody id="followup-rows"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 
@@ -131,15 +132,16 @@
     const tbody = document.getElementById("followup-rows");
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, contacts(name, whatsapp_number)")
+      .select("id, status, contacts(name, whatsapp_number), appointments!leads_consultation_appointment_fk(scheduled_start)")
       .in("status", ["inquired", "consultation_booked", "attended"])
       .order("updated_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="3" class="empty">Error: ${error.message}</td></tr>`; return; }
-    if (!data.length) { tbody.innerHTML = `<tr><td colspan="3" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (!data.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
     tbody.innerHTML = data.map(l => `
       <tr>
         <td>${l.contacts?.name ?? ""}</td>
         <td>${l.contacts?.whatsapp_number ?? ""}</td>
+        <td>${l.appointments?.scheduled_start ? new Date(l.appointments.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "—"}</td>
         <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span></td>
       </tr>
     `).join("");

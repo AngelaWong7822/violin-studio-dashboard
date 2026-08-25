@@ -28,9 +28,12 @@
   .pending-review-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid #f0ece5; font-size: 13px; }
   .pending-review-row:last-child { border-bottom: none; }
   .pending-review-row .rationale { color: #8a8074; width: 100%; }
+  .pending-review-row .phone { color: #8a8074; }
   .pending-review-row .confidence { color: #a89f92; }
+  .pending-review-row .time-ago { color: #a89f92; font-size: 12px; }
   .pending-review-row .link.approve { color: #1e6b34; }
   .pending-review-row .link.reject { color: #8a2e2e; }
+  .pending-review-row .pending-date, .pending-review-row .pending-time { font-size: 13px; padding: 2px 4px; }
 </style>
 </head>
 <body>
@@ -506,6 +509,17 @@
   // be handled here without having to go find the email.
   let pendingReviews = [];
 
+  function timeAgo(isoString) {
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+    if (seconds < 60) return t("private.time_just_now");
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return tf("private.time_minutes_ago", { n: minutes });
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return tf("private.time_hours_ago", { n: hours });
+    const days = Math.floor(hours / 24);
+    return tf("private.time_days_ago", { n: days });
+  }
+
   async function resolveStudentForContact(contactId) {
     const { data: existingStudent } = await supabaseClient
       .from("students").select("id").eq("contact_id", contactId).eq("active", true).maybeSingle();
@@ -538,9 +552,13 @@
       const a = p.proposed_appointment;
       return `
         <div class="pending-review-row" data-pending-id="${p.id}">
-          <strong>${c?.name ?? c?.whatsapp_number ?? "?"}</strong>
-          <span>${a.intent}, ${a.requested_date ?? "?"} ${a.requested_time ?? "?"}</span>
+          <strong>${c?.name ?? "?"}</strong>
+          <span class="phone">${c?.whatsapp_number ?? ""}</span>
+          <span>${a.intent}</span>
+          <input type="date" class="pending-date" data-pending-date="${p.id}" value="${a.requested_date ?? ""}" />
+          <input type="time" class="pending-time" data-pending-time="${p.id}" value="${a.requested_time ?? ""}" />
           <span class="confidence">(${Math.round((a.confidence ?? 0) * 100)}%)</span>
+          <span class="time-ago">${timeAgo(p.created_at)}</span>
           <button type="button" class="link approve" data-approve="${p.id}">${t("private.approve")}</button>
           <button type="button" class="link reject" data-reject="${p.id}">${t("private.reject")}</button>
           <div class="rationale">${p.messages?.body ? `"${p.messages.body}"` : ""}${a.rationale ? " — " + a.rationale : ""}</div>
@@ -553,11 +571,15 @@
         const p = pendingReviews.find(x => x.id === btn.dataset.approve);
         if (!p) return;
         const a = p.proposed_appointment;
-        if (!a.requested_date || !a.requested_time) {
+        // Read from the date/time inputs, not the original AI-guessed
+        // values — she may have corrected them inline before approving.
+        const requestedDate = document.querySelector(`[data-pending-date="${p.id}"]`).value;
+        const requestedTime = document.querySelector(`[data-pending-time="${p.id}"]`).value;
+        if (!requestedDate || !requestedTime) {
           alert(t("private.pending_missing_time"));
           return;
         }
-        const start = new Date(`${a.requested_date}T${a.requested_time}:00+08:00`);
+        const start = new Date(`${requestedDate}T${requestedTime}:00+08:00`);
         const minutes = a.duration_minutes_guess ?? 45;
         const end = new Date(start.getTime() + minutes * 60_000);
         const studentId = await resolveStudentForContact(a.contact_id);
@@ -570,6 +592,7 @@
         await supabaseClient.from("pending_actions").update({ status: "approved", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", p.id);
         await loadPendingReviews();
         await load();
+        alert(t("private.approved_confirm"));
       });
     });
 
@@ -577,6 +600,7 @@
       btn.addEventListener("click", async () => {
         await supabaseClient.from("pending_actions").update({ status: "rejected", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", btn.dataset.reject);
         await loadPendingReviews();
+        alert(t("private.rejected_confirm"));
       });
     });
   }
