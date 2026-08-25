@@ -99,7 +99,6 @@ const I18N_STRINGS = {
     "lead.source": "Source",
     "dialog.new_lead": "New lead",
 
-    "leadstatus.inquired": "Inquired",
     "leadstatus.consultation_booked": "Consultation booked",
     "leadstatus.attended": "Attended",
     "leadstatus.converted": "Converted",
@@ -412,7 +411,6 @@ const I18N_STRINGS = {
     "lead.source": "來源",
     "dialog.new_lead": "新增客戶",
 
-    "leadstatus.inquired": "查詢中",
     "leadstatus.consultation_booked": "已約諮詢",
     "leadstatus.attended": "已出席",
     "leadstatus.converted": "已轉正式生",

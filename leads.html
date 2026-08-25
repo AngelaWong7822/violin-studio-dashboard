@@ -124,7 +124,7 @@
   initSettingsMenu();
   window.onLangChange = () => { loadFollowUps(); loadBoard(); };
 
-  const STATUSES = ["inquired", "consultation_booked", "attended", "converted", "lost"];
+  const STATUSES = ["consultation_booked", "attended", "converted", "lost"];
 
   // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the *local* timezone —
   // building it from the local getters (not toISOString, which is UTC)
@@ -162,7 +162,7 @@
     const { data, error } = await supabaseClient
       .from("leads")
       .select("id, status, contacts(name, whatsapp_number), appointments!leads_consultation_appointment_fk(scheduled_start)")
-      .in("status", ["inquired", "consultation_booked", "attended"]);
+      .in("status", ["consultation_booked", "attended"]);
     if (error) { tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
     if (!data.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
 
@@ -439,19 +439,19 @@
     // whatsapp-ingest already uses for the same situation).
     const { data: existingLead } = await supabaseClient
       .from("leads").select("id").eq("contact_id", contact.id)
-      .in("status", ["inquired", "consultation_booked", "attended"]).maybeSingle();
+      .in("status", ["consultation_booked", "attended"]).maybeSingle();
     let lead;
     if (existingLead) {
       const { data: updatedLead, error: leadError } = await supabaseClient
         .from("leads")
-        .update({ status: consultationTimeStr ? "consultation_booked" : "inquired", preferred_times, updated_at: new Date().toISOString() })
+        .update({ status: "consultation_booked", preferred_times, updated_at: new Date().toISOString() })
         .eq("id", existingLead.id).select().single();
       if (leadError) { alert("Save failed: " + leadError.message); return; }
       lead = updatedLead;
     } else {
       const { data: newLead, error: leadError } = await supabaseClient
         .from("leads")
-        .insert({ contact_id: contact.id, status: consultationTimeStr ? "consultation_booked" : "inquired", preferred_times })
+        .insert({ contact_id: contact.id, status: "consultation_booked", preferred_times })
         .select().single();
       if (leadError) { alert("Save failed: " + leadError.message); return; }
       lead = newLead;
