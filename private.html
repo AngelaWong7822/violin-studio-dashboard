@@ -184,6 +184,7 @@
         .from("appointments")
         .select("id, scheduled_start, lesson_format, price, created_via")
         .eq("student_id", s.id).eq("type", "lesson").is("class_id", null)
+        .neq("status", "cancelled")
         .order("scheduled_start", { ascending: false });
 
       const apptIds = (appts ?? []).map(a => a.id);
@@ -353,8 +354,13 @@
         e.stopPropagation();
         if (!confirm(t("private.delete_lesson_confirm"))) return;
         const apptId = btn.dataset.deleteLesson;
-        await supabaseClient.from("attendance").delete().eq("appointment_id", apptId);
-        const { error } = await supabaseClient.from("appointments").delete().eq("id", apptId);
+        // A hard delete never fires the calendar-sync Database Webhook
+        // (that's only wired up for INSERT/UPDATE), so any Google Calendar
+        // event would be orphaned forever. Cancelling instead is an UPDATE,
+        // which calendar-sync already handles by deleting the matching
+        // event — same pattern used everywhere else appointments get
+        // called off (WhatsApp cancellations, the email "Undo" link).
+        const { error } = await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("id", apptId);
         if (error) { alert("Delete failed: " + error.message); return; }
         await load();
       });
