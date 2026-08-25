@@ -412,18 +412,50 @@
     const preferred_times = document.getElementById("lead-preferred-times").value || null;
     const consultationTimeStr = document.getElementById("lead-consultation-time").value;
 
-    const { data: contact, error: contactError } = await supabaseClient
-      .from("contacts")
-      .insert({ name, whatsapp_number, social_media_name, level, age, source })
-      .select()
-      .single();
-    if (contactError) { alert("Save failed: " + contactError.message); return; }
+    // This WhatsApp number may already have a contact row (e.g. it messaged
+    // in before and whatsapp-ingest auto-created it, or it's an existing
+    // student's number) — reuse that instead of blind-inserting, which
+    // would otherwise fail on contacts.whatsapp_number's unique constraint.
+    let contact = null;
+    if (whatsapp_number) {
+      const { data: existingContact } = await supabaseClient
+        .from("contacts").select("id").eq("whatsapp_number", whatsapp_number).maybeSingle();
+      contact = existingContact;
+    }
+    if (contact) {
+      const { error } = await supabaseClient
+        .from("contacts").update({ name, social_media_name, level, age, source }).eq("id", contact.id);
+      if (error) { alert("Save failed: " + error.message); return; }
+    } else {
+      const { data: newContact, error } = await supabaseClient
+        .from("contacts").insert({ name, whatsapp_number, social_media_name, level, age, source })
+        .select().single();
+      if (error) { alert("Save failed: " + error.message); return; }
+      contact = newContact;
+    }
 
-    const { data: lead, error: leadError } = await supabaseClient
-      .from("leads")
-      .insert({ contact_id: contact.id, status: consultationTimeStr ? "consultation_booked" : "inquired", preferred_times })
-      .select().single();
-    if (leadError) { alert("Save failed: " + leadError.message); return; }
+    // Reuse an existing open lead cycle for this contact too, rather than
+    // creating a second one alongside it (matches the dedup logic
+    // whatsapp-ingest already uses for the same situation).
+    const { data: existingLead } = await supabaseClient
+      .from("leads").select("id").eq("contact_id", contact.id)
+      .in("status", ["inquired", "consultation_booked", "attended"]).maybeSingle();
+    let lead;
+    if (existingLead) {
+      const { data: updatedLead, error: leadError } = await supabaseClient
+        .from("leads")
+        .update({ status: consultationTimeStr ? "consultation_booked" : "inquired", preferred_times, updated_at: new Date().toISOString() })
+        .eq("id", existingLead.id).select().single();
+      if (leadError) { alert("Save failed: " + leadError.message); return; }
+      lead = updatedLead;
+    } else {
+      const { data: newLead, error: leadError } = await supabaseClient
+        .from("leads")
+        .insert({ contact_id: contact.id, status: consultationTimeStr ? "consultation_booked" : "inquired", preferred_times })
+        .select().single();
+      if (leadError) { alert("Save failed: " + leadError.message); return; }
+      lead = newLead;
+    }
 
     // A consultation time books an actual appointment — this is what
     // actually puts it on the shared Google Calendar (a database webhook on

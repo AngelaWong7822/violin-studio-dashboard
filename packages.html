@@ -2348,22 +2348,49 @@
       return;
     }
 
-    const { data: contact, error: contactError } = await supabaseClient
-      .from("contacts")
-      .insert({ ...contactFields, source: "existing_student" })
-      .select()
-      .single();
-    if (contactError) { alert("Save failed: " + contactError.message); return; }
+    // This WhatsApp number may already have a contact row (e.g. it messaged
+    // in before and whatsapp-ingest auto-created it, or it's an existing
+    // lead/private student's number) — reuse that instead of
+    // blind-inserting, which would otherwise fail on
+    // contacts.whatsapp_number's unique constraint.
+    let contact = null;
+    if (contactFields.whatsapp_number) {
+      const { data: existingContact } = await supabaseClient
+        .from("contacts").select("id").eq("whatsapp_number", contactFields.whatsapp_number).maybeSingle();
+      contact = existingContact;
+    }
+    if (contact) {
+      const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contact.id);
+      if (error) { alert("Save failed: " + error.message); return; }
+    } else {
+      const { data: newContact, error } = await supabaseClient
+        .from("contacts").insert({ ...contactFields, source: "existing_student" }).select().single();
+      if (error) { alert("Save failed: " + error.message); return; }
+      contact = newContact;
+    }
 
-    const { data: newStudent, error: studentError } = await supabaseClient
-      .from("students").insert({ contact_id: contact.id, active: true, is_group: true }).select().single();
-    if (studentError) { alert("Save failed: " + studentError.message); return; }
+    // Likewise, reuse an existing student row for this contact rather than
+    // creating a second one for the same person.
+    const { data: existingStudent } = await supabaseClient
+      .from("students").select("id").eq("contact_id", contact.id).maybeSingle();
+    let student;
+    if (existingStudent) {
+      const { data: updatedStudent, error } = await supabaseClient
+        .from("students").update({ active: true, is_group: true }).eq("id", existingStudent.id).select().single();
+      if (error) { alert("Save failed: " + error.message); return; }
+      student = updatedStudent;
+    } else {
+      const { data: newStudent, error } = await supabaseClient
+        .from("students").insert({ contact_id: contact.id, active: true, is_group: true }).select().single();
+      if (error) { alert("Save failed: " + error.message); return; }
+      student = newStudent;
+    }
 
     studentDialog.close();
     await loadStudents();
     // Since every student added here is going to join a class, go straight
     // into enrolling them rather than making Angela come back for a second step.
-    openEnrollDialog({ id: newStudent.id, contacts: { name: contactFields.name } });
+    openEnrollDialog({ id: student.id, contacts: { name: contactFields.name } });
   });
 
   // ---------- Enrollment (always for one specific student) ----------
