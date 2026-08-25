@@ -627,12 +627,34 @@
         const minutes = a.duration_minutes_guess ?? 45;
         const end = new Date(start.getTime() + minutes * 60_000);
         const studentId = await resolveStudentForContact(a.contact_id);
-        const { error: apptError } = await supabaseClient.from("appointments").insert({
-          type: "lesson", lesson_format: "1on1", student_id: studentId,
-          scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
-          status: "confirmed", created_via: "whatsapp_ai_confirmed_by_angela",
-        });
-        if (apptError) { alert("Save failed: " + apptError.message); return; }
+
+        // A "reschedule" moves an existing booking rather than creating a
+        // second one — otherwise the original appointment stays "confirmed"
+        // with its own never-cancelled Google Calendar event, silently
+        // doubling the booking. Update the student's next upcoming
+        // confirmed appointment in place when there is one; only insert
+        // fresh if not.
+        let moved = false;
+        if (a.intent === "reschedule") {
+          const { data: upcoming } = await supabaseClient
+            .from("appointments").select("id").eq("student_id", studentId).eq("status", "confirmed")
+            .gte("scheduled_start", new Date().toISOString()).order("scheduled_start", { ascending: true })
+            .limit(1).maybeSingle();
+          if (upcoming) {
+            const { error } = await supabaseClient.from("appointments")
+              .update({ scheduled_start: start.toISOString(), scheduled_end: end.toISOString() }).eq("id", upcoming.id);
+            if (error) { alert("Save failed: " + error.message); return; }
+            moved = true;
+          }
+        }
+        if (!moved) {
+          const { error: apptError } = await supabaseClient.from("appointments").insert({
+            type: "lesson", lesson_format: "1on1", student_id: studentId,
+            scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+            status: "confirmed", created_via: "whatsapp_ai_confirmed_by_angela",
+          });
+          if (apptError) { alert("Save failed: " + apptError.message); return; }
+        }
         await supabaseClient.from("pending_actions").update({ status: "approved", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", p.id);
         await loadPendingReviews();
         await load();
