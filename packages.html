@@ -998,7 +998,7 @@
             <button type="button" class="att-toggle ${attToggleClass(row)}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status, row?.make_up_status)}</button>
             <button type="button" class="hw-toggle ${row?.homework_submitted ? "hw-done" : ""}" data-hw-appt-id="${a.id}" data-hw-student-id="${studentId}" data-hw-attendance-id="${row?.id ?? ""}" data-hw-value="${row?.homework_submitted ? "1" : "0"}" title="${t("attendance.homework_title")}">📝</button>
             ${makeupNoteHtml(row, allGroupAppts)}
-            ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#b91c1c; font-size:10px;">${t("student.delete")}</button>` : ""}
+            ${isVisitor && row ? `<button type="button" class="icon-delete-btn" data-visitor-delete="${row.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>` : ""}
           </td>`;
       }).join("");
       const isNextUpcoming = nextUpcomingAppt && a.id === nextUpcomingAppt.id;
