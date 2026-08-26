@@ -20,6 +20,17 @@
   .weekday-pill.wd-4 { background: #d4c6ea; color: #4b3878; }
   .weekday-pill.wd-5 { background: #f2c9a3; color: #6e3f14; }
   .weekday-pill.wd-6 { background: #a8d8d4; color: #1c5652; }
+  /* Same per-weekday palette as the pill above, condensed to a plain dot —
+     lets the Classes table's name column carry the same "scan by day"
+     color cue without repeating the pill's text everywhere. */
+  .weekday-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+  .weekday-dot.wd-0 { background: #f5dba3; }
+  .weekday-dot.wd-1 { background: #c3ceda; }
+  .weekday-dot.wd-2 { background: #bfdcc0; }
+  .weekday-dot.wd-3 { background: #e8c3d0; }
+  .weekday-dot.wd-4 { background: #d4c6ea; }
+  .weekday-dot.wd-5 { background: #f2c9a3; }
+  .weekday-dot.wd-6 { background: #a8d8d4; }
   .class-time-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
   .student-filter-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
@@ -97,7 +108,11 @@
      table-layout:auto would otherwise recompute widths from each render's
      content and shift things by a few pixels. */
   #grid-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; table-layout: fixed; }
-  #grid-table th, #grid-table td { border: 1px solid #eee; padding: 6px 8px; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+  #grid-table th, #grid-table td { border: 1px solid #eee; padding: 6px 8px; text-align: center; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+  /* Reserves the make-up note's line height even when a cell has none, so
+     every column in a row starts at the same vertical position instead of
+     jumping around based on which cells happen to have a note below. */
+  #grid-table td:not(.date-col) { min-height: 62px; }
   #grid-table th.date-col, #grid-table td.date-col { text-align: left; font-weight: 600; color: #71717a; width: 130px; }
   #grid-table th:not(.date-col), #grid-table td:not(.date-col) { width: 100px; }
   .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 999px; background: #f4f4f5; color: #71717a; cursor: pointer; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
@@ -682,7 +697,7 @@
       const timeLabel = `<span class="weekday-pill wd-${cls.weekly_day_of_week}">${t("weekday_full." + cls.weekly_day_of_week)}</span>${start} - ${end}`;
       return `
         <tr>
-          <td>${cls.name}</td>
+          <td><span class="weekday-dot wd-${cls.weekly_day_of_week}"></span>${cls.name}</td>
           <td class="class-time-cell">${timeLabel}</td>
           <td>${enrolledCount}</td>
           <td>${lessonCount ?? 0}</td>
@@ -892,7 +907,10 @@
   // shown — omits either part cleanly when not filled in.
   function combinedExtraSuffix(row) {
     const parts = [];
-    if (row.make_up_date) parts.push(new Date(`${row.make_up_date}T00:00:00`).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" }));
+    if (row.make_up_date) {
+      const d = new Date(`${row.make_up_date}T00:00:00`);
+      parts.push(`${d.toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" })} (${t("day." + d.getDay())})`);
+    }
     if (row.make_up_extra_fee) parts.push(`+$${row.make_up_extra_fee}`);
     return parts.length ? `, ${parts.join(", ")}` : "";
   }
