@@ -759,9 +759,9 @@
     const idx = ATTENDANCE_CYCLE.indexOf(current || "");
     return ATTENDANCE_CYCLE[(idx + 1) % ATTENDANCE_CYCLE.length];
   }
-  function attendanceSymbol(status) {
+  function attendanceSymbol(status, makeUpStatus) {
     if (status === "attended") return "✓";
-    if (status === "leave") return t("attstatus.leave");
+    if (status === "leave") return makeUpStatus === "combined_with_private" ? t("attstatus.leave_combined_private") : t("attstatus.leave");
     if (status === "no_show") return "✕";
     return "-";
   }
@@ -892,8 +892,8 @@
   // shown — omits either part cleanly when not filled in.
   function combinedExtraSuffix(row) {
     const parts = [];
-    if (row.make_up_date) parts.push(new Date(`${row.make_up_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" }));
-    if (row.make_up_extra_fee != null) parts.push(`+$${row.make_up_extra_fee}`);
+    if (row.make_up_date) parts.push(new Date(`${row.make_up_date}T00:00:00`).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" }));
+    if (row.make_up_extra_fee) parts.push(`+$${row.make_up_extra_fee}`);
     return parts.length ? `, ${parts.join(", ")}` : "";
   }
 
@@ -995,7 +995,7 @@
         const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
         return `
           <td${colClass(isWithdrawn, isVisitor, studentId)}>
-            <button type="button" class="att-toggle ${attToggleClass(row)}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
+            <button type="button" class="att-toggle ${attToggleClass(row)}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status, row?.make_up_status)}</button>
             <button type="button" class="hw-toggle ${row?.homework_submitted ? "hw-done" : ""}" data-hw-appt-id="${a.id}" data-hw-student-id="${studentId}" data-hw-attendance-id="${row?.id ?? ""}" data-hw-value="${row?.homework_submitted ? "1" : "0"}" title="${t("attendance.homework_title")}">📝</button>
             ${makeupNoteHtml(row, allGroupAppts)}
             ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#b91c1c; font-size:10px;">${t("student.delete")}</button>` : ""}

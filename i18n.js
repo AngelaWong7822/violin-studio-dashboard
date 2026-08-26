@@ -168,6 +168,7 @@ const I18N_STRINGS = {
 
     "attstatus.attended": "Attended",
     "attstatus.leave": "Leave",
+    "attstatus.leave_combined_private": "Private makeup",
     "attstatus.no_show": "No-show",
     "attstatus.unset": "—",
 
@@ -503,6 +504,7 @@ const I18N_STRINGS = {
 
     "attstatus.attended": "出席",
     "attstatus.leave": "請假",
+    "attstatus.leave_combined_private": "私補",
     "attstatus.no_show": "無故缺席",
     "attstatus.unset": "—",
 
