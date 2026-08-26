@@ -109,6 +109,13 @@
      at a glance which ones still need a decision. */
   .att-toggle.att-leave-madeup { background: #cdeed4; color: #1e6b34; }
   .att-toggle.att-no_show { background: #b91c1c; color: #fff; }
+  .hw-toggle {
+    border: none; background: none; cursor: pointer; font-size: 12px;
+    padding: 2px 3px; margin-left: 2px; border-radius: 6px; opacity: 0.3;
+    filter: grayscale(1);
+  }
+  .hw-toggle:hover { opacity: 0.6; }
+  .hw-toggle.hw-done { opacity: 1; filter: none; }
   .visitor-badge { color: #52525b; font-weight: 600; }
   #grid-table td.visitor-locked { color: #d4d4d8; background: #fafafa; }
   #grid-table tr.next-upcoming-row td { background: #eff6ff; }
@@ -811,7 +818,7 @@
     if (apptIds.length) {
       const { data } = await supabaseClient
         .from("attendance")
-        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, students(contacts(name))")
+        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, homework_submitted, students(contacts(name))")
         .in("appointment_id", apptIds);
       attendanceRows = data ?? [];
     }
@@ -989,6 +996,7 @@
         return `
           <td${colClass(isWithdrawn, isVisitor, studentId)}>
             <button type="button" class="att-toggle ${attToggleClass(row)}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
+            <button type="button" class="hw-toggle ${row?.homework_submitted ? "hw-done" : ""}" data-hw-appt-id="${a.id}" data-hw-student-id="${studentId}" data-hw-attendance-id="${row?.id ?? ""}" data-hw-value="${row?.homework_submitted ? "1" : "0"}" title="${t("attendance.homework_title")}">📝</button>
             ${makeupNoteHtml(row, allGroupAppts)}
             ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#b91c1c; font-size:10px;">${t("student.delete")}</button>` : ""}
           </td>`;
@@ -1136,6 +1144,55 @@
               row.deferred_credit_used_in_package_id = previousDeferredLink;
               row.deferred_credit_amount = previousDeferredAmount;
             }
+          }
+          alert("Update failed: " + error.message);
+        }
+        rerenderLocally();
+      });
+    });
+
+    // Homework is a simple per-lesson yes/no flag on the same attendance
+    // row — marking it works even before attendance itself is marked
+    // (creates a bare row with no status yet, same lazy-insert idea as the
+    // att-toggle above).
+    table.querySelectorAll("button[data-hw-appt-id]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const apptId = btn.dataset.hwApptId;
+        const studentId = btn.dataset.hwStudentId;
+        const attendanceId = btn.dataset.hwAttendanceId;
+        const pendingKey = `hw:${apptId}:${studentId}`;
+        if (pendingAttendanceWrites.has(pendingKey)) return;
+
+        const newValue = btn.dataset.hwValue !== "1";
+        let row = attendanceRows.find(r => r.id === attendanceId);
+        const isNewRow = !row;
+        if (row) {
+          row.homework_submitted = newValue;
+        } else {
+          const col = columns.find(c => c.studentId === studentId);
+          row = { id: null, appointment_id: apptId, student_id: studentId, status: null, homework_submitted: newValue, make_up_status: null, made_up_appointment_id: null, make_up_remark: null, deferred_credit_used_in_package_id: null, deferred_credit_amount: null, students: { contacts: { name: col?.name ?? "" } } };
+          attendanceRows.push(row);
+        }
+        pendingAttendanceWrites.add(pendingKey);
+        rerenderLocally();
+
+        let error;
+        if (attendanceId) {
+          ({ error } = await supabaseClient.from("attendance").update({ homework_submitted: newValue }).eq("id", attendanceId));
+        } else {
+          const { data, error: insertError } = await supabaseClient
+            .from("attendance").insert({ appointment_id: apptId, student_id: studentId, homework_submitted: newValue }).select().single();
+          error = insertError;
+          if (!error) row.id = data.id;
+        }
+
+        pendingAttendanceWrites.delete(pendingKey);
+        if (error) {
+          if (isNewRow) {
+            const idx = attendanceRows.indexOf(row);
+            if (idx !== -1) attendanceRows.splice(idx, 1);
+          } else {
+            row.homework_submitted = !newValue;
           }
           alert("Update failed: " + error.message);
         }
