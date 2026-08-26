@@ -30,7 +30,6 @@
   .dot-paid { background: #1e6b34; }
   .dot-unpaid { background: #d4d4d8; }
   .acct-stat-number { font-size: 32px; font-weight: 700; color: #18181b; }
-  .acct-card .link { align-self: flex-start; padding: 0; }
   .acct-card-footer { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
   .acct-note { font-size: 10px; line-height: 1.4; color: #a1a1aa; margin: 0; }
 </style>
@@ -71,19 +70,13 @@
           </div>
         </div>
         <span class="acct-trend" id="revenue-trend"></span>
-        <div class="acct-card-footer">
-          <a class="link" href="packages.html" data-i18n="accounting.view_unpaid">View unpaid students →</a>
-          <p class="acct-note" data-i18n="accounting.revenue_note">* Revenue is a simplified estimate.</p>
-        </div>
+        <p class="acct-note" id="revenue-prev-month"></p>
       </div>
 
       <div class="card acct-card" style="margin:0;">
         <h2 data-i18n="accounting.new_students_title">New Students This Month</h2>
         <div class="acct-stat-number" id="new-students-count">0</div>
         <span class="acct-trend" id="new-students-trend"></span>
-        <div class="acct-card-footer">
-          <a class="link" href="packages.html" data-i18n="accounting.view_students">View group class students →</a>
-        </div>
       </div>
 
       <div class="card acct-card" style="margin:0;">
@@ -92,7 +85,6 @@
         <span class="acct-trend" id="churn-trend"></span>
         <p class="acct-note" id="churn-names" style="color:#52525b; font-size:12px;"></p>
         <div class="acct-card-footer">
-          <a class="link" href="packages.html" data-i18n="accounting.view_withdrawn">View withdrawn students →</a>
           <p class="acct-note" data-i18n="accounting.churn_note">* Churn rate definition.</p>
         </div>
       </div>
@@ -102,7 +94,6 @@
         <div class="acct-stat-number" id="conversion-rate">—</div>
         <span class="acct-trend" id="conversion-trend"></span>
         <div class="acct-card-footer">
-          <a class="link" href="leads.html" data-i18n="accounting.view_leads">View leads pipeline →</a>
           <p class="acct-note" data-i18n="accounting.conversion_note">* Conversion rate definition.</p>
         </div>
       </div>
@@ -195,36 +186,63 @@
 
   // currentlyEnrolled = group students whose latest package is still
   // "active" (not cancelled), counted right now (allPkgs is already sorted
-  // newest-created-first, so the first row seen per student is the latest).
-  function countCurrentlyEnrolled(allPkgs) {
-    const latestByStudent = new Map();
+  // newest-created-first, so the first row seen per student is the latest.
+  function latestStatusByStudent(allPkgs) {
+    const map = new Map();
     for (const p of allPkgs) {
-      if (!latestByStudent.has(p.student_id)) latestByStudent.set(p.student_id, p.status);
+      if (!map.has(p.student_id)) map.set(p.student_id, p.status);
     }
-    return [...latestByStudent.values()].filter(status => status !== "cancelled").length;
+    return map;
   }
 
-  // churned = group packages cancelled within the given month. Rate (in
-  // load() below) = churned ÷ (currentlyEnrolled + churned) — i.e. churned
-  // is added back to approximate "how many were enrolled at the start of
-  // the month".
+  function countCurrentlyEnrolled(allPkgs) {
+    return [...latestStatusByStudent(allPkgs).values()].filter(status => status !== "cancelled").length;
+  }
+
+  // churned = group packages cancelled within the given month, EXCLUDING a
+  // student whose most recent package overall is still active — that's a
+  // class transfer or straight renewal (e.g. moved from C Class to A
+  // Class), not the student actually leaving the studio. Rate (in load()
+  // below) = churned ÷ (currentlyEnrolled + churned) — i.e. churned is
+  // added back to approximate "how many were enrolled at the start of the
+  // month".
   function findChurned(allPkgs, startIso, endIso) {
+    const latestStatus = latestStatusByStudent(allPkgs);
     const byStudent = new Map();
     for (const p of allPkgs) {
-      if (p.status === "cancelled" && p.cancelled_at >= startIso && p.cancelled_at < endIso) {
-        byStudent.set(p.student_id, p.students?.contacts?.name ?? "");
-      }
+      if (p.status !== "cancelled" || p.cancelled_at < startIso || p.cancelled_at >= endIso) continue;
+      if (latestStatus.get(p.student_id) !== "cancelled") continue; // still active elsewhere — a transfer, not churn
+      byStudent.set(p.student_id, p.students?.contacts?.name ?? "");
     }
     return { count: byStudent.size, names: [...byStudent.values()].filter(Boolean) };
   }
 
   // ---------- Revenue (group classes only) ----------
-  // Simplified on purpose: total = sum of package price for packages
-  // starting this month; paid/unpaid splits that total proportionally by
-  // how many of each package's lessons are marked paid so far. Doesn't
-  // account for extra fees or deferred credits (see packages.html's
-  // Payments tab for the exact, fully-reconciled numbers) — this is meant
-  // as a quick-glance dashboard figure, not a ledger.
+  // Fully reconciled — mirrors packages.html's Payments tab math exactly
+  // (effectivePrice: price minus deductible leaves minus incoming deferred
+  // credits from an earlier package, plus extra fees tracked separately)
+  // rather than the flat "price" this used to show.
+  function isDeductible(row) {
+    return row.status === "leave" && row.make_up_status === "pending";
+  }
+  function effectivePrice(pkg, lessons) {
+    const perLessonPrice = pkg.price / pkg.total_lessons;
+    const ownDeduction = lessons.filter(isDeductible).length * perLessonPrice;
+    return Math.max(0, pkg.price - ownDeduction - (pkg.incomingCreditAmount ?? 0));
+  }
+  function extraFeeLessons(lessons) {
+    return lessons.filter(l => l.make_up_status === "combined_with_private" && l.make_up_extra_fee != null);
+  }
+  async function getIncomingCreditAmounts(packageIds) {
+    const amounts = new Map();
+    if (!packageIds.length) return amounts;
+    const { data } = await supabaseClient
+      .from("attendance").select("deferred_credit_used_in_package_id, deferred_credit_amount")
+      .in("deferred_credit_used_in_package_id", packageIds);
+    (data ?? []).forEach(r => amounts.set(r.deferred_credit_used_in_package_id, (amounts.get(r.deferred_credit_used_in_package_id) ?? 0) + (r.deferred_credit_amount ?? 0)));
+    return amounts;
+  }
+
   async function computeRevenue(startDateStr, endDateStr) {
     const { data: pkgs } = await supabaseClient
       .from("packages")
@@ -232,23 +250,43 @@
       .eq("students.is_group", true)
       .gte("start_date", startDateStr).lt("start_date", endDateStr);
 
+    const incomingCreditAmounts = await getIncomingCreditAmounts((pkgs ?? []).map(p => p.id));
+
     // Each package needs its own two lookups (lesson appointments, then
     // their attendance rows) — running the packages concurrently instead
     // of one at a time is what keeps this fast when several packages
     // started in the same month.
     const perPackage = await Promise.all((pkgs ?? []).map(async (p) => {
-      if (!p.total_lessons) return { price: p.price ?? 0, paidAmount: 0 };
-      const lessons = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
-      if (!lessons.length) return { price: p.price ?? 0, paidAmount: 0 };
-      const apptIds = lessons.map(l => l.id);
+      p.incomingCreditAmount = incomingCreditAmounts.get(p.id) ?? 0;
+      if (!p.total_lessons) return { total: p.price ?? 0, paidAmount: 0 };
+      const apptRows = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
+      if (!apptRows.length) return { total: p.price ?? 0, paidAmount: 0 };
+      const apptIds = apptRows.map(a => a.id);
       const { data: attRows } = await supabaseClient
-        .from("attendance").select("appointment_id, paid")
+        .from("attendance")
+        .select("appointment_id, status, make_up_status, make_up_extra_fee, make_up_extra_fee_paid, paid")
         .eq("student_id", p.student_id).in("appointment_id", apptIds);
-      const paidCount = (attRows ?? []).filter(r => r.paid).length;
-      return { price: p.price ?? 0, paidAmount: (p.price / p.total_lessons) * paidCount };
+      const lessons = apptRows.map(a => {
+        const att = (attRows ?? []).find(r => r.appointment_id === a.id);
+        return {
+          status: att?.status ?? null, make_up_status: att?.make_up_status ?? null,
+          make_up_extra_fee: att?.make_up_extra_fee ?? null, make_up_extra_fee_paid: att?.make_up_extra_fee_paid ?? false,
+          paid: att?.paid ?? false,
+        };
+      });
+
+      const effPrice = effectivePrice(p, lessons);
+      const paidCount = lessons.filter(l => l.paid).length;
+      const paidFromLessons = p.total_lessons ? effPrice * (paidCount / p.total_lessons) : 0;
+
+      const extraLessons = extraFeeLessons(lessons);
+      const extraFeeTotal = extraLessons.reduce((sum, l) => sum + Number(l.make_up_extra_fee), 0);
+      const extraFeePaid = extraLessons.filter(l => l.make_up_extra_fee_paid).reduce((sum, l) => sum + Number(l.make_up_extra_fee), 0);
+
+      return { total: effPrice + extraFeeTotal, paidAmount: paidFromLessons + extraFeePaid };
     }));
 
-    const total = perPackage.reduce((sum, r) => sum + r.price, 0);
+    const total = perPackage.reduce((sum, r) => sum + r.total, 0);
     const paid = perPackage.reduce((sum, r) => sum + r.paidAmount, 0);
     return { total: Math.round(total), paid: Math.round(paid), unpaid: Math.round(total - paid) };
   }
@@ -302,6 +340,7 @@
     document.getElementById("revenue-total").textContent = `$${revenueNow.total}`;
     drawDonut(revenueNow.paid, revenueNow.unpaid);
     renderTrend(document.getElementById("revenue-trend"), revenueNow.total, revenuePrev.total);
+    document.getElementById("revenue-prev-month").textContent = tf("accounting.prev_month_revenue", { amount: revenuePrev.total });
 
     const newNow = countNewStudents(allGroupPkgs, thisMonth.startDateStr, thisMonth.endDateStr);
     const newPrev = countNewStudents(allGroupPkgs, lastMonth.startDateStr, lastMonth.endDateStr);
@@ -311,15 +350,14 @@
     const enrolledNow = countCurrentlyEnrolled(allGroupPkgs);
     const churnedNow = findChurned(allGroupPkgs, thisMonth.startIso, thisMonth.endIso);
     const churnedPrev = findChurned(allGroupPkgs, lastMonth.startIso, lastMonth.endIso);
+    // Shown as a headcount, not a percentage — "3 students left" is easier
+    // to act on at a glance than "25.0%". The rate is still computed and
+    // shown in small text underneath for reference.
     const churnRateNow = (churnedNow.count + enrolledNow) > 0 ? (churnedNow.count / (churnedNow.count + enrolledNow)) * 100 : 0;
-    // Previous month's denominator can't be reconstructed exactly (we don't
-    // keep historical enrollment snapshots) — reuse today's enrolled count
-    // as a stand-in, which is fine for a rough month-over-month trend arrow.
-    const churnRatePrev = (churnedPrev.count + enrolledNow) > 0 ? (churnedPrev.count / (churnedPrev.count + enrolledNow)) * 100 : 0;
-    document.getElementById("churn-rate").textContent = `${churnRateNow.toFixed(1)}%`;
-    renderTrend(document.getElementById("churn-trend"), churnRateNow, churnRatePrev, { higherIsBetter: false });
+    document.getElementById("churn-rate").textContent = churnedNow.count;
+    renderTrend(document.getElementById("churn-trend"), churnedNow.count, churnedPrev.count, { higherIsBetter: false });
     document.getElementById("churn-names").textContent = churnedNow.names.length
-      ? churnedNow.names.join("、")
+      ? `${churnRateNow.toFixed(1)}% — ${churnedNow.names.join("、")}`
       : t("accounting.no_churn_names");
 
     const [convNow, convPrev] = await Promise.all([
