@@ -791,12 +791,20 @@
           }
         }
         if (!moved) {
-          const { error: apptError } = await supabaseClient.from("appointments").insert({
-            type: "lesson", lesson_format: "1on1", student_id: studentId,
-            scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
-            status: "confirmed", created_via: "whatsapp_ai_confirmed_by_angela",
-          });
-          if (apptError) { alert("Save failed: " + apptError.message); return; }
+          // Guard against creating a second identical booking if one
+          // already exists at this exact time — reuse it instead of
+          // inserting again.
+          const { data: existingAtTime } = await supabaseClient
+            .from("appointments").select("id").eq("student_id", studentId).eq("status", "confirmed")
+            .eq("scheduled_start", start.toISOString()).maybeSingle();
+          if (!existingAtTime) {
+            const { error: apptError } = await supabaseClient.from("appointments").insert({
+              type: "lesson", lesson_format: "1on1", student_id: studentId,
+              scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
+              status: "confirmed", created_via: "whatsapp_ai_confirmed_by_angela",
+            });
+            if (apptError) { alert("Save failed: " + apptError.message); return; }
+          }
         }
         await supabaseClient.from("pending_actions").update({ status: "approved", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", p.id);
         await loadPendingReviews();
