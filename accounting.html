@@ -163,6 +163,61 @@
     el.className = "acct-trend " + (good ? "up" : "down");
   }
 
+  // ---------- One shared fetch for everything but revenue ----------
+  // New-students / currently-enrolled / churn all only need cheap fields
+  // off the same "every group-class package" list — fetching it once here
+  // and deriving all three in memory (instead of three separate queries,
+  // two of them re-fetching the whole table again for "last month") is
+  // what actually made this page slow before.
+  async function fetchAllGroupPackages() {
+    const { data } = await supabaseClient
+      .from("packages")
+      .select("student_id, start_date, status, created_at, cancelled_at, students!inner(is_group, contacts(name))")
+      .eq("students.is_group", true)
+      .order("created_at", { ascending: false });
+    return data ?? [];
+  }
+
+  // "New" = their very first-ever group package's start_date falls in this
+  // month — a renewal into a new term doesn't count as a new student.
+  function countNewStudents(allPkgs, startDateStr, endDateStr) {
+    const earliestByStudent = new Map();
+    for (const p of allPkgs) {
+      const prev = earliestByStudent.get(p.student_id);
+      if (!prev || p.start_date < prev) earliestByStudent.set(p.student_id, p.start_date);
+    }
+    let count = 0;
+    for (const startDate of earliestByStudent.values()) {
+      if (startDate >= startDateStr && startDate < endDateStr) count++;
+    }
+    return count;
+  }
+
+  // currentlyEnrolled = group students whose latest package is still
+  // "active" (not cancelled), counted right now (allPkgs is already sorted
+  // newest-created-first, so the first row seen per student is the latest).
+  function countCurrentlyEnrolled(allPkgs) {
+    const latestByStudent = new Map();
+    for (const p of allPkgs) {
+      if (!latestByStudent.has(p.student_id)) latestByStudent.set(p.student_id, p.status);
+    }
+    return [...latestByStudent.values()].filter(status => status !== "cancelled").length;
+  }
+
+  // churned = group packages cancelled within the given month. Rate (in
+  // load() below) = churned ÷ (currentlyEnrolled + churned) — i.e. churned
+  // is added back to approximate "how many were enrolled at the start of
+  // the month".
+  function findChurned(allPkgs, startIso, endIso) {
+    const byStudent = new Map();
+    for (const p of allPkgs) {
+      if (p.status === "cancelled" && p.cancelled_at >= startIso && p.cancelled_at < endIso) {
+        byStudent.set(p.student_id, p.students?.contacts?.name ?? "");
+      }
+    }
+    return { count: byStudent.size, names: [...byStudent.values()].filter(Boolean) };
+  }
+
   // ---------- Revenue (group classes only) ----------
   // Simplified on purpose: total = sum of package price for packages
   // starting this month; paid/unpaid splits that total proportionally by
@@ -177,70 +232,25 @@
       .eq("students.is_group", true)
       .gte("start_date", startDateStr).lt("start_date", endDateStr);
 
-    let total = 0, paid = 0;
-    for (const p of pkgs ?? []) {
-      total += p.price ?? 0;
-      if (!p.total_lessons) continue;
+    // Each package needs its own two lookups (lesson appointments, then
+    // their attendance rows) — running the packages concurrently instead
+    // of one at a time is what keeps this fast when several packages
+    // started in the same month.
+    const perPackage = await Promise.all((pkgs ?? []).map(async (p) => {
+      if (!p.total_lessons) return { price: p.price ?? 0, paidAmount: 0 };
       const lessons = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
-      if (!lessons.length) continue;
+      if (!lessons.length) return { price: p.price ?? 0, paidAmount: 0 };
       const apptIds = lessons.map(l => l.id);
       const { data: attRows } = await supabaseClient
         .from("attendance").select("appointment_id, paid")
         .eq("student_id", p.student_id).in("appointment_id", apptIds);
       const paidCount = (attRows ?? []).filter(r => r.paid).length;
-      paid += (p.price / p.total_lessons) * paidCount;
-    }
+      return { price: p.price ?? 0, paidAmount: (p.price / p.total_lessons) * paidCount };
+    }));
+
+    const total = perPackage.reduce((sum, r) => sum + r.price, 0);
+    const paid = perPackage.reduce((sum, r) => sum + r.paidAmount, 0);
     return { total: Math.round(total), paid: Math.round(paid), unpaid: Math.round(total - paid) };
-  }
-
-  // ---------- New students this month (group classes only) ----------
-  // "New" = their very first-ever group package's start_date falls in this
-  // month — a renewal into a new term doesn't count as a new student.
-  async function computeNewStudents(startDateStr, endDateStr) {
-    const { data: pkgs } = await supabaseClient
-      .from("packages")
-      .select("student_id, start_date, students!inner(is_group)")
-      .eq("students.is_group", true);
-    const earliestByStudent = new Map();
-    for (const p of pkgs ?? []) {
-      const prev = earliestByStudent.get(p.student_id);
-      if (!prev || p.start_date < prev) earliestByStudent.set(p.student_id, p.start_date);
-    }
-    let count = 0;
-    for (const startDate of earliestByStudent.values()) {
-      if (startDate >= startDateStr && startDate < endDateStr) count++;
-    }
-    return count;
-  }
-
-  // ---------- Churn rate (group classes only) ----------
-  // currentlyEnrolled = group students whose latest package is still
-  // "active" (not cancelled), counted right now. churnedThisMonth = group
-  // packages cancelled within the given month. Rate = churned ÷
-  // (currentlyEnrolled + churned) — i.e. churned is added back to
-  // approximate "how many were enrolled at the start of the month".
-  async function computeCurrentlyEnrolledCount() {
-    const { data: pkgs } = await supabaseClient
-      .from("packages")
-      .select("student_id, status, created_at, students!inner(is_group)")
-      .eq("students.is_group", true)
-      .order("created_at", { ascending: false });
-    const latestByStudent = new Map();
-    for (const p of pkgs ?? []) {
-      if (!latestByStudent.has(p.student_id)) latestByStudent.set(p.student_id, p.status);
-    }
-    return [...latestByStudent.values()].filter(status => status !== "cancelled").length;
-  }
-  async function computeChurned(startIso, endIso) {
-    const { data } = await supabaseClient
-      .from("packages")
-      .select("student_id, students!inner(is_group, contacts(name))")
-      .eq("students.is_group", true)
-      .eq("status", "cancelled")
-      .gte("cancelled_at", startIso).lt("cancelled_at", endIso);
-    const byStudent = new Map();
-    for (const r of data ?? []) byStudent.set(r.student_id, r.students?.contacts?.name ?? "");
-    return { count: byStudent.size, names: [...byStudent.values()].filter(Boolean) };
   }
 
   // ---------- Lead conversion rate ----------
@@ -277,9 +287,15 @@
     const thisMonth = monthBounds(0);
     const lastMonth = monthBounds(-1);
 
-    const [revenueNow, revenuePrev] = await Promise.all([
-      computeRevenue(thisMonth.startDateStr, thisMonth.endDateStr),
-      computeRevenue(lastMonth.startDateStr, lastMonth.endDateStr),
+    // Revenue (needs its own per-package appointment/attendance lookups)
+    // and the shared package list (for new-students/enrolled/churn) run
+    // concurrently — neither depends on the other.
+    const [[revenueNow, revenuePrev], allGroupPkgs] = await Promise.all([
+      Promise.all([
+        computeRevenue(thisMonth.startDateStr, thisMonth.endDateStr),
+        computeRevenue(lastMonth.startDateStr, lastMonth.endDateStr),
+      ]),
+      fetchAllGroupPackages(),
     ]);
     document.getElementById("revenue-paid").textContent = `$${revenueNow.paid}`;
     document.getElementById("revenue-unpaid").textContent = `$${revenueNow.unpaid}`;
@@ -287,18 +303,14 @@
     drawDonut(revenueNow.paid, revenueNow.unpaid);
     renderTrend(document.getElementById("revenue-trend"), revenueNow.total, revenuePrev.total);
 
-    const [newNow, newPrev] = await Promise.all([
-      computeNewStudents(thisMonth.startDateStr, thisMonth.endDateStr),
-      computeNewStudents(lastMonth.startDateStr, lastMonth.endDateStr),
-    ]);
+    const newNow = countNewStudents(allGroupPkgs, thisMonth.startDateStr, thisMonth.endDateStr);
+    const newPrev = countNewStudents(allGroupPkgs, lastMonth.startDateStr, lastMonth.endDateStr);
     document.getElementById("new-students-count").textContent = newNow;
     renderTrend(document.getElementById("new-students-trend"), newNow, newPrev);
 
-    const enrolledNow = await computeCurrentlyEnrolledCount();
-    const [churnedNow, churnedPrev] = await Promise.all([
-      computeChurned(thisMonth.startIso, thisMonth.endIso),
-      computeChurned(lastMonth.startIso, lastMonth.endIso),
-    ]);
+    const enrolledNow = countCurrentlyEnrolled(allGroupPkgs);
+    const churnedNow = findChurned(allGroupPkgs, thisMonth.startIso, thisMonth.endIso);
+    const churnedPrev = findChurned(allGroupPkgs, lastMonth.startIso, lastMonth.endIso);
     const churnRateNow = (churnedNow.count + enrolledNow) > 0 ? (churnedNow.count / (churnedNow.count + enrolledNow)) * 100 : 0;
     // Previous month's denominator can't be reconstructed exactly (we don't
     // keep historical enrollment snapshots) — reuse today's enrolled count
