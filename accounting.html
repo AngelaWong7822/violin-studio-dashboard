@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Violin Studio — Accounting</title>
+<title>Violin Studio — Operations Overview</title>
 <link rel="stylesheet" href="shared.css" />
 <link rel="icon" href="logo.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -11,26 +11,28 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
-  .acct-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .acct-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 600px) { .acct-grid { grid-template-columns: 1fr; } }
   .acct-card { display: flex; flex-direction: column; gap: 10px; }
   .acct-card h2 { font-size: 14px; margin: 0; color: #52525b; font-weight: 600; }
   .acct-trend { font-size: 12px; font-weight: 600; }
   .acct-trend.up { color: #1e6b34; }
   .acct-trend.down { color: #b91c1c; }
   .acct-trend.flat { color: #a1a1aa; }
-  .acct-donut-row { display: flex; align-items: center; gap: 16px; }
+  .acct-donut-row { display: flex; align-items: center; gap: 22px; }
   .acct-donut-row canvas { width: 96px !important; height: 96px !important; flex-shrink: 0; }
-  .acct-legend { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .acct-legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
   .acct-legend-item { display: flex; align-items: center; gap: 6px; }
   .acct-legend-item b { margin-left: auto; }
-  .acct-legend-total { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #f0f0f1; font-weight: 600; }
+  .acct-legend-total { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #f0f0f1; font-weight: 600; }
   .acct-legend-total b { margin-left: auto; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
   .dot-paid { background: #1e6b34; }
   .dot-unpaid { background: #d4d4d8; }
   .acct-stat-number { font-size: 32px; font-weight: 700; color: #18181b; }
   .acct-card .link { align-self: flex-start; padding: 0; }
-  .acct-note { font-size: 11px; color: #a1a1aa; margin: 0; }
+  .acct-card-footer { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+  .acct-note { font-size: 10px; line-height: 1.4; color: #a1a1aa; margin: 0; }
 </style>
 </head>
 <body>
@@ -69,31 +71,40 @@
           </div>
         </div>
         <span class="acct-trend" id="revenue-trend"></span>
-        <a class="link" href="packages.html" data-i18n="accounting.view_unpaid">View unpaid students →</a>
-        <p class="acct-note" data-i18n="accounting.revenue_note">* Revenue is a simplified estimate.</p>
+        <div class="acct-card-footer">
+          <a class="link" href="packages.html" data-i18n="accounting.view_unpaid">View unpaid students →</a>
+          <p class="acct-note" data-i18n="accounting.revenue_note">* Revenue is a simplified estimate.</p>
+        </div>
       </div>
 
       <div class="card acct-card" style="margin:0;">
         <h2 data-i18n="accounting.new_students_title">New Students This Month</h2>
         <div class="acct-stat-number" id="new-students-count">0</div>
         <span class="acct-trend" id="new-students-trend"></span>
-        <a class="link" href="packages.html" data-i18n="accounting.view_students">View group class students →</a>
+        <div class="acct-card-footer">
+          <a class="link" href="packages.html" data-i18n="accounting.view_students">View group class students →</a>
+        </div>
       </div>
 
       <div class="card acct-card" style="margin:0;">
         <h2 data-i18n="accounting.churn_title">Student Churn Rate</h2>
         <div class="acct-stat-number" id="churn-rate">—</div>
         <span class="acct-trend" id="churn-trend"></span>
-        <a class="link" href="packages.html" data-i18n="accounting.view_withdrawn">View withdrawn students →</a>
-        <p class="acct-note" data-i18n="accounting.churn_note">* Churn rate definition.</p>
+        <p class="acct-note" id="churn-names" style="color:#52525b; font-size:12px;"></p>
+        <div class="acct-card-footer">
+          <a class="link" href="packages.html" data-i18n="accounting.view_withdrawn">View withdrawn students →</a>
+          <p class="acct-note" data-i18n="accounting.churn_note">* Churn rate definition.</p>
+        </div>
       </div>
 
       <div class="card acct-card" style="margin:0;">
         <h2 data-i18n="accounting.conversion_title">Lead Conversion Rate</h2>
         <div class="acct-stat-number" id="conversion-rate">—</div>
         <span class="acct-trend" id="conversion-trend"></span>
-        <a class="link" href="leads.html" data-i18n="accounting.view_leads">View leads pipeline →</a>
-        <p class="acct-note" data-i18n="accounting.conversion_note">* Conversion rate definition.</p>
+        <div class="acct-card-footer">
+          <a class="link" href="leads.html" data-i18n="accounting.view_leads">View leads pipeline →</a>
+          <p class="acct-note" data-i18n="accounting.conversion_note">* Conversion rate definition.</p>
+        </div>
       </div>
 
     </div>
@@ -220,14 +231,16 @@
     }
     return [...latestByStudent.values()].filter(status => status !== "cancelled").length;
   }
-  async function computeChurnedCount(startIso, endIso) {
+  async function computeChurned(startIso, endIso) {
     const { data } = await supabaseClient
       .from("packages")
-      .select("student_id, students!inner(is_group)")
+      .select("student_id, students!inner(is_group, contacts(name))")
       .eq("students.is_group", true)
       .eq("status", "cancelled")
       .gte("cancelled_at", startIso).lt("cancelled_at", endIso);
-    return new Set((data ?? []).map(r => r.student_id)).size;
+    const byStudent = new Map();
+    for (const r of data ?? []) byStudent.set(r.student_id, r.students?.contacts?.name ?? "");
+    return { count: byStudent.size, names: [...byStudent.values()].filter(Boolean) };
   }
 
   // ---------- Lead conversion rate ----------
@@ -283,16 +296,19 @@
 
     const enrolledNow = await computeCurrentlyEnrolledCount();
     const [churnedNow, churnedPrev] = await Promise.all([
-      computeChurnedCount(thisMonth.startIso, thisMonth.endIso),
-      computeChurnedCount(lastMonth.startIso, lastMonth.endIso),
+      computeChurned(thisMonth.startIso, thisMonth.endIso),
+      computeChurned(lastMonth.startIso, lastMonth.endIso),
     ]);
-    const churnRateNow = (churnedNow + enrolledNow) > 0 ? (churnedNow / (churnedNow + enrolledNow)) * 100 : 0;
+    const churnRateNow = (churnedNow.count + enrolledNow) > 0 ? (churnedNow.count / (churnedNow.count + enrolledNow)) * 100 : 0;
     // Previous month's denominator can't be reconstructed exactly (we don't
     // keep historical enrollment snapshots) — reuse today's enrolled count
     // as a stand-in, which is fine for a rough month-over-month trend arrow.
-    const churnRatePrev = (churnedPrev + enrolledNow) > 0 ? (churnedPrev / (churnedPrev + enrolledNow)) * 100 : 0;
+    const churnRatePrev = (churnedPrev.count + enrolledNow) > 0 ? (churnedPrev.count / (churnedPrev.count + enrolledNow)) * 100 : 0;
     document.getElementById("churn-rate").textContent = `${churnRateNow.toFixed(1)}%`;
     renderTrend(document.getElementById("churn-trend"), churnRateNow, churnRatePrev, { higherIsBetter: false });
+    document.getElementById("churn-names").textContent = churnedNow.names.length
+      ? churnedNow.names.join("、")
+      : t("accounting.no_churn_names");
 
     const [convNow, convPrev] = await Promise.all([
       computeConversion(thisMonth.startIso, thisMonth.endIso),
