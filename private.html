@@ -10,29 +10,111 @@
 <link rel="manifest" href="manifest.json" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+  #student-rows { font-size: 13px; }
+  #student-rows td, thead th { padding: 7px 10px; }
+  .avatar {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    font-size: 11px; font-weight: 600; color: #fff;
+    margin-right: 8px; flex-shrink: 0; vertical-align: middle;
+  }
+  .avatar.gender-female { background: #f472b6; }
+  .avatar.gender-male { background: #60a5fa; }
+  .avatar.gender-unknown { background: #a1a1aa; }
+  .dialog-avatar {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 50%;
+    font-size: 16px; font-weight: 600; color: #fff;
+    flex-shrink: 0;
+  }
+  .dialog-avatar.gender-female { background: #f472b6; }
+  .dialog-avatar.gender-male { background: #60a5fa; }
+  .dialog-avatar.gender-unknown { background: #a1a1aa; }
+  .field-icon {
+    display: inline-block; width: 20px; font-size: 14px;
+    text-align: center; vertical-align: -2px;
+  }
+  #student-form label { display: flex; flex-direction: column; gap: 4px; }
+  #student-form label input, #student-form label select { width: 100%; }
+  .field-label-row { display: flex; align-items: center; }
+  .gender-toggle-group { display: flex; gap: 8px; margin-top: 4px; }
+  .gender-toggle-btn {
+    flex: 1; padding: 8px; border: 1px solid #d4d4d8; border-radius: 10px;
+    background: #fff; color: #52525b; cursor: pointer; font: inherit; font-size: 14px;
+    text-align: center; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .gender-toggle-btn.active.gender-male { background: #60a5fa; border-color: #60a5fa; color: #fff; font-weight: 600; }
+  .gender-toggle-btn.active.gender-female { background: #f472b6; border-color: #f472b6; color: #fff; font-weight: 600; }
+  .toggle-switch { position: relative; display: inline-block; width: 34px; height: 19px; vertical-align: middle; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-switch .slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: #d4d4d8; border-radius: 999px; transition: background-color 0.15s ease;
+  }
+  .toggle-switch .slider::before {
+    content: ""; position: absolute; height: 13px; width: 13px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .toggle-switch input:checked + .slider { background: #18181b; }
+  .toggle-switch input:checked + .slider::before { transform: translateX(15px); }
+  .row-menu-wrap { position: relative; display: inline-block; }
+  .row-menu-btn {
+    background: none; border: 1px solid #d4d4d8; border-radius: 8px;
+    width: 26px; height: 26px; cursor: pointer; font-size: 15px; line-height: 1;
+    color: #52525b; padding: 0; vertical-align: middle;
+  }
+  .row-menu-btn:hover { background: #f4f4f5; }
+  .row-menu {
+    display: none;
+    position: absolute; right: 0; top: 120%;
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.14);
+    padding: 6px; min-width: 130px; z-index: 20;
+    flex-direction: column; gap: 2px;
+  }
+  .row-menu.open { display: flex; }
+  .row-menu button {
+    border: none; background: none; text-align: left; padding: 7px 10px;
+    border-radius: 6px; cursor: pointer; font-size: 13px; color: #18181b; width: 100%;
+  }
+  .row-menu button:hover { background: #f4f4f5; }
+  .row-menu button.danger-item { color: #b91c1c; }
+  .whatsapp-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #e7f9ee; color: #1e6b34; text-decoration: none;
+    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .whatsapp-chip:hover { background: #d3f3e0; }
+  .count-pill {
+    display: inline-block; background: #f4f4f5; color: #27272a;
+    padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  }
+  .count-pill-paid { background: #eff6ff; color: #1d4ed8; }
   .student-row { cursor: pointer; }
-  .student-row:hover { background: #faf8f4; }
+  .student-row:hover { background: #f4f4f5; }
   .expand-arrow { display: inline-block; width: 14px; transition: transform 0.15s; }
   .expand-arrow.open { transform: rotate(90deg); }
   .student-detail td { padding: 0 0 14px 0; }
   .lesson-table-wrap { margin: 6px 26px 0 26px; }
   .detail-table { width: 100%; font-size: 13px; border-collapse: collapse; }
   .detail-table th, .detail-table td { padding: 4px 8px; text-align: left; }
-  .detail-table th { color: #8a8074; font-weight: 500; }
-  .detail-table tr:nth-child(even) { background: #faf8f4; }
+  .detail-table th { color: #71717a; font-weight: 500; }
+  .detail-table tr:nth-child(even) { background: #fafafa; }
   .detail-table input[type=number] { width: 80px; font-size: 13px; padding: 3px 5px; }
-  .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 14px; background: #ece7dd; color: #8a8074; cursor: pointer; font-weight: 600; }
+  .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 14px; background: #f4f4f5; color: #71717a; cursor: pointer; font-weight: 600; }
   .att-toggle.att-attended { background: #1e6b34; color: #fff; }
   .att-toggle.att-leave { background: #b8863a; color: #fff; }
-  .att-toggle.att-no_show { background: #8a2e2e; color: #fff; }
-  .pending-review-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid #f0ece5; font-size: 13px; }
+  .att-toggle.att-no_show { background: #b91c1c; color: #fff; }
+  .pending-review-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid #f0f0f1; font-size: 13px; }
   .pending-review-row:last-child { border-bottom: none; }
-  .pending-review-row .rationale { color: #8a8074; width: 100%; }
-  .pending-review-row .phone { color: #8a8074; }
-  .pending-review-row .confidence { color: #a89f92; }
-  .pending-review-row .time-ago { color: #a89f92; font-size: 12px; }
+  .pending-review-row .rationale { color: #71717a; width: 100%; }
+  .pending-review-row .phone { color: #71717a; }
+  .pending-review-row .confidence { color: #a1a1aa; }
+  .pending-review-row .time-ago { color: #a1a1aa; font-size: 12px; }
   .pending-review-row .link.approve { color: #1e6b34; }
-  .pending-review-row .link.reject { color: #8a2e2e; }
+  .pending-review-row .link.reject { color: #b91c1c; }
   .pending-review-row .pending-date, .pending-review-row .pending-time { font-size: 13px; padding: 2px 4px; }
 </style>
 </head>
@@ -44,6 +126,7 @@
   <a href="packages.html" data-i18n="nav.packages">Group Classes</a>
   <a href="private.html" class="active" data-i18n="nav.private">Private Students</a>
   <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" data-i18n="nav.accounting">Accounting</a>
   <span class="spacer"></span>
   <div class="settings-wrap">
     <button id="settings-btn" title="Settings">⚙️</button>
@@ -69,36 +152,38 @@
       <thead><tr>
         <th></th>
         <th data-i18n="student.name">Name</th>
-        <th data-i18n="student.gender">Gender</th>
-        <th data-i18n="student.age">Age</th>
         <th data-i18n="student.phone">WhatsApp number</th>
         <th data-i18n="contacts.col_allowed">Allowed (AI analyzes)</th>
         <th data-i18n="private.col_total_lessons">Lessons logged</th>
         <th data-i18n="private.col_total_paid">Total paid</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
 
-<dialog id="student-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
+<dialog id="student-dialog" style="border:none; border-radius:16px; padding:0; width:340px;">
   <form id="student-form" class="card" style="margin:0; box-shadow:none;">
-    <h1 id="student-dialog-title" data-i18n="dialog.new_student">New student</h1>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+      <span class="dialog-avatar gender-unknown" id="student-dialog-avatar">?</span>
+      <h1 id="student-dialog-title" style="margin:0;" data-i18n="dialog.new_student">New student</h1>
+    </div>
     <input type="hidden" id="student-contact-id" />
     <input type="hidden" id="student-id" />
     <div style="display:flex; flex-direction:column; gap:10px;">
-      <label><span data-i18n="student.name">Name</span> <input type="text" id="student-name" required /></label>
-      <label><span data-i18n="student.phone">WhatsApp number</span> <input type="text" id="student-phone" /></label>
-      <label><span data-i18n="student.gender">Gender</span>
-        <select id="student-gender">
-          <option value="male" data-i18n="gender.male">Male</option>
-          <option value="female" data-i18n="gender.female">Female</option>
-        </select>
+      <label><span class="field-label-row"><span class="field-icon">👤</span><span data-i18n="student.name">Name</span></span><input type="text" id="student-name" required /></label>
+      <label><span class="field-label-row"><span class="field-icon">💬</span><span data-i18n="student.phone">WhatsApp number</span></span><input type="text" id="student-phone" /></label>
+      <label><span class="field-label-row"><span class="field-icon"></span><span data-i18n="student.gender">Gender</span></span>
+        <input type="hidden" id="student-gender" value="male" />
+        <div class="gender-toggle-group">
+          <button type="button" class="gender-toggle-btn gender-male" data-gender-option="male" data-i18n="gender.male">Male</button>
+          <button type="button" class="gender-toggle-btn gender-female" data-gender-option="female" data-i18n="gender.female">Female</button>
+        </div>
       </label>
-      <label><span data-i18n="student.age">Age</span> <input type="number" id="student-age" min="0" step="1" /></label>
-      <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
-      <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span class="field-label-row"><span class="field-icon">🎂</span><span data-i18n="student.age">Age</span></span><input type="number" id="student-age" min="0" step="1" /></label>
+      <label><span class="field-label-row"><span class="field-icon">📱</span><span data-i18n="lead.social_media_name">Social media name</span></span><input type="text" id="student-social" /></label>
+      <label><span class="field-label-row"><span class="field-icon">🎻</span><span data-i18n="lead.level">Level</span></span><input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -112,7 +197,7 @@
     <h1 data-i18n="private.new_lesson">New lesson</h1>
     <input type="hidden" id="lesson-student-id" />
     <div style="display:flex; flex-direction:column; gap:10px;">
-      <p style="margin:0; font-size:13px; color:#8a8074;" id="lesson-student-name"></p>
+      <p style="margin:0; font-size:13px; color:#71717a;" id="lesson-student-name"></p>
       <label><span data-i18n="private.lesson_when">Date &amp; time</span>
         <input type="datetime-local" id="lesson-when" required />
       </label>
@@ -151,6 +236,9 @@
   applyI18n();
   initSettingsMenu();
   window.onLangChange = () => { load(); loadPendingReviews(); };
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".row-menu.open").forEach(m => m.classList.remove("open"));
+  });
 
   // Private (1-on-1 / 1-on-2) students: no package/batch concept, no
   // auto-deduction — each lesson is logged and priced individually. This
@@ -179,7 +267,7 @@
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="9" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Error: ${error.message}</td></tr>`; return; }
 
     students = await Promise.all(data.map(async (s) => {
       const { data: appts } = await supabaseClient
@@ -218,7 +306,7 @@
   function render() {
     const tbody = document.getElementById("student-rows");
     if (!students.length) {
-      tbody.innerHTML = `<tr><td colspan="9" class="empty">${t("private.empty_students")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="empty">${t("private.empty_students")}</td></tr>`;
       return;
     }
 
@@ -228,7 +316,7 @@
       const rawPhone = s.contacts?.whatsapp_number ?? "";
       const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
       const whatsappCell = rawPhone && digitsOnly
-        ? `<a href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">${rawPhone}</a>`
+        ? `<a class="whatsapp-chip" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
         : "—";
 
       const lessonRows = s.lessons.map(l => `
@@ -238,28 +326,34 @@
           <td><input type="number" min="0" data-price-appt="${l.apptId}" value="${l.price}" /></td>
           <td><button type="button" class="att-toggle att-${l.status || "unset"}" data-appt-id="${l.apptId}" data-student-id="${s.id}" data-attendance-id="${l.attendanceId ?? ""}" data-status="${l.status || ""}">${attendanceSymbol(l.status)}</button></td>
           <td><input type="checkbox" data-paid-attendance-id="${l.attendanceId ?? ""}" data-paid-appt-id="${l.apptId}" data-paid-student-id="${s.id}" ${l.paid ? "checked" : ""} /></td>
-          <td><button type="button" class="link" data-delete-lesson="${l.apptId}" style="color:#8a2e2e;">${t("private.delete_lesson")}</button></td>
+          <td><button type="button" class="link" data-delete-lesson="${l.apptId}" style="color:#b91c1c;">${t("private.delete_lesson")}</button></td>
         </tr>`).join("");
+
+      const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
+      const initial = (s.contacts?.name ?? "?").trim().charAt(0).toUpperCase() || "?";
 
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}</td>
-          <td>${s.contacts?.gender ? t("gender." + s.contacts.gender) : "—"}</td>
-          <td>${s.contacts?.age ?? "—"}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}</td>
           <td>${whatsappCell}</td>
-          <td><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /></td>
-          <td>${s.lessons.length}</td>
-          <td>$${totalPaid}</td>
+          <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
+          <td><span class="count-pill">${s.lessons.length}</span></td>
+          <td><span class="count-pill count-pill-paid">$${totalPaid}</span></td>
           <td style="white-space:nowrap;">
-            <button class="link" data-edit-student="${s.id}">${t("student.edit")}</button>
             <button class="link" data-add-lesson="${s.id}">${t("private.new_lesson")}</button>
-            <button class="link" data-delete-student="${s.id}" style="color:#8a2e2e;">${t("student.delete")}</button>
+            <span class="row-menu-wrap">
+              <button type="button" class="row-menu-btn" data-row-menu-toggle="${s.id}" title="${t("private.more_actions")}">⋯</button>
+              <div class="row-menu" data-row-menu="${s.id}">
+                <button type="button" data-edit-student="${s.id}">${t("student.edit")}</button>
+                <button type="button" class="danger-item" data-delete-student="${s.id}">${t("student.delete")}</button>
+              </div>
+            </span>
           </td>
         </tr>
         <tr class="student-detail" data-student-detail="${s.id}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
-          <td colspan="8">
+          <td colspan="6">
             <div class="lesson-table-wrap">
               ${s.lessons.length ? `
                 <table class="detail-table">
@@ -297,6 +391,19 @@
       btn.addEventListener("click", (e) => { e.stopPropagation(); deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)); });
     });
 
+    tbody.querySelectorAll("button[data-row-menu-toggle]").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const menu = tbody.querySelector(`.row-menu[data-row-menu="${btn.dataset.rowMenuToggle}"]`);
+        const wasOpen = menu.classList.contains("open");
+        tbody.querySelectorAll(".row-menu.open").forEach(m => m.classList.remove("open"));
+        if (!wasOpen) menu.classList.add("open");
+      });
+    });
+
+    tbody.querySelectorAll("label.toggle-switch").forEach(label => {
+      label.addEventListener("click", (e) => e.stopPropagation());
+    });
     tbody.querySelectorAll("input[data-allowed-contact-id]").forEach(cb => {
       cb.addEventListener("click", (e) => e.stopPropagation());
       cb.addEventListener("change", async () => {
@@ -371,6 +478,17 @@
 
   // ---------- Student create/edit ----------
   const studentDialog = document.getElementById("student-dialog");
+  function setDialogGender(gender) {
+    document.getElementById("student-gender").value = gender;
+    document.querySelectorAll(".gender-toggle-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.genderOption === gender);
+    });
+    const avatar = document.getElementById("student-dialog-avatar");
+    avatar.className = `dialog-avatar gender-${gender === "female" ? "female" : gender === "male" ? "male" : "unknown"}`;
+  }
+  document.querySelectorAll(".gender-toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => setDialogGender(btn.dataset.genderOption));
+  });
   function openEditStudent(student) {
     if (!student) return;
     const c = student.contacts ?? {};
@@ -378,8 +496,9 @@
     document.getElementById("student-id").value = student.id;
     document.getElementById("student-contact-id").value = student.contact_id;
     document.getElementById("student-name").value = c.name ?? "";
+    document.getElementById("student-dialog-avatar").textContent = (c.name ?? "?").trim().charAt(0).toUpperCase() || "?";
     document.getElementById("student-phone").value = c.whatsapp_number ?? "";
-    document.getElementById("student-gender").value = c.gender ?? "male";
+    setDialogGender(c.gender ?? "male");
     document.getElementById("student-social").value = c.social_media_name ?? "";
     document.getElementById("student-level").value = c.level ?? "";
     document.getElementById("student-age").value = c.age ?? "";
@@ -390,6 +509,8 @@
     document.getElementById("student-id").value = "";
     document.getElementById("student-contact-id").value = "";
     document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
+    document.getElementById("student-dialog-avatar").textContent = "?";
+    setDialogGender("male");
     studentDialog.showModal();
   });
   document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());

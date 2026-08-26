@@ -18,6 +18,7 @@
   <a href="packages.html" data-i18n="nav.packages">Packages</a>
   <a href="private.html" data-i18n="nav.private">Private Students</a>
   <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" data-i18n="nav.accounting">Accounting</a>
   <span class="spacer"></span>
   <div class="settings-wrap">
     <button id="settings-btn" title="Settings">⚙️</button>
@@ -262,7 +263,7 @@
         const timeLabel = d.toLocaleTimeString(localeForDates(), { hour: "2-digit", minute: "2-digit" });
         const summaryLabel = `${dayLabel} ${timeLabel} — ${first.notes ?? ""} (${tf("schedule.group_lessons_count", { n: group.length })})`;
         rowsHtml.push(`
-          <tr class="pkg-summary-row" data-pkg-toggle="${a.package_id}" style="cursor:pointer; background:#faf7f3;">
+          <tr class="pkg-summary-row" data-pkg-toggle="${a.package_id}" style="cursor:pointer; background:#fafafa;">
             <td colspan="2"><span class="pkg-arrow">▶</span> ${t("type.group_class")}</td>
             <td colspan="4">${summaryLabel}</td>
           </tr>

@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Accounting</title>
+<link rel="stylesheet" href="shared.css" />
+<link rel="icon" href="logo.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  .acct-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .acct-card { display: flex; flex-direction: column; gap: 10px; }
+  .acct-card h2 { font-size: 14px; margin: 0; color: #52525b; font-weight: 600; }
+  .acct-trend { font-size: 12px; font-weight: 600; }
+  .acct-trend.up { color: #1e6b34; }
+  .acct-trend.down { color: #b91c1c; }
+  .acct-trend.flat { color: #a1a1aa; }
+  .acct-donut-row { display: flex; align-items: center; gap: 16px; }
+  .acct-donut-row canvas { width: 96px !important; height: 96px !important; flex-shrink: 0; }
+  .acct-legend { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .acct-legend-item { display: flex; align-items: center; gap: 6px; }
+  .acct-legend-item b { margin-left: auto; }
+  .acct-legend-total { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #f0f0f1; font-weight: 600; }
+  .acct-legend-total b { margin-left: auto; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+  .dot-paid { background: #1e6b34; }
+  .dot-unpaid { background: #d4d4d8; }
+  .acct-stat-number { font-size: 32px; font-weight: 700; color: #18181b; }
+  .acct-card .link { align-self: flex-start; padding: 0; }
+  .acct-note { font-size: 11px; color: #a1a1aa; margin: 0; }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="packages.html" data-i18n="nav.packages">Group Classes</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
+  <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" class="active" data-i18n="nav.accounting">Accounting</a>
+  <span class="spacer"></span>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <hr />
+      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
+    </div>
+  </div>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <h1 style="margin:0 0 14px;" data-i18n="accounting.title">Accounting</h1>
+    <div class="acct-grid">
+
+      <div class="card acct-card" style="margin:0;">
+        <h2 data-i18n="accounting.revenue_title">This Month's Revenue</h2>
+        <div class="acct-donut-row">
+          <canvas id="revenue-chart" width="96" height="96"></canvas>
+          <div class="acct-legend">
+            <div class="acct-legend-item"><span class="dot dot-paid"></span><span data-i18n="accounting.paid">Paid</span><b id="revenue-paid">$0</b></div>
+            <div class="acct-legend-item"><span class="dot dot-unpaid"></span><span data-i18n="accounting.unpaid">Outstanding</span><b id="revenue-unpaid">$0</b></div>
+            <div class="acct-legend-total"><span data-i18n="accounting.total">Total</span><b id="revenue-total">$0</b></div>
+          </div>
+        </div>
+        <span class="acct-trend" id="revenue-trend"></span>
+        <a class="link" href="packages.html" data-i18n="accounting.view_unpaid">View unpaid students →</a>
+        <p class="acct-note" data-i18n="accounting.revenue_note">* Revenue is a simplified estimate.</p>
+      </div>
+
+      <div class="card acct-card" style="margin:0;">
+        <h2 data-i18n="accounting.new_students_title">New Students This Month</h2>
+        <div class="acct-stat-number" id="new-students-count">0</div>
+        <span class="acct-trend" id="new-students-trend"></span>
+        <a class="link" href="packages.html" data-i18n="accounting.view_students">View group class students →</a>
+      </div>
+
+      <div class="card acct-card" style="margin:0;">
+        <h2 data-i18n="accounting.churn_title">Student Churn Rate</h2>
+        <div class="acct-stat-number" id="churn-rate">—</div>
+        <span class="acct-trend" id="churn-trend"></span>
+        <a class="link" href="packages.html" data-i18n="accounting.view_withdrawn">View withdrawn students →</a>
+        <p class="acct-note" data-i18n="accounting.churn_note">* Churn rate definition.</p>
+      </div>
+
+      <div class="card acct-card" style="margin:0;">
+        <h2 data-i18n="accounting.conversion_title">Lead Conversion Rate</h2>
+        <div class="acct-stat-number" id="conversion-rate">—</div>
+        <span class="acct-trend" id="conversion-trend"></span>
+        <a class="link" href="leads.html" data-i18n="accounting.view_leads">View leads pipeline →</a>
+        <p class="acct-note" data-i18n="accounting.conversion_note">* Conversion rate definition.</p>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  initSettingsMenu();
+  window.onLangChange = () => load();
+
+  // A package's "N lessons" are the first N real appointments on/after its
+  // start_date — mirrors packages.html's own getPackageLessonAppointments,
+  // duplicated here since this page has no way to import it (no build step,
+  // no shared modules across pages in this codebase).
+  async function getPackageLessonAppointments(classId, startDate, totalLessons) {
+    const { data } = await supabaseClient
+      .from("appointments").select("id")
+      .eq("class_id", classId).gte("scheduled_start", startDate)
+      .order("scheduled_start", { ascending: true }).limit(totalLessons);
+    return data ?? [];
+  }
+
+  function monthBounds(offsetMonths) {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() + offsetMonths, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + offsetMonths + 1, 1);
+    const toDateStr = (d) => d.toISOString().slice(0, 10);
+    return { startDateStr: toDateStr(start), endDateStr: toDateStr(end), startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+
+  function renderTrend(el, current, previous, { higherIsBetter = true, isPercent = false } = {}) {
+    if (previous === null || previous === undefined || previous === 0) {
+      el.textContent = t("accounting.no_data");
+      el.className = "acct-trend flat";
+      return;
+    }
+    const diff = current - previous;
+    if (Math.abs(diff) < 0.001) {
+      el.textContent = t("accounting.no_change");
+      el.className = "acct-trend flat";
+      return;
+    }
+    const pctChange = Math.abs((diff / previous) * 100).toFixed(0);
+    const up = diff > 0;
+    const good = higherIsBetter ? up : !up;
+    el.textContent = `${up ? "↑" : "↓"} ${pctChange}% ${t("accounting.vs_last_month")}`;
+    el.className = "acct-trend " + (good ? "up" : "down");
+  }
+
+  // ---------- Revenue (group classes only) ----------
+  // Simplified on purpose: total = sum of package price for packages
+  // starting this month; paid/unpaid splits that total proportionally by
+  // how many of each package's lessons are marked paid so far. Doesn't
+  // account for extra fees or deferred credits (see packages.html's
+  // Payments tab for the exact, fully-reconciled numbers) — this is meant
+  // as a quick-glance dashboard figure, not a ledger.
+  async function computeRevenue(startDateStr, endDateStr) {
+    const { data: pkgs } = await supabaseClient
+      .from("packages")
+      .select("id, class_id, student_id, start_date, total_lessons, price, students!inner(is_group)")
+      .eq("students.is_group", true)
+      .gte("start_date", startDateStr).lt("start_date", endDateStr);
+
+    let total = 0, paid = 0;
+    for (const p of pkgs ?? []) {
+      total += p.price ?? 0;
+      if (!p.total_lessons) continue;
+      const lessons = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
+      if (!lessons.length) continue;
+      const apptIds = lessons.map(l => l.id);
+      const { data: attRows } = await supabaseClient
+        .from("attendance").select("appointment_id, paid")
+        .eq("student_id", p.student_id).in("appointment_id", apptIds);
+      const paidCount = (attRows ?? []).filter(r => r.paid).length;
+      paid += (p.price / p.total_lessons) * paidCount;
+    }
+    return { total: Math.round(total), paid: Math.round(paid), unpaid: Math.round(total - paid) };
+  }
+
+  // ---------- New students this month (group classes only) ----------
+  // "New" = their very first-ever group package's start_date falls in this
+  // month — a renewal into a new term doesn't count as a new student.
+  async function computeNewStudents(startDateStr, endDateStr) {
+    const { data: pkgs } = await supabaseClient
+      .from("packages")
+      .select("student_id, start_date, students!inner(is_group)")
+      .eq("students.is_group", true);
+    const earliestByStudent = new Map();
+    for (const p of pkgs ?? []) {
+      const prev = earliestByStudent.get(p.student_id);
+      if (!prev || p.start_date < prev) earliestByStudent.set(p.student_id, p.start_date);
+    }
+    let count = 0;
+    for (const startDate of earliestByStudent.values()) {
+      if (startDate >= startDateStr && startDate < endDateStr) count++;
+    }
+    return count;
+  }
+
+  // ---------- Churn rate (group classes only) ----------
+  // currentlyEnrolled = group students whose latest package is still
+  // "active" (not cancelled), counted right now. churnedThisMonth = group
+  // packages cancelled within the given month. Rate = churned ÷
+  // (currentlyEnrolled + churned) — i.e. churned is added back to
+  // approximate "how many were enrolled at the start of the month".
+  async function computeCurrentlyEnrolledCount() {
+    const { data: pkgs } = await supabaseClient
+      .from("packages")
+      .select("student_id, status, created_at, students!inner(is_group)")
+      .eq("students.is_group", true)
+      .order("created_at", { ascending: false });
+    const latestByStudent = new Map();
+    for (const p of pkgs ?? []) {
+      if (!latestByStudent.has(p.student_id)) latestByStudent.set(p.student_id, p.status);
+    }
+    return [...latestByStudent.values()].filter(status => status !== "cancelled").length;
+  }
+  async function computeChurnedCount(startIso, endIso) {
+    const { data } = await supabaseClient
+      .from("packages")
+      .select("student_id, students!inner(is_group)")
+      .eq("students.is_group", true)
+      .eq("status", "cancelled")
+      .gte("cancelled_at", startIso).lt("cancelled_at", endIso);
+    return new Set((data ?? []).map(r => r.student_id)).size;
+  }
+
+  // ---------- Lead conversion rate ----------
+  // Counts every lead (private or group destination — leads.html itself
+  // doesn't distinguish) that reached a final outcome (converted or lost)
+  // this month, by when its status last changed (updated_at).
+  async function computeConversion(startIso, endIso) {
+    const { data } = await supabaseClient
+      .from("leads").select("status")
+      .in("status", ["converted", "lost"])
+      .gte("updated_at", startIso).lt("updated_at", endIso);
+    const converted = (data ?? []).filter(r => r.status === "converted").length;
+    const lost = (data ?? []).filter(r => r.status === "lost").length;
+    return { converted, lost, total: converted + lost };
+  }
+
+  function drawDonut(paid, unpaid) {
+    const ctx = document.getElementById("revenue-chart");
+    if (window.__revenueChart) window.__revenueChart.destroy();
+    window.__revenueChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        datasets: [{
+          data: [paid, unpaid] ,
+          backgroundColor: ["#1e6b34", "#d4d4d8"],
+          borderWidth: 0,
+        }],
+      },
+      options: { cutout: "70%", plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: false },
+    });
+  }
+
+  async function load() {
+    const thisMonth = monthBounds(0);
+    const lastMonth = monthBounds(-1);
+
+    const [revenueNow, revenuePrev] = await Promise.all([
+      computeRevenue(thisMonth.startDateStr, thisMonth.endDateStr),
+      computeRevenue(lastMonth.startDateStr, lastMonth.endDateStr),
+    ]);
+    document.getElementById("revenue-paid").textContent = `$${revenueNow.paid}`;
+    document.getElementById("revenue-unpaid").textContent = `$${revenueNow.unpaid}`;
+    document.getElementById("revenue-total").textContent = `$${revenueNow.total}`;
+    drawDonut(revenueNow.paid, revenueNow.unpaid);
+    renderTrend(document.getElementById("revenue-trend"), revenueNow.total, revenuePrev.total);
+
+    const [newNow, newPrev] = await Promise.all([
+      computeNewStudents(thisMonth.startDateStr, thisMonth.endDateStr),
+      computeNewStudents(lastMonth.startDateStr, lastMonth.endDateStr),
+    ]);
+    document.getElementById("new-students-count").textContent = newNow;
+    renderTrend(document.getElementById("new-students-trend"), newNow, newPrev);
+
+    const enrolledNow = await computeCurrentlyEnrolledCount();
+    const [churnedNow, churnedPrev] = await Promise.all([
+      computeChurnedCount(thisMonth.startIso, thisMonth.endIso),
+      computeChurnedCount(lastMonth.startIso, lastMonth.endIso),
+    ]);
+    const churnRateNow = (churnedNow + enrolledNow) > 0 ? (churnedNow / (churnedNow + enrolledNow)) * 100 : 0;
+    // Previous month's denominator can't be reconstructed exactly (we don't
+    // keep historical enrollment snapshots) — reuse today's enrolled count
+    // as a stand-in, which is fine for a rough month-over-month trend arrow.
+    const churnRatePrev = (churnedPrev + enrolledNow) > 0 ? (churnedPrev / (churnedPrev + enrolledNow)) * 100 : 0;
+    document.getElementById("churn-rate").textContent = `${churnRateNow.toFixed(1)}%`;
+    renderTrend(document.getElementById("churn-trend"), churnRateNow, churnRatePrev, { higherIsBetter: false });
+
+    const [convNow, convPrev] = await Promise.all([
+      computeConversion(thisMonth.startIso, thisMonth.endIso),
+      computeConversion(lastMonth.startIso, lastMonth.endIso),
+    ]);
+    const convRateNow = convNow.total > 0 ? (convNow.converted / convNow.total) * 100 : null;
+    const convRatePrev = convPrev.total > 0 ? (convPrev.converted / convPrev.total) * 100 : null;
+    document.getElementById("conversion-rate").textContent = convRateNow === null ? "—" : `${convRateNow.toFixed(0)}%`;
+    if (convRateNow === null) {
+      document.getElementById("conversion-trend").textContent = t("accounting.no_data");
+      document.getElementById("conversion-trend").className = "acct-trend flat";
+    } else {
+      renderTrend(document.getElementById("conversion-trend"), convRateNow, convRatePrev);
+    }
+  }
+
+  await load();
+})();
+</script>
+</body>
+</html>

@@ -25,24 +25,56 @@
   .student-filter-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
   .search-wrap { position: relative; width: 100%; max-width: 260px; }
   .search-wrap .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; opacity: 0.6; }
-  #student-search { width: 100%; padding-left: 30px; border-radius: 8px; border: 1px solid #d9d0c3; }
-  #student-class-filter { border-radius: 8px; border: 1px solid #d9d0c3; min-width: 160px; }
+  #student-search { width: 100%; padding-left: 30px; border-radius: 10px; border: 1px solid #d4d4d8; }
+  #student-class-filter { border-radius: 10px; border: 1px solid #d4d4d8; min-width: 160px; }
   .student-name-cell { cursor: pointer; }
   .student-name-cell:hover .student-name-link { text-decoration: underline; }
-  .student-name-cell .gender-tag { display: block; font-size: 11px; color: #8a8074; font-weight: normal; }
-  .whatsapp-link { color: #1e6b34; text-decoration: none; }
-  .whatsapp-link:hover { text-decoration: underline; }
-  .icon-delete-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #c9c0b3; padding: 2px 4px; border-radius: 4px; }
-  .icon-delete-btn:hover { color: #8a2e2e; background: #fdf2f2; }
+  .avatar {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    font-size: 11px; font-weight: 600; color: #fff;
+    margin-right: 8px; flex-shrink: 0; vertical-align: middle;
+  }
+  .avatar.gender-female { background: #f472b6; }
+  .avatar.gender-male { background: #60a5fa; }
+  .avatar.gender-unknown { background: #a1a1aa; }
+  .whatsapp-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #e7f9ee; color: #1e6b34; text-decoration: none;
+    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .whatsapp-link:hover { background: #d3f3e0; }
+  .toggle-switch { position: relative; display: inline-block; width: 34px; height: 19px; vertical-align: middle; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-switch .slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: #d4d4d8; border-radius: 999px; transition: background-color 0.15s ease;
+  }
+  .toggle-switch .slider::before {
+    content: ""; position: absolute; height: 13px; width: 13px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .toggle-switch input:checked + .slider { background: #18181b; }
+  .toggle-switch input:checked + .slider::before { transform: translateX(15px); }
+  .count-pill {
+    display: inline-block; background: #f4f4f5; color: #27272a;
+    padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  }
+  .count-pill-paid { background: #eff6ff; color: #1d4ed8; }
+  .count-pill-warn { background: #fdf1d6; color: #8a6314; }
+  .icon-delete-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #a1a1aa; padding: 2px 4px; border-radius: 4px; }
+  .icon-delete-btn:hover { color: #b91c1c; background: #fef2f2; }
 
   .toggle-btn-group { display: flex; gap: 8px; }
-  .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d9d0c3; border-radius: 6px; background: #ece7dd; color: #6b5c4f; cursor: pointer; font-size: 14px; }
-  .toggle-btn.active { background: #c5a059; border-color: #c5a059; color: #3d2b1f; font-weight: 600; }
+  .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; background: #f4f4f5; color: #71717a; cursor: pointer; font-size: 14px; }
+  .toggle-btn.active { background: #18181b; border-color: #18181b; color: #fff; font-weight: 600; }
 
   /* Wider dialogs (student edit/new) with fields grouped 2-per-row and a
      footer that stays put below a scrollable body, instead of every field
      stacking single-file and pushing Save off the bottom of the screen. */
-  dialog.wide-dialog { border: none; border-radius: 10px; padding: 0; width: 560px; max-width: 92vw; background: #fff; }
+  dialog.wide-dialog { border: none; border-radius: 16px; padding: 0; width: 560px; max-width: 92vw; background: #fff; }
   dialog.wide-dialog .dialog-body { padding: 20px 24px; max-height: 70vh; overflow-y: auto; }
   dialog.wide-dialog .dialog-body h1 { margin-top: 0; }
   dialog.wide-dialog .field-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-bottom: 10px; }
@@ -51,14 +83,14 @@
   dialog.wide-dialog label input, dialog.wide-dialog label select { width: 100%; box-sizing: border-box; }
   dialog.wide-dialog .full-width { display: flex; flex-direction: column; gap: 10px; }
   dialog.wide-dialog .dialog-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid #eee; }
-  .ghost-btn { background: none; border: none; color: #6b5c4f; cursor: pointer; padding: 8px 10px; font: inherit; }
-  .ghost-btn:hover { color: #2a2420; }
+  .ghost-btn { background: none; border: none; color: #71717a; cursor: pointer; padding: 8px 10px; font: inherit; }
+  .ghost-btn:hover { color: #18181b; }
   @media (max-width: 600px) {
     dialog.wide-dialog { width: 96vw; }
     dialog.wide-dialog .field-grid-2col { grid-template-columns: 1fr; }
   }
-  tr.row-withdrawn { color: #b0a89c; background: #faf8f4; }
-  tr.row-withdrawn a { color: #b0a89c; }
+  tr.row-withdrawn { color: #a1a1aa; background: #fafafa; }
+  tr.row-withdrawn a { color: #a1a1aa; }
   #grid-wrap { overflow-x: auto; }
   /* Fixed column widths so re-rendering the grid (e.g. after ticking
      attendance) never nudges columns sideways from content-width changes —
@@ -66,9 +98,9 @@
      content and shift things by a few pixels. */
   #grid-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; table-layout: fixed; }
   #grid-table th, #grid-table td { border: 1px solid #eee; padding: 6px 8px; text-align: center; overflow: hidden; text-overflow: ellipsis; }
-  #grid-table th.date-col, #grid-table td.date-col { text-align: left; font-weight: 600; color: #6b5c4f; width: 130px; }
+  #grid-table th.date-col, #grid-table td.date-col { text-align: left; font-weight: 600; color: #71717a; width: 130px; }
   #grid-table th:not(.date-col), #grid-table td:not(.date-col) { width: 100px; }
-  .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 14px; background: #ece7dd; color: #8a8074; cursor: pointer; font-weight: 600; }
+  .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 999px; background: #f4f4f5; color: #71717a; cursor: pointer; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
   .att-toggle:disabled { opacity: 0.55; cursor: default; }
   .att-toggle.att-attended { background: #1e6b34; color: #fff; }
   .att-toggle.att-leave { background: #b8863a; color: #fff; }
@@ -76,16 +108,16 @@
      instead of the same gold as a still-unprocessed leave, so it's obvious
      at a glance which ones still need a decision. */
   .att-toggle.att-leave-madeup { background: #cdeed4; color: #1e6b34; }
-  .att-toggle.att-no_show { background: #8a2e2e; color: #fff; }
-  .visitor-badge { color: #8a6314; font-weight: 600; }
-  #grid-table td.visitor-locked { color: #cfc7ba; background: #faf8f4; }
-  #grid-table tr.next-upcoming-row td { background: #fff6d9; }
-  #grid-table tr.term-divider-row td { background: #f5f2ec; text-align: center; font-weight: 600; color: #6b5c4f; white-space: normal; }
+  .att-toggle.att-no_show { background: #b91c1c; color: #fff; }
+  .visitor-badge { color: #52525b; font-weight: 600; }
+  #grid-table td.visitor-locked { color: #d4d4d8; background: #fafafa; }
+  #grid-table tr.next-upcoming-row td { background: #eff6ff; }
+  #grid-table tr.term-divider-row td { background: #f4f4f5; text-align: center; font-weight: 600; color: #71717a; white-space: normal; }
   #grid-table tr.term-divider-row td.date-col { text-align: left; }
-  #grid-table tr.term-divider-clickable td { cursor: pointer; color: #a89f92; font-weight: 500; }
+  #grid-table tr.term-divider-clickable td { cursor: pointer; color: #a1a1aa; font-weight: 500; }
   #grid-table tr.term-divider-row .expand-arrow { display: inline-block; width: 10px; font-size: 11px; transition: transform 0.15s; }
   #grid-table tr.term-divider-row .expand-arrow.open { transform: rotate(90deg); }
-  .makeup-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0ece5; font-size: 13px; }
+  .makeup-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f1; font-size: 13px; }
   .makeup-row select { font-size: 13px; padding: 4px 6px; }
   #grid-table.hide-withdrawn .withdrawn-col { display: none; }
   /* :not(.visitor-has-upcoming) is the auto-reveal exception — a make-up
@@ -93,31 +125,31 @@
      toggle off, since that's exactly the kind of thing easy to overlook
      with the column hidden by default. */
   #grid-table.hide-visitors .visitor-col:not(.visitor-has-upcoming) { display: none; }
-  #grid-lock-toggle-btn { font-size: 16px; width: 32px; height: 32px; padding: 0; line-height: 1; border-radius: 50%; border: 1px solid #d9d0c3; background: #fff; color: #6b5c4f; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-  #grid-lock-toggle-btn.locked { background: #f5f2ec; color: #8a6314; border-color: #e5ddd0; }
+  #grid-lock-toggle-btn { font-size: 16px; width: 32px; height: 32px; padding: 0; line-height: 1; border-radius: 50%; border: 1px solid #d4d4d8; background: #fff; color: #71717a; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  #grid-lock-toggle-btn.locked { background: #f4f4f5; color: #52525b; border-color: #e4e4e7; }
   #grid-section.edit-locked { pointer-events: none; opacity: 0.65; user-select: none; }
-  .reschedule-icon-btn { padding: 2px; vertical-align: -2px; color: #b0a89c; }
-  .reschedule-icon-btn:hover { color: #7a3b2e; }
+  .reschedule-icon-btn { padding: 2px; vertical-align: -2px; color: #a1a1aa; }
+  .reschedule-icon-btn:hover { color: #18181b; }
   .student-row { cursor: pointer; }
-  .student-row:hover { background: #faf8f4; }
+  .student-row:hover { background: #fafafa; }
   .expand-arrow { display: inline-block; width: 14px; transition: transform 0.15s; }
   .expand-arrow.open { transform: rotate(90deg); }
   .student-detail td { padding: 0 0 14px 0; }
   .term-cards { display: flex; flex-direction: column; gap: 10px; margin: 6px 26px 0 26px; }
-  .term-card { border: 1px solid #e5ddd0; border-radius: 8px; padding: 12px 14px; width: 100%; box-sizing: border-box; }
-  .term-card-header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; color: #4a4038; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0ece5; }
-  .term-card-header .term-label { font-weight: 600; color: #6b5c4f; }
-  .term-card-header .term-price { color: #8a8074; }
+  .term-card { border: 1px solid #e4e4e7; border-radius: 14px; padding: 12px 14px; width: 100%; box-sizing: border-box; }
+  .term-card-header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; color: #27272a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f1; }
+  .term-card-header .term-label { font-weight: 600; color: #71717a; }
+  .term-card-header .term-price { color: #71717a; }
   .term-card-header .term-extra-fee { color: #1e6b34; font-weight: 600; }
-  .term-card.term-card-collapsed { background: #f5f2ec; }
-  .term-card.term-card-collapsed .term-card-header { cursor: pointer; color: #a89f92; border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .term-card.term-card-collapsed { background: #f4f4f5; }
+  .term-card.term-card-collapsed .term-card-header { cursor: pointer; color: #a1a1aa; border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
   .term-card.term-card-collapsed .term-card-header .term-label,
-  .term-card.term-card-collapsed .term-card-header .term-price { color: #a89f92; }
+  .term-card.term-card-collapsed .term-card-header .term-price { color: #a1a1aa; }
   .term-card.term-card-collapsed .expand-arrow { width: 10px; font-size: 11px; }
   .detail-table { width: 100%; font-size: 13px; border-collapse: collapse; }
   .detail-table th, .detail-table td { padding: 4px 8px; text-align: left; }
-  .detail-table th { color: #8a8074; font-weight: 500; }
-  .detail-table tr:nth-child(even) { background: #faf8f4; }
+  .detail-table th { color: #71717a; font-weight: 500; }
+  .detail-table tr:nth-child(even) { background: #fafafa; }
 </style>
 </head>
 <body>
@@ -128,6 +160,7 @@
   <a href="packages.html" class="active" data-i18n="nav.packages">Packages</a>
   <a href="private.html" data-i18n="nav.private">Private Students</a>
   <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" data-i18n="nav.accounting">Accounting</a>
   <span class="spacer"></span>
   <div class="settings-wrap">
     <button id="settings-btn" title="Settings">⚙️</button>
@@ -191,15 +224,15 @@
     </label>
     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin:8px 0 0;">
       <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
-        <input type="checkbox" id="show-cancelled-classes-toggle" />
+        <span class="toggle-switch"><input type="checkbox" id="show-cancelled-classes-toggle" /><span class="slider"></span></span>
         <span data-i18n="attendance.show_cancelled_classes">Show cancelled classes</span>
       </label>
       <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
-        <input type="checkbox" id="show-withdrawn-toggle" />
+        <span class="toggle-switch"><input type="checkbox" id="show-withdrawn-toggle" /><span class="slider"></span></span>
         <span data-i18n="attendance.show_withdrawn">Show withdrawn students</span>
       </label>
       <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
-        <input type="checkbox" id="show-visitors-toggle" />
+        <span class="toggle-switch"><input type="checkbox" id="show-visitors-toggle" /><span class="slider"></span></span>
         <span data-i18n="attendance.show_visitors">Show make-up visitors</span>
       </label>
       <button type="button" id="grid-lock-toggle-btn" style="margin-left:auto;"></button>
@@ -211,7 +244,7 @@
 
       <h1 style="font-size:16px; margin-top:24px;" data-i18n="attendance.pending_makeups_title">Leave requests needing a decision</h1>
       <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
-        <input type="checkbox" id="show-processed-leaves-toggle" />
+        <span class="toggle-switch"><input type="checkbox" id="show-processed-leaves-toggle" /><span class="slider"></span></span>
         <span data-i18n="attendance.show_processed_leaves">Show processed leaves</span>
       </label>
       <div id="makeup-list"><p class="empty" data-i18n="attendance.pending_makeups_empty">None right now.</p></div>
@@ -221,7 +254,7 @@
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="payments.title">Payments</h1>
-      <label style="font-size:13px;"><input type="checkbox" id="unpaid-only" checked /> <span data-i18n="payments.unpaid_only">Show unpaid only</span></label>
+      <label style="font-size:13px; display:inline-flex; align-items:center; gap:6px;"><span class="toggle-switch"><input type="checkbox" id="unpaid-only" checked /><span class="slider"></span></span> <span data-i18n="payments.unpaid_only">Show unpaid only</span></label>
     </div>
     <table>
       <thead><tr>
@@ -264,7 +297,7 @@
         </div>
         <input type="hidden" id="student-needs-violin" value="not_needed" />
       </label>
-      <div id="student-edit-class-field" class="full-width" style="display:none; flex-direction:column; gap:10px; border-top:1px solid #e5ddd0; padding-top:10px;">
+      <div id="student-edit-class-field" class="full-width" style="display:none; flex-direction:column; gap:10px; border-top:1px solid #e4e4e7; padding-top:10px;">
         <label><span data-i18n="enroll.col_class">Class</span>
           <select id="student-edit-class"></select>
         </label>
@@ -277,7 +310,7 @@
   </form>
 </dialog>
 
-<dialog id="class-dialog" style="border:none; border-radius:10px; padding:0; width:360px;">
+<dialog id="class-dialog" style="border:none; border-radius:16px; padding:0; width:360px;">
   <form id="class-form" class="card" style="margin:0; box-shadow:none;">
     <h1 data-i18n="dialog.new_class">New class</h1>
     <div style="display:flex; flex-direction:column; gap:10px;">
@@ -301,7 +334,7 @@
       <label><span data-i18n="class.time">Start time</span>
         <input type="time" id="class-time" required />
       </label>
-      <p id="class-generate-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
+      <p id="class-generate-note" style="font-size:12px; color:#71717a; margin:0;"></p>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="class-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -310,7 +343,7 @@
   </form>
 </dialog>
 
-<dialog id="class-edit-dialog" style="border:none; border-radius:10px; padding:0; width:320px;">
+<dialog id="class-edit-dialog" style="border:none; border-radius:16px; padding:0; width:320px;">
   <form id="class-edit-form" class="card" style="margin:0; box-shadow:none;">
     <h1 data-i18n="dialog.edit_class">Edit class</h1>
     <input type="hidden" id="class-edit-id" />
@@ -331,7 +364,7 @@
         <input type="time" id="class-edit-time" required />
       </label>
       <label><span data-i18n="class.first_lesson_date">First lesson date</span> <input type="date" id="class-edit-first-lesson-date" required /></label>
-      <p id="class-edit-backfill-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
+      <p id="class-edit-backfill-note" style="font-size:12px; color:#71717a; margin:0;"></p>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="class-edit-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -343,15 +376,15 @@
 <!-- Extend a class: pick which upcoming weekly dates actually become lessons
      (untick a holiday and the next candidate date fills in instead), and
      confirm who's continuing — unticking a student marks them withdrawn. -->
-<dialog id="class-extend-dialog" style="border:none; border-radius:10px; padding:0; width:380px;">
+<dialog id="class-extend-dialog" style="border:none; border-radius:16px; padding:0; width:380px;">
   <form id="class-extend-form" class="card" style="margin:0; box-shadow:none;">
     <h1 data-i18n="classes.extend_dialog_title">Extend class</h1>
     <input type="hidden" id="class-extend-class-id" />
     <div style="display:flex; flex-direction:column; gap:10px;">
-      <p style="font-size:12px; color:#8a8074; margin:0; font-weight:600;" data-i18n="classes.extend_dates_label">Lesson dates (untick a holiday)</p>
+      <p style="font-size:12px; color:#71717a; margin:0; font-weight:600;" data-i18n="classes.extend_dates_label">Lesson dates (untick a holiday)</p>
       <div id="class-extend-date-list" style="display:flex; flex-direction:column; gap:4px;"></div>
-      <p id="class-extend-date-note" style="font-size:12px; color:#8a2e2e; margin:0;"></p>
-      <p style="font-size:12px; color:#8a8074; margin:8px 0 0 0; font-weight:600;" data-i18n="classes.extend_dialog_note">Untick a student who is not continuing — they'll be marked withdrawn.</p>
+      <p id="class-extend-date-note" style="font-size:12px; color:#b91c1c; margin:0;"></p>
+      <p style="font-size:12px; color:#71717a; margin:8px 0 0 0; font-weight:600;" data-i18n="classes.extend_dialog_note">Untick a student who is not continuing — they'll be marked withdrawn.</p>
       <div id="class-extend-student-list" style="display:flex; flex-direction:column; gap:6px;"></div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="class-extend-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
@@ -364,19 +397,19 @@
 <!-- Enroll dialog: always for one specific student (id in the hidden field) —
      opened either right after creating a new student, or via a "報名/Enroll"
      button on an existing student who currently has no active enrollment. -->
-<dialog id="enroll-dialog" style="border:none; border-radius:10px; padding:0; width:380px;">
+<dialog id="enroll-dialog" style="border:none; border-radius:16px; padding:0; width:380px;">
   <form id="enroll-form" class="card" style="margin:0; box-shadow:none;">
     <h1 data-i18n="dialog.new_enroll">New enrollment</h1>
     <input type="hidden" id="enroll-student-id" />
     <div style="display:flex; flex-direction:column; gap:10px;">
-      <p style="margin:0; font-size:13px; color:#8a8074;" id="enroll-student-name"></p>
+      <p style="margin:0; font-size:13px; color:#71717a;" id="enroll-student-name"></p>
       <label><span data-i18n="enroll.start_date">Start date</span>
         <input type="date" id="enroll-start-date" required />
       </label>
       <label><span data-i18n="enroll.class">Class</span>
         <select id="enroll-class" required></select>
       </label>
-      <p id="enroll-lessons-note" style="font-size:12px; color:#8a8074; margin:0;"></p>
+      <p id="enroll-lessons-note" style="font-size:12px; color:#71717a; margin:0;"></p>
       <input type="hidden" id="enroll-total-lessons" value="8" />
       <label><span data-i18n="enroll.price">Total price</span> <input type="number" id="enroll-price" value="2000" min="0" /></label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
@@ -387,21 +420,21 @@
   </form>
 </dialog>
 
-<dialog id="student-detail-dialog" style="border:none; border-radius:10px; padding:0; width:320px;">
+<dialog id="student-detail-dialog" style="border:none; border-radius:16px; padding:0; width:320px;">
   <div class="card" style="margin:0; box-shadow:none;">
     <h1 id="student-detail-name" data-i18n="packages.col_detail">Detail</h1>
     <div style="display:flex; flex-direction:column; gap:10px; font-size:14px;">
       <div>
-        <span style="color:#8a8074;" data-i18n="packages.col_join_date">Joined</span><br />
+        <span style="color:#71717a;" data-i18n="packages.col_join_date">Joined</span><br />
         <input type="date" id="student-detail-join-date-input" style="font-size:14px;" />
         <button type="button" class="link" id="student-detail-join-date-save" data-i18n="dialog.save">Save</button>
       </div>
-      <div><span style="color:#8a8074;" data-i18n="student.age">Age</span><br /><span id="student-detail-age"></span></div>
-      <div><span style="color:#8a8074;" data-i18n="package.total_lessons">Total lessons</span><br /><span id="student-detail-total-lessons"></span></div>
-      <div><span style="color:#8a8074;" data-i18n="packages.col_total_paid">Total paid</span><br /><span id="student-detail-price"></span></div>
-      <div><span style="color:#8a8074;" data-i18n="packages.col_leaves">Leaves used</span><br /><span id="student-detail-leaves"></span></div>
+      <div><span style="color:#71717a;" data-i18n="student.age">Age</span><br /><span id="student-detail-age"></span></div>
+      <div><span style="color:#71717a;" data-i18n="package.total_lessons">Total lessons</span><br /><span id="student-detail-total-lessons"></span></div>
+      <div><span style="color:#71717a;" data-i18n="packages.col_total_paid">Total paid</span><br /><span id="student-detail-price"></span></div>
+      <div><span style="color:#71717a;" data-i18n="packages.col_leaves">Leaves used</span><br /><span id="student-detail-leaves"></span></div>
       <div id="student-detail-withdrawn-row" style="display:none;">
-        <span style="color:#8a8074;" data-i18n="packages.withdrawn_date">Withdrawn on</span><br />
+        <span style="color:#71717a;" data-i18n="packages.withdrawn_date">Withdrawn on</span><br />
         <input type="date" id="student-detail-withdrawn-date-input" style="font-size:14px;" />
         <button type="button" class="link" id="student-detail-withdrawn-date-save" data-i18n="dialog.save">Save</button>
       </div>
@@ -416,7 +449,7 @@
      postponement) — moves just this one appointment to a new date/time;
      every other lesson in the class stays untouched, and since attendance
      rows key off the appointment's id (not its date), nobody's history moves. -->
-<dialog id="reschedule-dialog" style="border:none; border-radius:10px; padding:0; width:300px;">
+<dialog id="reschedule-dialog" style="border:none; border-radius:16px; padding:0; width:300px;">
   <form id="reschedule-form" class="card" style="margin:0; box-shadow:none;">
     <h1 data-i18n="attendance.reschedule_dialog_title">Reschedule lesson</h1>
     <input type="hidden" id="reschedule-appt-id" />
@@ -649,7 +682,7 @@
           <td style="white-space:nowrap;">
             <button class="link" data-edit-class="${cls.id}">${t("student.edit")}</button>
             <button class="link" data-extend-class="${cls.id}">${tf("classes.extend", { n: 8 })}</button>
-            <button class="link" data-cancel-class="${cls.id}" style="color:#8a2e2e;">${t("class.cancel")}</button>
+            <button class="link" data-cancel-class="${cls.id}" style="color:#b91c1c;">${t("class.cancel")}</button>
           </td>
         </tr>`;
     }));
@@ -867,15 +900,15 @@
       return `<div style="font-size:10px; color:#1e6b34; white-space:normal;">→${dateLabel}</div>`;
     }
     if (row.make_up_status === "deferred_to_next_package") {
-      return `<div style="font-size:10px; color:#8a6314; white-space:normal;">${t("makeup.deferred_to_next_package")}</div>`;
+      return `<div style="font-size:10px; color:#52525b; white-space:normal;">${t("makeup.deferred_to_next_package")}</div>`;
     }
     if (row.make_up_status === "pending") {
-      return `<div style="font-size:10px; color:#8a2e2e; white-space:normal;">${t("makeup.pending")}</div>`;
+      return `<div style="font-size:10px; color:#b91c1c; white-space:normal;">${t("makeup.pending")}</div>`;
     }
     if (row.make_up_status === "combined_with_private" && row.make_up_remark) {
       return `<div style="font-size:10px; color:#1e6b34; white-space:normal;">${row.make_up_remark}${combinedExtraSuffix(row)}</div>`;
     }
-    return `<div style="font-size:10px; color:#8a2e2e; font-weight:600; white-space:normal;">${t("makeup.unprocessed")}</div>`;
+    return `<div style="font-size:10px; color:#b91c1c; font-weight:600; white-space:normal;">${t("makeup.unprocessed")}</div>`;
   }
 
   function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap) {
@@ -938,7 +971,7 @@
     function dateRowHtml(a) {
       const dateLabel = new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" });
       const rescheduleNote = a.rescheduled_from
-        ? `<div style="font-size:10px; color:#8a6314; white-space:normal;">(補回${new Date(a.rescheduled_from).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}${a.reschedule_reason ? " " + a.reschedule_reason : ""})</div>`
+        ? `<div style="font-size:10px; color:#52525b; white-space:normal;">(補回${new Date(a.rescheduled_from).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}${a.reschedule_reason ? " " + a.reschedule_reason : ""})</div>`
         : "";
       const cells = columns.map(({ studentId, isVisitor, isWithdrawn }) => {
         const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
@@ -950,14 +983,14 @@
 
         const joinDate = joinDateMap?.get(studentId);
         if (!isVisitor && !isWithdrawn && joinDate && new Date(a.scheduled_start) < new Date(`${joinDate}T00:00:00`)) {
-          return `<td style="color:#b0a89c;">${t("attendance.not_joined_yet")}</td>`;
+          return `<td style="color:#a1a1aa;">${t("attendance.not_joined_yet")}</td>`;
         }
         const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
         return `
           <td${colClass(isWithdrawn, isVisitor, studentId)}>
             <button type="button" class="att-toggle ${attToggleClass(row)}" data-appt-id="${a.id}" data-student-id="${studentId}" data-attendance-id="${row?.id ?? ""}" data-status="${row?.status || ""}"${isPending ? " disabled" : ""}>${attendanceSymbol(row?.status)}</button>
             ${makeupNoteHtml(row, allGroupAppts)}
-            ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#8a2e2e; font-size:10px;">${t("student.delete")}</button>` : ""}
+            ${isVisitor && row ? `<button type="button" class="link" data-visitor-delete="${row.id}" style="color:#b91c1c; font-size:10px;">${t("student.delete")}</button>` : ""}
           </td>`;
       }).join("");
       const isNextUpcoming = nextUpcomingAppt && a.id === nextUpcomingAppt.id;
@@ -1241,7 +1274,7 @@
       return `
         <div class="makeup-row" data-attendance-id="${row.id}" data-student-id="${row.student_id}" data-appointment-id="${row.appointment_id}">
           <strong>${row.students?.contacts?.name ?? ""}</strong>
-          <span style="color:#8a8074;">${dateLabel}</span>
+          <span style="color:#71717a;">${dateLabel}</span>
           <select data-field="make_up_status">
             <option value="unprocessed" ${row.make_up_status === "unprocessed" || !row.make_up_status ? "selected" : ""}>${t("makeup.unprocessed")}</option>
             <option value="pending" ${row.make_up_status === "pending" ? "selected" : ""}>${t("makeup.pending")}</option>
@@ -1524,7 +1557,7 @@
           let statusLabel, statusColor;
           if (isDeferred) {
             statusLabel = t("makeup.deferred_to_next_package");
-            statusColor = "#8a2e2e";
+            statusColor = "#b91c1c";
           } else if (isMadeUp) {
             const target = paymentsAllGroupAppts.find(a => a.id === l.made_up_appointment_id);
             const dateLabel = target ? new Date(target.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "?";
@@ -1532,13 +1565,13 @@
             statusColor = "#1e6b34";
           } else if (l.status === "leave" && l.make_up_status === "pending") {
             statusLabel = t("makeup.pending");
-            statusColor = "#8a2e2e";
+            statusColor = "#b91c1c";
           } else if (l.status === "leave" && l.make_up_status === "combined_with_private") {
             statusLabel = `疊埋上私人堂(${l.make_up_remark ?? ""}${combinedExtraSuffix(l)})`;
             statusColor = "#1e6b34";
           } else if (l.status === "leave") {
             statusLabel = t("makeup.unprocessed");
-            statusColor = "#8a2e2e";
+            statusColor = "#b91c1c";
           } else {
             statusLabel = l.status ? t("attstatus." + l.status) : t("attstatus.unset");
             statusColor = "";
@@ -1587,9 +1620,9 @@
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
           <td>${student.name}</td>
           <td>${student.entries.length}</td>
-          <td>$${totalAmount}</td>
-          <td>${totalExtraFee > 0 ? `+$${totalExtraFee}` : "—"}</td>
-          <td>${paidCount} / ${allLessons.length}</td>
+          <td><span class="count-pill">$${totalAmount}</span></td>
+          <td>${totalExtraFee > 0 ? `<span class="count-pill count-pill-warn">+$${totalExtraFee}</span>` : "—"}</td>
+          <td><span class="count-pill count-pill-paid">${paidCount} / ${allLessons.length}</span></td>
         </tr>
         <tr class="student-detail" data-student-detail="${student.studentId}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
@@ -1747,7 +1780,7 @@
         <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
           <input type="checkbox" checked data-pkg-id="${p.id}" />
           <span style="flex:1;">${p.students?.contacts?.name ?? ""}</span>
-          <span style="font-size:12px; color:#8a8074;">$</span>
+          <span style="font-size:12px; color:#71717a;">$</span>
           <input type="number" data-pkg-price="${p.id}" value="${STANDARD_PRICE_PER_TERM}" min="0" style="width:70px; font-size:13px; padding:3px 5px;" />
         </label>`).join("");
     }
@@ -2151,13 +2184,13 @@
         : "—";
       const violinIcon = s.contacts?.violin_status === "buy" ? ' <span title="' + t("student.needs_violin") + '">🎻</span>'
         : s.contacts?.violin_status === "borrow" ? ' <span title="' + t("student.violin_borrow") + '">🔄</span>' : "";
-      const genderTag = s.contacts?.gender ? `<span class="gender-tag">${t("gender." + s.contacts.gender)}</span>` : "";
+      const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
+      const initial = (s.contacts?.name ?? "?").trim().charAt(0).toUpperCase() || "?";
 
       const html = `
         <tr${isWithdrawn ? ' class="row-withdrawn"' : ""}>
           <td class="student-name-cell" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-age="${s.contacts?.age ?? "—"}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">
-            <span class="student-name-link">${s.contacts?.name ?? ""}${violinIcon}</span>
-            ${genderTag}
+            <span class="avatar gender-${genderClass}">${initial}</span><span class="student-name-link">${s.contacts?.name ?? ""}${violinIcon}</span>
           </td>
           <td>${classCell}</td>
           <td>${whatsappCell}</td>

@@ -2,47 +2,55 @@
 body {
   font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   margin: 0;
-  background: #f7f5f2;
-  color: #2a2420;
+  background: #f7f7f8;
+  color: #18181b;
 }
 header.topnav {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 12px 20px;
-  background: #3d2b1f;
-  color: #fff;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(8px);
+  color: #18181b;
   flex-wrap: wrap;
+  border-bottom: 1px solid #e4e4e7;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
-header.topnav .brand { font-weight: 600; margin-right: 20px; display: inline-flex; align-items: center; gap: 8px; }
+header.topnav .brand { font-weight: 600; margin-right: 20px; display: inline-flex; align-items: center; gap: 8px; color: #18181b; }
 header.topnav .brand-logo { height: 28px; width: auto; display: block; }
 header.topnav a {
-  color: #eee2d6;
+  color: #52525b;
   text-decoration: none;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
   font-size: 14px;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
-header.topnav a.active, header.topnav a:hover { background: #5a4433; color: #fff; }
+header.topnav a.active, header.topnav a:hover { background: #f4f4f5; color: #18181b; }
 header.topnav .spacer { flex: 1; }
 header.topnav button {
   background: transparent;
-  border: 1px solid #8a6f56;
-  color: #eee2d6;
-  border-radius: 6px;
-  padding: 6px 12px;
+  border: 1px solid #d4d4d8;
+  color: #52525b;
+  border-radius: 999px;
+  padding: 6px 14px;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+header.topnav button:hover { background: #f4f4f5; border-color: #a1a1aa; color: #18181b; }
 .settings-wrap { position: relative; }
 .settings-menu {
   display: none;
   position: absolute;
   right: 0;
-  top: 120%;
+  top: 130%;
   background: #fff;
-  color: #2a2420;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  color: #18181b;
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 12px 28px rgba(0,0,0,0.14);
   padding: 10px;
   min-width: 220px;
   z-index: 50;
@@ -51,24 +59,29 @@ header.topnav button {
 }
 .settings-menu button {
   width: 100%;
-  border: 1px solid #d8cfc2;
-  color: #2a2420;
-  border-radius: 6px;
+  border: 1px solid #e4e4e7;
+  color: #18181b;
+  border-radius: 10px;
   padding: 8px 12px;
   cursor: pointer;
   background: #fff;
+  transition: background-color 0.15s ease;
 }
-.settings-menu button.danger { background: #8a2e2e; border-color: #8a2e2e; color: #fff; }
-#settings-lang-toggle { background: #7a3b2e; border-color: #7a3b2e; color: #fff; font-weight: 600; }
-#settings-lang-toggle:hover { background: #62301f; border-color: #62301f; }
+.settings-menu button:hover { background: #f4f4f5; }
+.settings-menu button.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+.settings-menu button.danger:hover { background: #b91c1c; }
+#settings-lang-toggle { background: #18181b; border-color: #18181b; color: #fff; font-weight: 600; }
+#settings-lang-toggle:hover { background: #000; border-color: #000; }
 .settings-menu hr { border: none; border-top: 1px solid #eee; margin: 2px 0; width: 100%; }
 main { padding: 20px; max-width: 1000px; margin: 0 auto; }
 h1 { font-size: 20px; margin: 0 0 16px; }
 .card {
   background: #fff;
-  border-radius: 10px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border-radius: 16px;
+  padding: 18px 20px;
+  /* Layered, diffuse shadow reads as "soft depth" rather than the single
+     hard-edged drop-shadow a flat admin table would use. */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 6px 16px rgba(0,0,0,0.05);
   margin-bottom: 16px;
   overflow-x: auto;
 }
@@ -76,26 +89,36 @@ h1 { font-size: 20px; margin: 0 0 16px; }
    narrow/mobile screen (every cell wrapping into an unreadable stack) —
    past that point the .card above scrolls horizontally instead. */
 table { width: 100%; min-width: max-content; border-collapse: collapse; font-size: 14px; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
-th { color: #6b5c4f; font-weight: 600; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f1; }
+th { color: #71717a; font-weight: 600; }
+tbody tr { transition: background-color 0.12s ease; }
+tbody tr:hover { background: #fafafa; }
 button, input, select {
   font: inherit;
   padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid #d8cfc4;
+  border-radius: 10px;
+  border: 1px solid #d4d4d8;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #a1a1aa;
+  box-shadow: 0 0 0 3px rgba(24,24,27,0.08);
 }
 button.primary {
-  background: #7a3b2e;
+  background: #18181b;
   color: #fff;
   border: none;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(24,24,27,0.25);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
-button.primary:hover { background: #62301f; }
-button.link { background: none; border: none; color: #7a3b2e; cursor: pointer; padding: 4px; }
+button.primary:hover { background: #000; box-shadow: 0 2px 6px rgba(24,24,27,0.3); }
+button.link { background: none; border: none; color: #18181b; cursor: pointer; padding: 4px; }
 form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .status-pill {
   display: inline-block;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -103,5 +126,5 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .status-confirmed { background: #e3f3e6; color: #1e6b34; }
 .status-pending_confirmation { background: #fdf1d6; color: #8a6314; }
 .status-completed { background: #e5e9f5; color: #2e3f8a; }
-.status-cancelled, .status-no_show { background: #f5e3e3; color: #8a2e2e; }
-.empty { color: #8a8074; font-style: italic; padding: 12px 0; }
+.status-cancelled, .status-no_show { background: #fef2f2; color: #b91c1c; }
+.empty { color: #a1a1aa; font-style: italic; padding: 12px 0; }

@@ -11,17 +11,17 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   #board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: start; }
-  .col-head { font-weight: 600; font-size: 13px; color: #6b5c4f; margin-bottom: 8px; }
-  .lead-card { background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.08); font-size: 13px; border-left: 4px solid #d9d0c3; }
+  .col-head { font-weight: 600; font-size: 13px; color: #71717a; margin-bottom: 8px; }
+  .lead-card { background: #fff; border-radius: 12px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 10px rgba(0,0,0,.05); font-size: 13px; border-left: 4px solid #e4e4e7; }
   .lead-card.source-facebook_ad { border-left-color: #4267B2; }
   .lead-card.source-whatsapp_direct { border-left-color: #25D366; }
   .lead-card.source-referral { border-left-color: #c9a15c; }
-  .lead-card.source-existing_student { border-left-color: #7a3b2e; }
+  .lead-card.source-existing_student { border-left-color: #52525b; }
   .lead-card.source-rednote { border-left-color: #ff2442; }
   .lead-card.source-instagram { border-left-color: #c13584; }
-  .lead-card .stage-age { color: #a89f92; font-size: 11px; }
+  .lead-card .stage-age { color: #a1a1aa; font-size: 11px; }
   .lead-card .name { font-weight: 600; }
-  .lead-card .meta { color: #8a8074; font-size: 12px; margin-top: 2px; }
+  .lead-card .meta { color: #71717a; font-size: 12px; margin-top: 2px; }
   .lead-card select, .lead-card input { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
   .consultation-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .consult-time-label { font-size: 11px; white-space: nowrap; }
@@ -29,14 +29,14 @@
   .cancel-consultation-btn {
     font-size: 11px;
     padding: 3px 8px;
-    border: 1px solid #d9a3a3;
+    border: 1px solid #fecaca;
     border-radius: 5px;
-    background: #fdf2f2;
-    color: #8a2e2e;
+    background: #fef2f2;
+    color: #b91c1c;
     cursor: pointer;
   }
-  .cancel-consultation-btn:hover { background: #fbe4e4; }
-  .delete-lead-btn { font-size: 11px; margin-top: 8px; color: #8a2e2e; }
+  .cancel-consultation-btn:hover { background: #fee2e2; }
+  .delete-lead-btn { font-size: 11px; margin-top: 8px; color: #b91c1c; }
   @media (max-width: 800px) { #board { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -48,6 +48,7 @@
   <a href="packages.html" data-i18n="nav.packages">Packages</a>
   <a href="private.html" data-i18n="nav.private">Private Students</a>
   <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" data-i18n="nav.accounting">Accounting</a>
   <span class="spacer"></span>
   <div class="settings-wrap">
     <button id="settings-btn" title="Settings">⚙️</button>
@@ -180,10 +181,10 @@
       const days = start ? daysSince(start) : null;
       const overdue = days !== null && days >= OVERDUE_DAYS;
       const dateCell = start
-        ? `${new Date(start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}<div style="font-size:11px;${overdue ? " color:#8a2e2e; font-weight:600;" : " color:#a89f92;"}">${tf("schedule.followup_days_ago", { n: days })}</div>`
+        ? `${new Date(start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}<div style="font-size:11px;${overdue ? " color:#b91c1c; font-weight:600;" : " color:#a1a1aa;"}">${tf("schedule.followup_days_ago", { n: days })}</div>`
         : "—";
       return `
-      <tr${overdue ? ' style="background:#fdf2f2;"' : ""}>
+      <tr${overdue ? ' style="background:#fef2f2;"' : ""}>
         <td>${l.contacts?.name ?? ""}</td>
         <td>${l.contacts?.whatsapp_number ?? ""}</td>
         <td>${dateCell}</td>

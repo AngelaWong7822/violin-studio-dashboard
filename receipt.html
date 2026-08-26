@@ -95,7 +95,7 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
   #receipt-controls .control-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-  #receipt-controls label { font-size: 11px; display: block; margin-bottom: 3px; color: #8a6314; letter-spacing: .5px; }
+  #receipt-controls label { font-size: 11px; display: block; margin-bottom: 3px; color: #18181b; letter-spacing: .5px; }
   #receipt-controls select { min-width: 200px; border-color: #d9d0c3; }
   #receipt-controls input:focus, #receipt-controls select:focus, #receipt-controls .combo-display:focus {
     outline: none;
@@ -104,20 +104,17 @@
   }
   #receipt-controls button.primary {
     padding: 8px 18px;
-    background: #c5a059;
-    border-color: #c5a059;
-    color: #3d2b1f;
+    background: #18181b;
+    border-color: #18181b;
+    color: #fff;
     font-weight: 600;
     border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(197, 160, 89, 0.35);
+    box-shadow: 0 2px 6px rgba(24, 24, 27, 0.25);
   }
-  #receipt-controls button.primary:hover { background: #b6924a; border-color: #b6924a; }
+  #receipt-controls button.primary:hover { background: #000; border-color: #000; }
   /* A visual seam, not a real gap — the paper "grows" out of the control
      bar above it rather than floating separately. */
   #receipt-sheet { margin-top: 0; border-radius: 0 0 4px 4px; }
-  /* Overrides shared.css's nav-active color for this page only — the
-     default is a bit heavy sitting above the lighter receipt paper below. */
-  header.topnav a.active { background: #8a6314; }
 
   /* Searchable combobox: a text field that opens a panel with its own
      search box at the top and a scrollable option list below, instead of
@@ -226,6 +223,7 @@
   <a href="packages.html" data-i18n="nav.packages">Packages</a>
   <a href="private.html" data-i18n="nav.private">Private Students</a>
   <a href="receipt.html" class="active" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" data-i18n="nav.accounting">Accounting</a>
   <span class="spacer"></span>
   <div class="settings-wrap">
     <button id="settings-btn" title="Settings">⚙️</button>
