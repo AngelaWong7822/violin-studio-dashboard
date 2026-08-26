@@ -21,6 +21,11 @@
   .avatar.gender-female { background: #f472b6; }
   .avatar.gender-male { background: #60a5fa; }
   .avatar.gender-unknown { background: #a1a1aa; }
+  .last-activity {
+    display: inline-block; margin-left: 8px; padding: 1px 8px;
+    background: #eff6ff; color: #1d4ed8; border-radius: 999px;
+    font-size: 11px; font-weight: 600; vertical-align: middle;
+  }
   .dialog-avatar {
     display: inline-flex; align-items: center; justify-content: center;
     width: 40px; height: 40px; border-radius: 50%;
@@ -272,7 +277,7 @@
     students = await Promise.all(data.map(async (s) => {
       const { data: appts } = await supabaseClient
         .from("appointments")
-        .select("id, scheduled_start, lesson_format, price, created_via")
+        .select("id, scheduled_start, lesson_format, price, created_via, created_at")
         .eq("student_id", s.id).eq("type", "lesson").is("class_id", null)
         .neq("status", "cancelled")
         .order("scheduled_start", { ascending: false });
@@ -292,13 +297,30 @@
           apptId: a.id, attendanceId: att?.id ?? null,
           when: a.scheduled_start, format: a.lesson_format, price: a.price ?? 0,
           status: att?.status ?? null, paid: att?.paid ?? false, created_via: a.created_via,
+          createdAt: a.created_at,
         };
       });
       // Badge shown next to the name so it's obvious at a glance which
       // students the WhatsApp AI added on its own vs. ones added by hand.
       const isAiCreated = lessons.some(l => l.created_via === "whatsapp_ai_auto" || l.created_via === "whatsapp_ai_confirmed_by_angela");
-      return { ...s, lessons, isAiCreated };
+      // Most recent lesson booking across this student's lessons — used to
+      // surface "who just had activity" (e.g. a WhatsApp auto-booking) at
+      // the top of the list instead of making Angela scan the whole table.
+      const lastActivityAt = lessons.length
+        ? lessons.reduce((latest, l) => (l.createdAt > latest ? l.createdAt : latest), lessons[0].createdAt)
+        : null;
+      return { ...s, lessons, isAiCreated, lastActivityAt };
     }));
+
+    // Students with recent lesson activity float to the top (most recent
+    // first); students with no lessons yet keep their original order
+    // (newest-created student first) at the bottom.
+    students.sort((a, b) => {
+      if (a.lastActivityAt && b.lastActivityAt) return b.lastActivityAt.localeCompare(a.lastActivityAt);
+      if (a.lastActivityAt) return -1;
+      if (b.lastActivityAt) return 1;
+      return 0;
+    });
 
     render();
   }
@@ -335,7 +357,7 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.lastActivityAt ? `<span class="last-activity">${timeAgo(s.lastActivityAt)}</span>` : ""}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
           <td><span class="count-pill">${s.lessons.length}</span></td>
