@@ -1251,16 +1251,18 @@
       const dateLabel = appt ? new Date(appt.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) : "";
       // Make-up target window: 14 days before the missed lesson (a make-up
       // slot in another class can land slightly earlier in the calendar
-      // even though it's "later" in that class's own sequence) through 1
-      // calendar month after. Whatever was already picked stays selectable
-      // even if it now falls outside the window, so an existing choice
-      // never silently disappears from the dropdown.
+      // even though it's "later" in that class's own sequence) through 3
+      // calendar months after (was 1 — too narrow for a make-up date that
+      // gets picked well after the leave was first logged). Whatever was
+      // already picked stays selectable even if it now falls outside the
+      // window, so an existing choice never silently disappears from the
+      // dropdown.
       let rangeStart = null, rangeEnd = null;
       if (appt) {
         rangeStart = new Date(appt.scheduled_start);
         rangeStart.setDate(rangeStart.getDate() - 14);
         rangeEnd = new Date(appt.scheduled_start);
-        rangeEnd.setMonth(rangeEnd.getMonth() + 1);
+        rangeEnd.setMonth(rangeEnd.getMonth() + 3);
       }
       const otherAppts = allGroupAppts.filter(a => a.class_id !== currentClassId && (
         a.id === row.made_up_appointment_id
