@@ -11,7 +11,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-  #board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: start; }
+  /* --col-count is set from JS to match however many columns are actually
+     visible (the "lost" column is hidden by default) — kept as a variable
+     rather than setting grid-template-columns directly from JS so the
+     mobile breakpoint below (a plain stylesheet rule) can still override
+     it normally instead of losing to an inline style. */
+  #board { display: grid; grid-template-columns: repeat(var(--col-count, 4), 1fr); gap: 10px; align-items: start; }
   .col-head { font-weight: 600; font-size: 13px; color: #71717a; margin-bottom: 8px; }
   .lead-card { background: #fff; border-radius: 12px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 10px rgba(0,0,0,.05); font-size: 13px; border-left: 4px solid #e4e4e7; }
   .lead-card.source-facebook_ad { border-left-color: #4267B2; }
@@ -39,6 +44,19 @@
   .cancel-consultation-btn:hover { background: #fee2e2; }
   .delete-lead-btn { font-size: 11px; margin-top: 8px; color: #b91c1c; }
   @media (max-width: 800px) { #board { grid-template-columns: 1fr; } }
+  .toggle-switch { position: relative; display: inline-block; width: 34px; height: 19px; vertical-align: middle; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-switch .slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: #d4d4d8; border-radius: 999px; transition: background-color 0.15s ease;
+  }
+  .toggle-switch .slider::before {
+    content: ""; position: absolute; height: 13px; width: 13px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .toggle-switch input:checked + .slider { background: #18181b; }
+  .toggle-switch input:checked + .slider::before { transform: translateX(15px); }
 </style>
 </head>
 <body>
@@ -75,9 +93,15 @@
   </div>
 
   <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap;">
       <h1 style="margin:0;" data-i18n="leads.title">Leads pipeline</h1>
-      <button class="primary" id="new-lead-btn" data-i18n="leads.new">+ New lead</button>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+          <span class="toggle-switch"><input type="checkbox" id="show-lost-toggle" /><span class="slider"></span></span>
+          <span data-i18n="leads.show_lost">Show lost</span>
+        </label>
+        <button class="primary" id="new-lead-btn" data-i18n="leads.new">+ New lead</button>
+      </div>
     </div>
     <div id="board"></div>
   </div>
@@ -126,6 +150,8 @@
   window.onLangChange = () => { loadFollowUps(); loadBoard(); };
 
   const STATUSES = ["consultation_booked", "attended", "converted", "lost"];
+  const showLostToggle = document.getElementById("show-lost-toggle");
+  showLostToggle.addEventListener("change", loadBoard);
 
   // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the *local* timezone —
   // building it from the local getters (not toISOString, which is UTC)
@@ -206,7 +232,14 @@
       return;
     }
 
-    STATUSES.forEach(status => {
+    // "Lost" is hidden by default — it's the one column that never needs
+    // action once a lead lands there, so keeping it out of sight avoids
+    // permanently reserving a column for dead leads. The toggle brings it
+    // back when actually reviewing lost leads.
+    const visibleStatuses = showLostToggle.checked ? STATUSES : STATUSES.filter(s => s !== "lost");
+    board.style.setProperty("--col-count", visibleStatuses.length);
+
+    visibleStatuses.forEach(status => {
       const col = document.createElement("div");
       const head = document.createElement("div");
       head.className = "col-head";
