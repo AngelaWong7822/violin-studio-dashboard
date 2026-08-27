@@ -276,6 +276,12 @@
   </div>
 
   <div class="card">
+    <h1 data-i18n="reply_templates.title">💌 Quick replies</h1>
+    <p style="color:#71717a; font-size:13px; margin:-8px 0 12px;" data-i18n="reply_templates.subtitle">Copy a reply for a parent's homework message.</p>
+    <div id="reply-templates-list" class="reply-templates-wrap"></div>
+  </div>
+
+  <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="payments.title">Payments</h1>
       <label style="font-size:13px; display:inline-flex; align-items:center; gap:6px;"><span class="toggle-switch"><input type="checkbox" id="unpaid-only" checked /><span class="slider"></span></span> <span data-i18n="payments.unpaid_only">Show unpaid only</span></label>
@@ -504,7 +510,8 @@
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
   initSettingsMenu();
-  window.onLangChange = () => { loadClasses(); loadStudents(); };
+  initReplyTemplates();
+  window.onLangChange = () => { loadClasses(); loadStudents(); window.renderReplyTemplates?.(); };
 
   let students = [];
   let classes = [];
@@ -2678,6 +2685,125 @@
   await loadClasses();
   await loadStudents();
 })();
+
+// Quick-reply template cards (packages.html only) — copy-paste prompts for
+// replying to a parent's homework message. mac-listener never sends a
+// WhatsApp message itself (see mac-listener/index.js's hard rule), so this
+// is copy-to-clipboard only; the actual reply is still typed/sent by hand.
+// Shared across both logins via the `reply_templates` table rather than
+// localStorage, since either Angela or the boyfriend may be the one replying.
+async function initReplyTemplates() {
+  const list = document.getElementById("reply-templates-list");
+  if (!list) return;
+
+  let templates = [];
+  let loadError = null;
+
+  async function load() {
+    const { data, error } = await supabaseClient
+      .from("reply_templates").select("*").order("created_at", { ascending: true });
+    // Render either way — even on error (e.g. the table not existing yet)
+    // the "add your own" box below must still show, instead of leaving the
+    // whole card silently blank with no visible feedback.
+    loadError = error;
+    if (error) console.error(error);
+    templates = data ?? [];
+    render();
+  }
+
+  function render() {
+    list.innerHTML = "";
+
+    if (loadError) {
+      const p = document.createElement("p");
+      p.className = "empty";
+      p.textContent = tf("reply_templates.load_failed", { detail: loadError.message });
+      list.appendChild(p);
+    } else if (!templates.length) {
+      const p = document.createElement("p");
+      p.className = "empty";
+      p.textContent = t("reply_templates.empty");
+      list.appendChild(p);
+    }
+
+    for (const tpl of templates) {
+      const card = document.createElement("div");
+      card.className = "reply-template-card";
+
+      const textDiv = document.createElement("div");
+      textDiv.textContent = tpl.text;
+      card.appendChild(textDiv);
+
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "rt-delete-btn";
+      delBtn.textContent = "🗑️";
+      delBtn.title = t("reply_templates.delete");
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(t("reply_templates.confirm_delete"))) return;
+        const { error } = await supabaseClient.from("reply_templates").delete().eq("id", tpl.id);
+        if (error) { alert(error.message); return; }
+        await load();
+      });
+      card.appendChild(delBtn);
+
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "rt-copy-btn";
+      copyBtn.textContent = t("reply_templates.copy");
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(tpl.text);
+        } catch {
+          // Clipboard API needs a secure context/permission — fall back to
+          // the old select+execCommand trick so copying still works.
+          const ta = document.createElement("textarea");
+          ta.value = tpl.text;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        }
+        copyBtn.textContent = t("reply_templates.copied");
+        copyBtn.classList.add("rt-copied");
+        setTimeout(() => {
+          copyBtn.textContent = t("reply_templates.copy");
+          copyBtn.classList.remove("rt-copied");
+        }, 1500);
+      });
+      card.appendChild(copyBtn);
+
+      list.appendChild(card);
+    }
+
+    // "Add your own" card, always last.
+    const addCard = document.createElement("div");
+    addCard.className = "reply-template-add";
+    const textarea = document.createElement("textarea");
+    textarea.placeholder = t("reply_templates.add_placeholder");
+    addCard.appendChild(textarea);
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "primary";
+    addBtn.textContent = t("reply_templates.add_btn");
+    addBtn.addEventListener("click", async () => {
+      const text = textarea.value.trim();
+      if (!text) return;
+      addBtn.disabled = true;
+      const { error } = await supabaseClient.from("reply_templates").insert({ text });
+      addBtn.disabled = false;
+      if (error) { alert(error.message); return; }
+      await load();
+    });
+    addCard.appendChild(addBtn);
+    list.appendChild(addCard);
+  }
+
+  window.renderReplyTemplates = render; // re-run on language toggle to relabel buttons
+  await load();
+}
 </script>
 </body>
 </html>
