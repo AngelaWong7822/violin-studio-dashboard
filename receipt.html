@@ -231,8 +231,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
-      <hr />
-      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
@@ -1043,7 +1041,7 @@
 
       doc.save(filename);
     } catch (err) {
-      alert("Save failed: " + err.message);
+      showToast("Save failed: " + err.message, "error");
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;

@@ -1,13 +1,6 @@
 // Shared "⚙️" settings menu used by every dashboard page — houses the
-// language toggle and the full data-wipe utility (for UAT resets), so both
-// live in one place instead of being duplicated per page.
-
-// Tables in FK-safe delete order: children before the parents they reference.
-const WIPE_TABLES_IN_ORDER = [
-  "attendance", "pending_actions", "messages", "packages",
-  "appointments", "availability_blocks", "leads", "students", "classes", "contacts",
-];
-const WIPE_CONFIRM_PHRASE = "DELETE";
+// language toggle and the Excel export, so both live in one place instead
+// of being duplicated per page.
 
 // ---------- Export: Attendance + Payment sheets (group classes only) ----------
 // Two report-style sheets that read like the app's own Attendance/Payments
@@ -141,6 +134,53 @@ function buildPaymentSheetRows(data) {
   return rows.length ? rows : [["冇小組課資料"]];
 }
 
+// ---------- Toast + custom confirm/prompt (replacing native alert/confirm/prompt) ----------
+// Shared across every page via this one file, matching the app's own
+// styling instead of a jarring native browser popup.
+
+function showToast(message, type = "default", duration = 2500) {
+  let container = document.getElementById("toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("toast-show"));
+  setTimeout(() => {
+    toast.classList.remove("toast-show");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+  }, duration);
+}
+
+// Yes/No confirm — replaces confirm() for destructive actions.
+function showConfirm(message, { danger = true } = {}) {
+  return new Promise((resolve) => {
+    const dlg = document.createElement("dialog");
+    dlg.className = "confirm-dialog";
+    dlg.innerHTML = `
+      <p class="confirm-message"></p>
+      <div class="confirm-actions">
+        <button type="button" class="confirm-cancel">${t("common.cancel")}</button>
+        <button type="button" class="confirm-ok ${danger ? "danger" : "primary"}">${t("common.confirm")}</button>
+      </div>`;
+    dlg.querySelector(".confirm-message").textContent = message;
+    document.body.appendChild(dlg);
+    dlg.showModal();
+    function cleanup(result) {
+      dlg.close();
+      dlg.addEventListener("close", () => dlg.remove(), { once: true });
+      resolve(result);
+    }
+    dlg.querySelector(".confirm-cancel").addEventListener("click", () => cleanup(false));
+    dlg.querySelector(".confirm-ok").addEventListener("click", () => cleanup(true));
+    dlg.addEventListener("cancel", () => cleanup(false)); // Esc key
+  });
+}
+
 function initSettingsMenu() {
   const btn = document.getElementById("settings-btn");
   const menu = document.getElementById("settings-menu");
@@ -219,49 +259,13 @@ function initSettingsMenu() {
 
         const today = new Date().toISOString().slice(0, 10);
         XLSX.writeFile(wb, `violin-studio-backup-${today}.xlsx`);
+        showToast(t("settings.export_done"), "success");
       } catch (err) {
-        alert(tf("settings.export_failed", { detail: err.message }));
+        showToast(tf("settings.export_failed", { detail: err.message }), "error");
       } finally {
         exportBtn.disabled = false;
         exportBtn.textContent = originalLabel;
       }
-    });
-  }
-
-  const wipeBtn = document.getElementById("settings-wipe-btn");
-  if (wipeBtn) {
-    wipeBtn.addEventListener("click", async () => {
-      const typed = prompt(tf("settings.wipe_prompt", { phrase: WIPE_CONFIRM_PHRASE }));
-      if (typed === null) return;
-      if (typed !== WIPE_CONFIRM_PHRASE) { alert(t("settings.wipe_mismatch")); return; }
-
-      wipeBtn.disabled = true;
-      const originalLabel = wipeBtn.textContent;
-      wipeBtn.textContent = t("settings.wiping_calendar");
-
-      const { data: calendarResult, error: calendarError } = await supabaseClient.functions.invoke("wipe-calendar-events");
-      if (calendarError || !calendarResult?.ok) {
-        const detail = calendarError?.message || (calendarResult?.failed ?? []).join("; ") || "unknown error";
-        alert(tf("settings.wipe_calendar_failed", { detail }));
-        wipeBtn.disabled = false;
-        wipeBtn.textContent = originalLabel;
-        return;
-      }
-
-      wipeBtn.textContent = t("settings.wiping");
-
-      for (const table of WIPE_TABLES_IN_ORDER) {
-        const { error } = await supabaseClient
-          .from(table).delete().neq("id", "00000000-0000-0000-0000-000000000000");
-        if (error) {
-          alert(`${table}: ${error.message}`);
-          wipeBtn.disabled = false;
-          wipeBtn.textContent = originalLabel;
-          return;
-        }
-      }
-      alert(t("settings.wipe_done"));
-      location.reload();
     });
   }
 }

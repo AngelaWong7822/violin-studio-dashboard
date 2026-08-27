@@ -56,8 +56,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
-      <hr />
-      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
@@ -268,7 +266,7 @@
               .from("appointments")
               .update({ scheduled_start: start.toISOString(), scheduled_end: end.toISOString() })
               .eq("id", lead.consultation_appointment_id);
-            if (error) { alert("Update failed: " + error.message); return; }
+            if (error) { showToast("Update failed: " + error.message, "error"); return; }
             await loadBoard();
           });
           consultRow.appendChild(timeInput);
@@ -277,13 +275,13 @@
           cancelBtn.className = "cancel-consultation-btn";
           cancelBtn.textContent = t("lead.cancel_consultation");
           cancelBtn.addEventListener("click", async () => {
-            if (!confirm(t("lead.cancel_consultation_confirm"))) return;
+            if (!(await showConfirm(t("lead.cancel_consultation_confirm")))) return;
             const { error: apptError } = await supabaseClient
               .from("appointments").update({ status: "cancelled" }).eq("id", lead.consultation_appointment_id);
-            if (apptError) { alert("Cancel failed: " + apptError.message); return; }
+            if (apptError) { showToast("Cancel failed: " + apptError.message, "error"); return; }
             const { error: leadError } = await supabaseClient
               .from("leads").update({ consultation_appointment_id: null }).eq("id", lead.id);
-            if (leadError) { alert("Update failed: " + leadError.message); return; }
+            if (leadError) { showToast("Update failed: " + leadError.message, "error"); return; }
             await loadBoard();
           });
           consultRow.appendChild(cancelBtn);
@@ -303,7 +301,7 @@
             .from("leads")
             .update({ status: select.value, updated_at: new Date().toISOString() })
             .eq("id", lead.id);
-          if (error) { alert("Update failed: " + error.message); return; }
+          if (error) { showToast("Update failed: " + error.message, "error"); return; }
           // Marking "attended" also marks their consultation appointment
           // "completed" — that appointments-table update is what the
           // Google Calendar sync webhook actually reacts to (it turns the
@@ -325,7 +323,7 @@
             .from("leads")
             .update({ preferred_times: preferredTimesInput.value || null })
             .eq("id", lead.id);
-          if (error) alert("Update failed: " + error.message);
+          if (error) showToast("Update failed: " + error.message, "error");
         });
         card.appendChild(preferredTimesInput);
 
@@ -342,7 +340,7 @@
             .from("contacts")
             .update({ notes: notesInput.value || null })
             .eq("id", lead.contact_id);
-          if (error) alert("Update failed: " + error.message);
+          if (error) showToast("Update failed: " + error.message, "error");
         });
         card.appendChild(notesInput);
 
@@ -356,7 +354,7 @@
               .from("leads")
               .update({ lost_reason: lostReasonInput.value || null })
               .eq("id", lead.id);
-            if (error) alert("Update failed: " + error.message);
+            if (error) showToast("Update failed: " + error.message, "error");
           });
           card.appendChild(lostReasonInput);
         }
@@ -380,7 +378,7 @@
   // students/private-students record; deleting it would silently wipe that
   // person's whole enrollment history too.
   async function deleteLead(lead) {
-    if (!confirm(tf("lead.delete_confirm", { name: lead.contacts?.name ?? "" }))) return;
+    if (!(await showConfirm(tf("lead.delete_confirm", { name: lead.contacts?.name ?? "" })))) return;
 
     // appointments.lead_id points back at this row, so deleting it outright
     // would hit that foreign key. Cancel first (status update is what the
@@ -389,10 +387,10 @@
     // then unlink, clearing the way for the lead delete below.
     const { error: apptError } = await supabaseClient
       .from("appointments").update({ status: "cancelled", lead_id: null }).eq("lead_id", lead.id);
-    if (apptError) { alert("Delete failed: " + apptError.message); return; }
+    if (apptError) { showToast("Delete failed: " + apptError.message, "error"); return; }
 
     const { error } = await supabaseClient.from("leads").delete().eq("id", lead.id);
-    if (error) { alert("Delete failed: " + error.message); return; }
+    if (error) { showToast("Delete failed: " + error.message, "error"); return; }
     await loadFollowUps();
     await loadBoard();
   }
@@ -428,12 +426,12 @@
     if (contact) {
       const { error } = await supabaseClient
         .from("contacts").update({ name, social_media_name, level, age, source }).eq("id", contact.id);
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { data: newContact, error } = await supabaseClient
         .from("contacts").insert({ name, whatsapp_number, social_media_name, level, age, source })
         .select().single();
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
       contact = newContact;
     }
 
@@ -449,14 +447,14 @@
         .from("leads")
         .update({ status: "consultation_booked", preferred_times, updated_at: new Date().toISOString() })
         .eq("id", existingLead.id).select().single();
-      if (leadError) { alert("Save failed: " + leadError.message); return; }
+      if (leadError) { showToast("Save failed: " + leadError.message, "error"); return; }
       lead = updatedLead;
     } else {
       const { data: newLead, error: leadError } = await supabaseClient
         .from("leads")
         .insert({ contact_id: contact.id, status: "consultation_booked", preferred_times })
         .select().single();
-      if (leadError) { alert("Save failed: " + leadError.message); return; }
+      if (leadError) { showToast("Save failed: " + leadError.message, "error"); return; }
       lead = newLead;
     }
 
@@ -475,7 +473,7 @@
           status: "confirmed", notes: name,
         })
         .select().single();
-      if (apptError) { alert("Lead saved, but couldn't book the consultation: " + apptError.message); }
+      if (apptError) { showToast("Lead saved, but couldn't book the consultation: " + apptError.message, "error", 5000); }
       else {
         await supabaseClient.from("leads").update({ consultation_appointment_id: appt.id }).eq("id", lead.id);
       }

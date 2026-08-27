@@ -95,12 +95,22 @@ th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f1;
 th { color: #71717a; font-weight: 600; }
 tbody tr { transition: background-color 0.12s ease; }
 tbody tr:hover { background: #fafafa; }
+/* A thin accent bar slides in on the leading cell of a hovered row — a
+   small extra cue for tracking which row you're on in a wide/dense table,
+   on top of the background tint. */
+tbody tr td:first-child { position: relative; }
+tbody tr td:first-child::before {
+  content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
+  background: #a1a1aa; border-radius: 0 3px 3px 0;
+  transform: scaleY(0); transform-origin: center; transition: transform 0.15s ease;
+}
+tbody tr:hover td:first-child::before { transform: scaleY(1); }
 button, input, select {
   font: inherit;
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid #d4d4d8;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 input:focus, select:focus, textarea:focus {
   outline: none;
@@ -113,9 +123,13 @@ button.primary {
   border: none;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(24,24,27,0.25);
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 button.primary:hover { background: #000; box-shadow: 0 2px 6px rgba(24,24,27,0.3); }
+/* Press feedback — a small "give" under the finger/cursor so clicking
+   reads as a physical action instead of an instant, weightless toggle. */
+button:active { transform: scale(0.97); }
+button:disabled:active { transform: none; }
 button.link { background: none; border: none; color: #18181b; cursor: pointer; padding: 4px; }
 form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .status-pill {
@@ -129,7 +143,90 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .status-pending_confirmation { background: #fdf1d6; color: #8a6314; }
 .status-completed { background: #e5e9f5; color: #2e3f8a; }
 .status-cancelled, .status-no_show { background: #fef2f2; color: #b91c1c; }
-.empty { color: #a1a1aa; font-style: italic; padding: 12px 0; }
+/* Darker than the app's usual muted gray (#a1a1aa reads too faint for body
+   copy — under ~2.5:1 contrast on white) since this is a message meant to
+   actually be read, not de-emphasized chrome. Not italic either — italics
+   read worse paired with a leading emoji and don't add anything here. */
+.empty { color: #71717a; padding: 14px 0; }
+
+/* Cards settle in one after another on page load instead of all popping in
+   at once — "backwards" fill-mode holds the from-state during each card's
+   delay so nothing flashes at full opacity before its turn. Scoped to
+   direct children of <main> only, so a .card reused inside a dialog (e.g.
+   the student-detail dialog) is unaffected. */
+main > .card { animation: card-in 0.35s ease backwards; }
+main > .card:nth-child(1) { animation-delay: 0s; }
+main > .card:nth-child(2) { animation-delay: 0.06s; }
+main > .card:nth-child(3) { animation-delay: 0.12s; }
+main > .card:nth-child(4) { animation-delay: 0.18s; }
+main > .card:nth-child(5) { animation-delay: 0.24s; }
+main > .card:nth-child(6) { animation-delay: 0.3s; }
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  main > .card { animation: none; }
+}
+
+/* Toast notifications — a small, temporary slide-in replacing most native
+   alert() popups, which look jarringly out of place against this app's own
+   styling. Reserved for success/info/error feedback; a destructive action
+   (delete, wipe) still gets a deliberate confirm step, just via
+   .confirm-dialog below instead of the browser's own confirm()/prompt(). */
+#toast-container {
+  position: fixed; top: 16px; right: 16px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+  pointer-events: none;
+}
+.toast {
+  background: #18181b; color: #fff; padding: 10px 16px; border-radius: 10px;
+  font-size: 13px; font-weight: 500; line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.2); max-width: 320px;
+  transform: translateX(calc(100% + 24px)); opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.34, 1.15, 0.64, 1), opacity 0.2s ease;
+  pointer-events: auto;
+}
+.toast.toast-show { transform: translateX(0); opacity: 1; }
+.toast.toast-success { background: #1e6b34; }
+.toast.toast-error { background: #b91c1c; }
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: opacity 0.2s ease; }
+}
+
+/* Custom confirm/prompt dialog — replaces confirm()/prompt() for
+   destructive actions, keeping the same "make the user deliberately
+   confirm" friction but styled to match the app instead of a native
+   browser popup. */
+.confirm-dialog { border: none; border-radius: 16px; padding: 20px; width: 320px; }
+.confirm-dialog .confirm-message { margin: 0 0 16px; font-size: 14px; line-height: 1.5; white-space: pre-line; }
+.confirm-dialog input[type="text"] { width: 100%; margin-bottom: 16px; }
+.confirm-dialog .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm-dialog button.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+.confirm-dialog button.danger:hover { background: #b91c1c; }
+.confirm-dialog button.danger:disabled { background: #f4a3a3; border-color: #f4a3a3; cursor: not-allowed; }
+
+/* Dialogs fade + scale in with a soft backdrop blur instead of the browser's
+   instant show/hide — @starting-style lets a plain CSS transition animate
+   the very first frame a <dialog> opens (supported in current Chrome/Edge,
+   which is what this app is used with; older browsers just skip the
+   transition and show the dialog instantly, no worse than before). */
+dialog {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 0.18s ease, transform 0.18s ease, overlay 0.18s allow-discrete, display 0.18s allow-discrete;
+}
+@starting-style {
+  dialog[open] { opacity: 0; transform: scale(0.96); }
+}
+dialog::backdrop {
+  background: rgba(24,24,27,0.35);
+  backdrop-filter: blur(2px);
+  transition: background-color 0.18s ease, backdrop-filter 0.18s ease, overlay 0.18s allow-discrete, display 0.18s allow-discrete;
+}
+@starting-style {
+  dialog[open]::backdrop { background: rgba(24,24,27,0); backdrop-filter: blur(0px); }
+}
 
 /* Quick-reply template cards — deliberately warmer/softer than the rest of
    the (neutral zinc) UI, since these are little sticky-note-style prompts

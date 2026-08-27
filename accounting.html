@@ -32,7 +32,7 @@
   .dot-unpaid { background: #d4d4d8; }
   .acct-stat-number { font-size: 32px; font-weight: 700; color: #18181b; }
   .acct-card-footer { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
-  .acct-note { font-size: 10px; line-height: 1.4; color: #a1a1aa; margin: 0; }
+  .acct-note { font-size: 10px; line-height: 1.4; color: #71717a; margin: 0; }
 </style>
 </head>
 <body>
@@ -50,8 +50,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
-      <hr />
-      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
@@ -311,6 +309,29 @@
     return { converted, lost, total: converted + lost };
   }
 
+  // Counts a stat number up from 0 to its final value instead of just
+  // popping the text in — parses the numeric part out of whatever
+  // formatting the caller already produced ($1,234 / 12 / 34% / —), so the
+  // exact final string (currency sign, thousands separators, % sign) is
+  // always what's left on screen once the animation ends.
+  function animateNumber(el, finalText, duration = 700) {
+    const match = String(finalText).match(/^([^\d-]*)(-?[\d,]+(?:\.\d+)?)(.*)$/);
+    if (!match) { el.textContent = finalText; return; } // e.g. "—" (no data)
+    const [, prefix, numStr, suffix] = match;
+    const target = parseFloat(numStr.replace(/,/g, ""));
+    const decimals = numStr.includes(".") ? numStr.split(".")[1].length : 0;
+    const start = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      if (progress >= 1) { el.textContent = finalText; return; }
+      const value = target * eased;
+      el.textContent = `${prefix}${value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${suffix}`;
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
   function drawDonut(paid, unpaid) {
     const ctx = document.getElementById("revenue-chart");
     if (window.__revenueChart) window.__revenueChart.destroy();
@@ -341,16 +362,16 @@
       ]),
       fetchAllGroupPackages(),
     ]);
-    document.getElementById("revenue-paid").textContent = `$${revenueNow.paid}`;
-    document.getElementById("revenue-unpaid").textContent = `$${revenueNow.unpaid}`;
-    document.getElementById("revenue-total").textContent = `$${revenueNow.total}`;
+    animateNumber(document.getElementById("revenue-paid"), `$${revenueNow.paid}`);
+    animateNumber(document.getElementById("revenue-unpaid"), `$${revenueNow.unpaid}`);
+    animateNumber(document.getElementById("revenue-total"), `$${revenueNow.total}`);
     drawDonut(revenueNow.paid, revenueNow.unpaid);
     renderTrend(document.getElementById("revenue-trend"), revenueNow.total, revenuePrev.total);
     document.getElementById("revenue-prev-month").textContent = tf("accounting.prev_month_revenue", { amount: revenuePrev.total });
 
     const newNow = countNewStudents(allGroupPkgs, thisMonth.startDateStr, thisMonth.endDateStr);
     const newPrev = countNewStudents(allGroupPkgs, lastMonth.startDateStr, lastMonth.endDateStr);
-    document.getElementById("new-students-count").textContent = newNow;
+    animateNumber(document.getElementById("new-students-count"), String(newNow));
     renderTrend(document.getElementById("new-students-trend"), newNow, newPrev);
 
     const enrolledNow = countCurrentlyEnrolled(allGroupPkgs);
@@ -360,7 +381,7 @@
     // to act on at a glance than "25.0%". The rate is still computed and
     // shown in small text underneath for reference.
     const churnRateNow = (churnedNow.count + enrolledNow) > 0 ? (churnedNow.count / (churnedNow.count + enrolledNow)) * 100 : 0;
-    document.getElementById("churn-rate").textContent = churnedNow.count;
+    animateNumber(document.getElementById("churn-rate"), String(churnedNow.count));
     renderTrend(document.getElementById("churn-trend"), churnedNow.count, churnedPrev.count, { higherIsBetter: false });
     document.getElementById("churn-names").textContent = churnedNow.names.length
       ? `${churnRateNow.toFixed(1)}% — ${churnedNow.names.join("、")}`
@@ -372,7 +393,7 @@
     ]);
     const convRateNow = convNow.total > 0 ? (convNow.converted / convNow.total) * 100 : null;
     const convRatePrev = convPrev.total > 0 ? (convPrev.converted / convPrev.total) * 100 : null;
-    document.getElementById("conversion-rate").textContent = convRateNow === null ? "—" : `${convRateNow.toFixed(0)}%`;
+    animateNumber(document.getElementById("conversion-rate"), convRateNow === null ? "—" : `${convRateNow.toFixed(0)}%`);
     if (convRateNow === null) {
       document.getElementById("conversion-trend").textContent = t("accounting.no_data");
       document.getElementById("conversion-trend").className = "acct-trend flat";

@@ -26,8 +26,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
-      <hr />
-      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
@@ -200,7 +198,7 @@
     } else {
       ({ error } = await supabaseClient.from("appointments").insert(payload));
     }
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
     dialog.close();
     await loadAppointments();
   });

@@ -132,6 +132,15 @@
   }
   .hw-toggle:hover { opacity: 0.6; }
   .hw-toggle.hw-done { opacity: 1; filter: none; }
+  /* Touch devices only (not just narrow screens — a "coarse" pointer means
+     a finger, not a mouse) get a bit more padding on these grid buttons.
+     They're packed tight enough on desktop that a bigger jump risks two
+     stacked buttons overlapping, so this stays a modest bump rather than
+     the full 44px touch-target guideline. */
+  @media (pointer: coarse) {
+    .att-toggle { padding: 6px 8px; }
+    .hw-toggle, .icon-delete-btn { padding: 6px 7px; font-size: 15px; }
+  }
   .visitor-badge { color: #52525b; font-weight: 600; }
   #grid-table td.visitor-locked { color: #d4d4d8; background: #fafafa; }
   #grid-table tr.next-upcoming-row td { background: #eff6ff; }
@@ -190,8 +199,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
-      <hr />
-      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
@@ -602,7 +609,7 @@
     const amount = originPkg.total_lessons ? originPkg.price / originPkg.total_lessons : 0;
     const { error } = await supabaseClient.from("attendance")
       .update({ deferred_credit_used_in_package_id: nextPkg.id, deferred_credit_amount: amount }).eq("id", attendanceRowId);
-    if (error) alert("Update failed: " + error.message);
+    if (error) showToast("Update failed: " + error.message, "error");
   }
 
   // Total dollar amount of unresolved "deferred to next package" credits
@@ -1017,7 +1024,7 @@
 
         const joinDate = joinDateMap?.get(studentId);
         if (!isVisitor && !isWithdrawn && joinDate && new Date(a.scheduled_start) < new Date(`${joinDate}T00:00:00`)) {
-          return `<td style="color:#a1a1aa;">${t("attendance.not_joined_yet")}</td>`;
+          return `<td style="color:#71717a;">${t("attendance.not_joined_yet")}</td>`;
         }
         const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
         return `
@@ -1174,7 +1181,7 @@
               row.deferred_credit_amount = previousDeferredAmount;
             }
           }
-          alert("Update failed: " + error.message);
+          showToast("Update failed: " + error.message, "error");
         }
         rerenderLocally();
       });
@@ -1223,7 +1230,7 @@
           } else {
             row.homework_submitted = !newValue;
           }
-          alert("Update failed: " + error.message);
+          showToast("Update failed: " + error.message, "error");
         }
         rerenderLocally();
       });
@@ -1231,10 +1238,10 @@
 
     table.querySelectorAll("button[data-visitor-delete]").forEach(btn => {
       btn.addEventListener("click", async () => {
-        if (!confirm(t("attendance.visitor_delete_confirm"))) return;
+        if (!(await showConfirm(t("attendance.visitor_delete_confirm")))) return;
         const rowId = btn.dataset.visitorDelete;
         const { error } = await supabaseClient.from("attendance").delete().eq("id", rowId);
-        if (error) { alert("Delete failed: " + error.message); return; }
+        if (error) { showToast("Delete failed: " + error.message, "error"); return; }
         const idx = attendanceRows.findIndex(r => r.id === rowId);
         if (idx !== -1) attendanceRows.splice(idx, 1);
         rerenderLocally();
@@ -1256,7 +1263,7 @@
     table.querySelectorAll(".mark-all-attended-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!confirm(t("attendance.mark_all_attended_confirm"))) return;
+        if (!(await showConfirm(t("attendance.mark_all_attended_confirm"), { danger: false }))) return;
 
         const batch = batches[Number(btn.dataset.batchIndex)];
         const studentId = btn.dataset.studentId;
@@ -1275,7 +1282,7 @@
         if (toUpdate.length) {
           const { error } = await supabaseClient
             .from("attendance").update({ status: "attended", marked_at: now }).in("id", toUpdate.map(item => item.attendanceId));
-          if (error) { alert("Update failed: " + error.message); return; }
+          if (error) { showToast("Update failed: " + error.message, "error"); return; }
           toUpdate.forEach(item => {
             const row = attendanceRows.find(r => r.id === item.attendanceId);
             if (row) row.status = "attended";
@@ -1284,7 +1291,7 @@
         if (toInsert.length) {
           const { data, error } = await supabaseClient
             .from("attendance").insert(toInsert.map(item => ({ appointment_id: item.apptId, student_id: item.studentId, status: "attended", marked_at: now }))).select();
-          if (error) { alert("Update failed: " + error.message); return; }
+          if (error) { showToast("Update failed: " + error.message, "error"); return; }
           (data ?? []).forEach(row => attendanceRows.push({ id: row.id, appointment_id: row.appointment_id, student_id: row.student_id, status: "attended", make_up_status: null, made_up_appointment_id: null }));
         }
         rerenderLocally();
@@ -1401,7 +1408,7 @@
           payload.deferred_credit_amount = null;
         }
         const { error } = await supabaseClient.from("attendance").update(payload).eq("id", attendanceId);
-        if (error) { alert("Update failed: " + error.message); return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
 
         // If this student's next package (in this same class) already
         // exists, (re)apply the credit to it right now instead of waiting
@@ -1421,7 +1428,7 @@
         const rowEl = sel.closest(".makeup-row");
         const targetAppointmentId = sel.value || null;
         const { error } = await supabaseClient.from("attendance").update({ made_up_appointment_id: targetAppointmentId }).eq("id", rowEl.dataset.attendanceId);
-        if (error) { alert("Update failed: " + error.message); return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
 
         if (targetAppointmentId) {
           // Just get them onto that date's roster (status unset "-") — picking
@@ -1446,7 +1453,7 @@
         const rowEl = input.closest(".makeup-row");
         const remark = input.value.trim() || null;
         const { error } = await supabaseClient.from("attendance").update({ make_up_remark: remark }).eq("id", rowEl.dataset.attendanceId);
-        if (error) { alert("Update failed: " + error.message); return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
         await loadClassGrid(attendanceClassSelect.value);
       });
     });
@@ -1456,7 +1463,7 @@
         const rowEl = input.closest(".makeup-row");
         const make_up_date = input.value || null;
         const { error } = await supabaseClient.from("attendance").update({ make_up_date }).eq("id", rowEl.dataset.attendanceId);
-        if (error) { alert("Update failed: " + error.message); return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
         await loadClassGrid(attendanceClassSelect.value);
       });
     });
@@ -1466,7 +1473,7 @@
         const rowEl = input.closest(".makeup-row");
         const make_up_extra_fee = input.value === "" ? null : Number(input.value);
         const { error } = await supabaseClient.from("attendance").update({ make_up_extra_fee }).eq("id", rowEl.dataset.attendanceId);
-        if (error) { alert("Update failed: " + error.message); return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
         await loadClassGrid(attendanceClassSelect.value);
       });
     });
@@ -1532,7 +1539,7 @@
       scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
       rescheduled_from: originalStart || null, reschedule_reason: reason,
     }).eq("id", apptId);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
 
     rescheduleDialog.close();
     await loadClassGrid(attendanceClassSelect.value);
@@ -1754,7 +1761,7 @@
           error = insertError;
           if (data) attendanceId = data.id;
         }
-        if (error) { alert("Update failed: " + error.message); cb.checked = !paid; return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); cb.checked = !paid; return; }
 
         // Patch local state in place so the row stays expanded and the
         // summary counts update without a full reload. Must match on both
@@ -1772,7 +1779,7 @@
     paymentRowsEl.querySelectorAll(".mark-all-paid-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!confirm(t("payments.mark_all_paid_confirm"))) return;
+        if (!(await showConfirm(t("payments.mark_all_paid_confirm"), { danger: false }))) return;
         const entry = paymentPackages.find(({ pkg }) => pkg.id === btn.dataset.termId);
         if (!entry) return;
         const unpaid = entry.lessons.filter(l => !l.paid);
@@ -1783,14 +1790,14 @@
 
         if (toUpdate.length) {
           const { error } = await supabaseClient.from("attendance").update({ paid: true }).in("id", toUpdate.map(l => l.attendanceId));
-          if (error) { alert("Update failed: " + error.message); return; }
+          if (error) { showToast("Update failed: " + error.message, "error"); return; }
         }
         if (toInsert.length) {
           const { data, error } = await supabaseClient
             .from("attendance")
             .insert(toInsert.map(l => ({ appointment_id: l.apptId, student_id: entry.pkg.student_id, paid: true })))
             .select();
-          if (error) { alert("Update failed: " + error.message); return; }
+          if (error) { showToast("Update failed: " + error.message, "error"); return; }
           (data ?? []).forEach(row => {
             const lesson = entry.lessons.find(l => l.apptId === row.appointment_id);
             if (lesson) lesson.attendanceId = row.id;
@@ -1809,7 +1816,7 @@
         if (!attendanceId) return;
 
         const { error } = await supabaseClient.from("attendance").update({ make_up_extra_fee_paid: paidNow }).eq("id", attendanceId);
-        if (error) { alert("Update failed: " + error.message); checkbox.checked = !paidNow; return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); checkbox.checked = !paidNow; return; }
 
         for (const { lessons } of paymentPackages) {
           const lesson = lessons.find(l => l.attendanceId === attendanceId);
@@ -1893,7 +1900,7 @@
       const checkedIndexes = [...dateList.querySelectorAll(".extend-date-checkbox:checked")]
         .map(cb => parseInt(cb.dataset.dateIndex, 10)).sort((a, b) => a - b);
       if (checkedIndexes.length < STANDARD_LESSONS_PER_TERM) {
-        alert(tf("classes.extend_need_more", { n: STANDARD_LESSONS_PER_TERM - checkedIndexes.length }));
+        showToast(tf("classes.extend_need_more", { n: STANDARD_LESSONS_PER_TERM - checkedIndexes.length }), "error");
         return;
       }
       const chosenDates = checkedIndexes.slice(0, STANDARD_LESSONS_PER_TERM).map(i => candidates[i]);
@@ -1907,7 +1914,7 @@
         };
       });
       const { error: apptError } = await supabaseClient.from("appointments").insert(batch);
-      if (apptError) { alert("Extend failed: " + apptError.message); return; }
+      if (apptError) { showToast("Extend failed: " + apptError.message, "error"); return; }
 
       // Unticked = not continuing, withdraw them. Ticked = continuing — renew
       // them straight into the new term (new package + attendance rows for the
@@ -1957,12 +1964,12 @@
 
   async function cancelClass(cls) {
     if (!cls) return;
-    if (!confirm(t("class.cancel_confirm"))) return;
+    if (!(await showConfirm(t("class.cancel_confirm")))) return;
     const { error: classError } = await supabaseClient.from("classes").update({ active: false }).eq("id", cls.id);
-    if (classError) { alert("Cancel failed: " + classError.message); return; }
+    if (classError) { showToast("Cancel failed: " + classError.message, "error"); return; }
     const { error: apptError } = await supabaseClient
       .from("appointments").update({ status: "cancelled" }).eq("class_id", cls.id).gt("scheduled_start", new Date().toISOString());
-    if (apptError) { alert("Class cancelled, but couldn't cancel upcoming lessons: " + apptError.message); return; }
+    if (apptError) { showToast("Class cancelled, but couldn't cancel upcoming lessons: " + apptError.message, "error", 5000); return; }
     await loadClasses();
   }
 
@@ -1998,7 +2005,7 @@
   document.getElementById("class-first-lesson-date").addEventListener("change", () => {
     if (classDialogWeekdayMismatch()) {
       const weekday = parseInt(document.getElementById("class-weekday").value, 10);
-      alert(tf("class.weekday_mismatch", { day: t("weekday_full." + weekday) }));
+      showToast(tf("class.weekday_mismatch", { day: t("weekday_full." + weekday) }), "error");
     }
     updateClassGenerateNote();
   });
@@ -2012,7 +2019,7 @@
     const initialLessons = STANDARD_LESSONS_PER_TERM;
     if (!name || !time || !firstLessonDate) return;
     if (classDialogWeekdayMismatch()) {
-      alert(tf("class.weekday_mismatch", { day: t("weekday_full." + weekday) }));
+      showToast(tf("class.weekday_mismatch", { day: t("weekday_full." + weekday) }), "error");
       return;
     }
 
@@ -2020,14 +2027,14 @@
       .from("classes")
       .insert({ name, weekly_day_of_week: weekday, weekly_start_time: time, duration_minutes: 60, active: true })
       .select().single();
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
 
     const [h, m] = time.split(":").map(Number);
     const firstStart = new Date(`${firstLessonDate}T00:00:00`);
     firstStart.setHours(h, m, 0, 0);
     const batch = weeklyAppointmentBatch(cls, firstStart, initialLessons);
     const { error: apptError } = await supabaseClient.from("appointments").insert(batch);
-    if (apptError) { alert("Class saved, but generating lessons failed: " + apptError.message); return; }
+    if (apptError) { showToast("Class saved, but generating lessons failed: " + apptError.message, "error", 5000); return; }
 
     classDialog.close();
     await loadClasses();
@@ -2049,7 +2056,7 @@
     const updatePayload = { name };
     if (scheduleChanged) { updatePayload.weekly_day_of_week = newWeekday; updatePayload.weekly_start_time = newTime; }
     const { error } = await supabaseClient.from("classes").update(updatePayload).eq("id", id);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
 
     // Fixing a typo'd day/time corrects the schedule label, but the lessons
     // already generated at the wrong day/time need shifting too — otherwise
@@ -2058,7 +2065,7 @@
     if (scheduleChanged) {
       const { data: appts } = await supabaseClient
         .from("appointments").select("id, scheduled_start").eq("class_id", id);
-      if (appts?.length && confirm(tf("class.time_shift_confirm", { n: appts.length }))) {
+      if (appts?.length && (await showConfirm(tf("class.time_shift_confirm", { n: appts.length }), { danger: false }))) {
         const dayDelta = newWeekday - cls.weekly_day_of_week;
         const [newH, newM] = newTime.split(":").map(Number);
         for (const a of appts) {
@@ -2098,9 +2105,9 @@
         cursor = new Date(cursor.getTime() - 7 * 24 * 60 * 60 * 1000);
       }
 
-      if (toCreate.length && confirm(tf("class.backfill_confirm", { n: toCreate.length }))) {
+      if (toCreate.length && (await showConfirm(tf("class.backfill_confirm", { n: toCreate.length }), { danger: false }))) {
         const { data: inserted, error: insertError } = await supabaseClient.from("appointments").insert(toCreate).select();
-        if (insertError) { alert("Backfill failed: " + insertError.message); return; }
+        if (insertError) { showToast("Backfill failed: " + insertError.message, "error"); return; }
 
         const { data: pkgsForClass } = await supabaseClient
           .from("packages").select("student_id, start_date, total_lessons").eq("class_id", id);
@@ -2305,7 +2312,7 @@
 
   async function deleteStudent(student) {
     if (!student) return;
-    if (!confirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" }))) return;
+    if (!(await showConfirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" })))) return;
 
     const { data: pkgs } = await supabaseClient.from("packages").select("id").eq("student_id", student.id);
     const pkgIds = (pkgs ?? []).map(p => p.id);
@@ -2314,11 +2321,11 @@
 
     if (attIds.length) {
       const { error } = await supabaseClient.from("attendance").delete().in("id", attIds);
-      if (error) { alert("Delete failed: " + error.message); return; }
+      if (error) { showToast("Delete failed: " + error.message, "error"); return; }
     }
     if (pkgIds.length) {
       const { error } = await supabaseClient.from("packages").delete().in("id", pkgIds);
-      if (error) { alert("Delete failed: " + error.message); return; }
+      if (error) { showToast("Delete failed: " + error.message, "error"); return; }
     }
     // Any 1-on-1 appointments directly owned by this student (not shared class appointments).
     // Cancel first (an UPDATE, which calendar-sync's webhook is wired to)
@@ -2327,10 +2334,10 @@
     // events behind.
     await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("student_id", student.id).is("class_id", null);
     const { error: apptError } = await supabaseClient.from("appointments").delete().eq("student_id", student.id).is("class_id", null);
-    if (apptError) { alert("Delete failed: " + apptError.message); return; }
+    if (apptError) { showToast("Delete failed: " + apptError.message, "error"); return; }
 
     const { error: studentError } = await supabaseClient.from("students").delete().eq("id", student.id);
-    if (studentError) { alert("Delete failed: " + studentError.message); return; }
+    if (studentError) { showToast("Delete failed: " + studentError.message, "error"); return; }
 
     // A WhatsApp-linked contact usually has message/review history too —
     // both reference the contact (messages directly, pending_actions via
@@ -2342,7 +2349,7 @@
     await supabaseClient.from("messages").delete().eq("contact_id", student.contact_id);
 
     const { error: contactError } = await supabaseClient.from("contacts").delete().eq("id", student.contact_id);
-    if (contactError) { alert("Student deleted, but couldn't remove their contact record: " + contactError.message); }
+    if (contactError) { showToast("Student deleted, but couldn't remove their contact record: " + contactError.message, "error", 5000); }
 
     await loadStudents();
     await loadClasses();
@@ -2404,7 +2411,7 @@
     const newDate = document.getElementById("student-detail-join-date-input").value;
     if (!pkgId || !newDate) return;
     const { error } = await supabaseClient.from("packages").update({ start_date: newDate }).eq("id", pkgId);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
     studentDetailDialog.close();
     await loadStudents();
   });
@@ -2413,7 +2420,7 @@
     const newDate = document.getElementById("student-detail-withdrawn-date-input").value;
     if (!pkgId || !newDate) return;
     const { error } = await supabaseClient.from("packages").update({ cancelled_at: new Date(`${newDate}T00:00:00`).toISOString() }).eq("id", pkgId);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
     studentDetailDialog.close();
     await loadStudents();
   });
@@ -2434,7 +2441,7 @@
 
     if (studentId && contactId) {
       const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contactId);
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
 
       const classField = document.getElementById("student-edit-class-field");
       if (classField.style.display !== "none") {
@@ -2442,10 +2449,10 @@
         const pkg = student?.currentPkg;
         const newClassId = document.getElementById("student-edit-class").value;
         if (pkg && newClassId && newClassId !== pkg.class_id) {
-          if (!confirm(t("package.change_class_confirm"))) { studentDialog.close(); await loadStudents(); return; }
+          if (!(await showConfirm(t("package.change_class_confirm")))) { studentDialog.close(); await loadStudents(); return; }
 
           const available = await getAvailableLessonCount(newClassId, pkg.start_date);
-          if (available === 0) { alert(t("package.change_class_needs_lessons")); return; }
+          if (available === 0) { showToast(t("package.change_class_needs_lessons"), "error"); return; }
           const price = Math.round(available * (STANDARD_PRICE_PER_TERM / STANDARD_LESSONS_PER_TERM));
 
           // This is a correction (wrong class picked at signup), not a real
@@ -2482,11 +2489,11 @@
     }
     if (contact) {
       const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contact.id);
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { data: newContact, error } = await supabaseClient
         .from("contacts").insert({ ...contactFields, source: "existing_student" }).select().single();
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
       contact = newContact;
     }
 
@@ -2498,12 +2505,12 @@
     if (existingStudent) {
       const { data: updatedStudent, error } = await supabaseClient
         .from("students").update({ active: true, is_group: true }).eq("id", existingStudent.id).select().single();
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
       student = updatedStudent;
     } else {
       const { data: newStudent, error } = await supabaseClient
         .from("students").insert({ contact_id: contact.id, active: true, is_group: true }).select().single();
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
       student = newStudent;
     }
 
@@ -2525,12 +2532,12 @@
     if (!others || !others.length) return true;
     const studentName = students.find(s => s.id === studentId)?.contacts?.name ?? "";
     const classNames = others.map(o => o.classes?.name).filter(Boolean).join(", ");
-    return confirm(tf("enroll.other_class_warning", { name: studentName, classes: classNames }));
+    return showConfirm(tf("enroll.other_class_warning", { name: studentName, classes: classNames }), { danger: false });
   }
 
   async function createEnrollment({ classId, studentId, startDate, totalLessons, price }) {
     const cls = classes.find(c => c.id === classId);
-    if (!cls) { alert("Class not found."); return null; }
+    if (!cls) { showToast("Class not found.", "error"); return null; }
     if (!(await warnIfEnrolledElsewhere(studentId, classId))) return null;
 
     // Deliberately does NOT extend the class's own schedule to cover this
@@ -2563,7 +2570,7 @@
       .from("packages")
       .insert({ student_id: studentId, class_id: classId, start_date: startDate, total_lessons: totalLessons, price, status: "active" })
       .select().single();
-    if (pkgError) { alert("Save failed: " + pkgError.message); return null; }
+    if (pkgError) { showToast("Save failed: " + pkgError.message, "error"); return null; }
 
     for (const credit of (unusedCredits ?? [])) {
       const originPkg = await findPackageContainingAppointment(classId, credit.appointment_id, priorPkgsForCredits);
@@ -2581,7 +2588,7 @@
     const rows = appts.filter(a => !alreadyOn.has(a.id)).map(a => ({ appointment_id: a.id, student_id: studentId }));
     if (rows.length) {
       const { error: attError } = await supabaseClient.from("attendance").insert(rows);
-      if (attError) { alert("Enrolled, but couldn't add them to all lessons: " + attError.message); return null; }
+      if (attError) { showToast("Enrolled, but couldn't add them to all lessons: " + attError.message, "error", 5000); return null; }
     }
     return pkg;
   }
@@ -2601,7 +2608,7 @@
   // entirely (deactivating implies they're not continuing this class either).
   async function cancelPackage(pkg) {
     const { error: pkgError } = await supabaseClient.from("packages").update({ status: "cancelled", cancelled_at: new Date().toISOString() }).eq("id", pkg.id);
-    if (pkgError) { alert("Cancel failed: " + pkgError.message); return false; }
+    if (pkgError) { showToast("Cancel failed: " + pkgError.message, "error"); return false; }
 
     const { data: futureAppts } = await supabaseClient
       .from("appointments").select("id").eq("class_id", pkg.class_id).gt("scheduled_start", new Date().toISOString());
@@ -2631,7 +2638,7 @@
 
     if (classWeekdayMismatch(classId, startDate)) {
       const cls = classes.find(c => c.id === classId);
-      alert(tf("enroll.weekday_mismatch", { day: t("weekday_full." + cls.weekly_day_of_week) }));
+      showToast(tf("enroll.weekday_mismatch", { day: t("weekday_full." + cls.weekly_day_of_week) }), "error");
       document.getElementById("enroll-total-lessons").value = 0;
       document.getElementById("enroll-price").value = 0;
       note.textContent = "";
@@ -2649,7 +2656,7 @@
 
   const enrollDialog = document.getElementById("enroll-dialog");
   async function openEnrollDialog(student) {
-    if (!classes.length) { alert(t("classes.empty")); return; }
+    if (!classes.length) { showToast(t("classes.empty"), "error"); return; }
     document.getElementById("enroll-form").reset();
     document.getElementById("enroll-student-id").value = student.id;
     document.getElementById("enroll-student-name").textContent = student.contacts?.name ?? "";
@@ -2671,7 +2678,7 @@
     if (!classId || !studentId || !startDate) return;
     if (classWeekdayMismatch(classId, startDate)) {
       const cls = classes.find(c => c.id === classId);
-      alert(tf("enroll.weekday_mismatch", { day: t("weekday_full." + cls.weekly_day_of_week) }));
+      showToast(tf("enroll.weekday_mismatch", { day: t("weekday_full." + cls.weekly_day_of_week) }), "error");
       return;
     }
 
@@ -2740,9 +2747,9 @@ async function initReplyTemplates() {
       delBtn.textContent = "🗑️";
       delBtn.title = t("reply_templates.delete");
       delBtn.addEventListener("click", async () => {
-        if (!confirm(t("reply_templates.confirm_delete"))) return;
+        if (!(await showConfirm(t("reply_templates.confirm_delete")))) return;
         const { error } = await supabaseClient.from("reply_templates").delete().eq("id", tpl.id);
-        if (error) { alert(error.message); return; }
+        if (error) { showToast(error.message, "error"); return; }
         await load();
       });
       card.appendChild(delBtn);
@@ -2794,7 +2801,7 @@ async function initReplyTemplates() {
       addBtn.disabled = true;
       const { error } = await supabaseClient.from("reply_templates").insert({ text });
       addBtn.disabled = false;
-      if (error) { alert(error.message); return; }
+      if (error) { showToast(error.message, "error"); return; }
       await load();
     });
     addCard.appendChild(addBtn);

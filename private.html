@@ -139,8 +139,6 @@
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
       <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
-      <hr />
-      <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
   </div>
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
@@ -433,7 +431,7 @@
       cb.addEventListener("change", async () => {
         const { error } = await supabaseClient
           .from("contacts").update({ allowed_for_ai: cb.checked }).eq("id", cb.dataset.allowedContactId);
-        if (error) { alert("Update failed: " + error.message); cb.checked = !cb.checked; }
+        if (error) { showToast("Update failed: " + error.message, "error"); cb.checked = !cb.checked; }
       });
     });
 
@@ -442,7 +440,7 @@
       input.addEventListener("change", async () => {
         const price = parseFloat(input.value) || 0;
         const { error } = await supabaseClient.from("appointments").update({ price }).eq("id", input.dataset.priceAppt);
-        if (error) { alert("Update failed: " + error.message); return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
         await load();
       });
     });
@@ -460,7 +458,7 @@
           ({ error } = await supabaseClient
             .from("attendance").insert({ appointment_id: btn.dataset.apptId, student_id: btn.dataset.studentId, status, marked_at: new Date().toISOString() }));
         }
-        if (error) { alert("Update failed: " + error.message); return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
         await load();
       });
     });
@@ -477,7 +475,7 @@
           ({ error } = await supabaseClient
             .from("attendance").insert({ appointment_id: cb.dataset.paidApptId, student_id: cb.dataset.paidStudentId, paid }));
         }
-        if (error) { alert("Update failed: " + error.message); cb.checked = !paid; return; }
+        if (error) { showToast("Update failed: " + error.message, "error"); cb.checked = !paid; return; }
         await load();
       });
     });
@@ -485,7 +483,7 @@
     tbody.querySelectorAll("button[data-delete-lesson]").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!confirm(t("private.delete_lesson_confirm"))) return;
+        if (!(await showConfirm(t("private.delete_lesson_confirm")))) return;
         const apptId = btn.dataset.deleteLesson;
         // A hard delete never fires the calendar-sync Database Webhook
         // (that's only wired up for INSERT/UPDATE), so any Google Calendar
@@ -494,7 +492,7 @@
         // event — same pattern used everywhere else appointments get
         // called off (WhatsApp cancellations, the email "Undo" link).
         const { error } = await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("id", apptId);
-        if (error) { alert("Delete failed: " + error.message); return; }
+        if (error) { showToast("Delete failed: " + error.message, "error"); return; }
         await load();
       });
     });
@@ -554,7 +552,7 @@
 
     if (studentId && contactId) {
       const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contactId);
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
       studentDialog.close();
       await load();
       return;
@@ -572,11 +570,11 @@
     }
     if (contact) {
       const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contact.id);
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { data: newContact, error } = await supabaseClient
         .from("contacts").insert({ ...contactFields, source: "existing_student" }).select().single();
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
       contact = newContact;
     }
 
@@ -588,11 +586,11 @@
       .from("students").select("id").eq("contact_id", contact.id).maybeSingle();
     if (existingStudent) {
       const { error } = await supabaseClient.from("students").update({ active: true, is_group: false }).eq("id", existingStudent.id);
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { error } = await supabaseClient
         .from("students").insert({ contact_id: contact.id, active: true, is_group: false });
-      if (error) { alert("Save failed: " + error.message); return; }
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
     }
 
     studentDialog.close();
@@ -601,7 +599,7 @@
 
   async function deleteStudent(student) {
     if (!student) return;
-    if (!confirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" }))) return;
+    if (!(await showConfirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" })))) return;
 
     const { data: appts } = await supabaseClient.from("appointments").select("id").eq("student_id", student.id).is("class_id", null);
     const apptIds = (appts ?? []).map(a => a.id);
@@ -615,10 +613,10 @@
       await supabaseClient.from("appointments").update({ status: "cancelled" }).in("id", apptIds);
       await supabaseClient.from("attendance").delete().in("appointment_id", apptIds);
       const { error } = await supabaseClient.from("appointments").delete().in("id", apptIds);
-      if (error) { alert("Delete failed: " + error.message); return; }
+      if (error) { showToast("Delete failed: " + error.message, "error"); return; }
     }
     const { error: studentError } = await supabaseClient.from("students").delete().eq("id", student.id);
-    if (studentError) { alert("Delete failed: " + studentError.message); return; }
+    if (studentError) { showToast("Delete failed: " + studentError.message, "error"); return; }
 
     // A WhatsApp-linked contact usually has message/review history too —
     // both reference the contact (messages directly, pending_actions via
@@ -630,7 +628,7 @@
     await supabaseClient.from("messages").delete().eq("contact_id", student.contact_id);
 
     const { error: contactError } = await supabaseClient.from("contacts").delete().eq("id", student.contact_id);
-    if (contactError) { alert("Student deleted, but couldn't remove their contact record: " + contactError.message); }
+    if (contactError) { showToast("Student deleted, but couldn't remove their contact record: " + contactError.message, "error", 5000); }
 
     await load();
   }
@@ -682,11 +680,11 @@
         status: "confirmed", created_via: "manual_dashboard", price,
       })
       .select().single();
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
 
     const { error: attError } = await supabaseClient
       .from("attendance").insert({ appointment_id: appt.id, student_id: studentId });
-    if (attError) { alert("Lesson saved, but couldn't create its attendance row: " + attError.message); return; }
+    if (attError) { showToast("Lesson saved, but couldn't create its attendance row: " + attError.message, "error", 5000); return; }
 
     lessonDialog.close();
     await load();
@@ -765,7 +763,7 @@
         const requestedDate = document.querySelector(`[data-pending-date="${p.id}"]`).value;
         const requestedTime = document.querySelector(`[data-pending-time="${p.id}"]`).value;
         if (!requestedDate || !requestedTime) {
-          alert(t("private.pending_missing_time"));
+          showToast(t("private.pending_missing_time"), "error");
           return;
         }
         const start = new Date(`${requestedDate}T${requestedTime}:00+08:00`);
@@ -788,7 +786,7 @@
           if (upcoming) {
             const { error } = await supabaseClient.from("appointments")
               .update({ scheduled_start: start.toISOString(), scheduled_end: end.toISOString() }).eq("id", upcoming.id);
-            if (error) { alert("Save failed: " + error.message); return; }
+            if (error) { showToast("Save failed: " + error.message, "error"); return; }
             moved = true;
           }
         }
@@ -805,13 +803,13 @@
               scheduled_start: start.toISOString(), scheduled_end: end.toISOString(),
               status: "confirmed", created_via: "whatsapp_ai_confirmed_by_angela",
             });
-            if (apptError) { alert("Save failed: " + apptError.message); return; }
+            if (apptError) { showToast("Save failed: " + apptError.message, "error"); return; }
           }
         }
         await supabaseClient.from("pending_actions").update({ status: "approved", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", p.id);
         await loadPendingReviews();
         await load();
-        alert(t("private.approved_confirm"));
+        showToast(t("private.approved_confirm"), "success");
       });
     });
 
@@ -819,7 +817,7 @@
       btn.addEventListener("click", async () => {
         await supabaseClient.from("pending_actions").update({ status: "rejected", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", btn.dataset.reject);
         await loadPendingReviews();
-        alert(t("private.rejected_confirm"));
+        showToast(t("private.rejected_confirm"), "success");
       });
     });
   }
