@@ -78,6 +78,10 @@
   .count-pill-warn { background: #fdf1d6; color: #8a6314; }
   .icon-delete-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #a1a1aa; padding: 2px 4px; border-radius: 4px; }
   .icon-delete-btn:hover { color: #b91c1c; background: #fef2f2; }
+  .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
+  .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
+  .icon-action-btn.danger { color: #b91c1c; }
+  .icon-action-btn.danger:hover { background: #fef2f2; }
 
   .toggle-btn-group { display: flex; gap: 8px; }
   .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; background: #f4f4f5; color: #71717a; cursor: pointer; font-size: 14px; }
@@ -718,9 +722,9 @@
           <td>${enrolledCount}</td>
           <td>${lessonCount ?? 0}</td>
           <td style="white-space:nowrap;">
-            <button class="link" data-edit-class="${cls.id}">${t("student.edit")}</button>
-            <button class="link" data-extend-class="${cls.id}">${tf("classes.extend", { n: 8 })}</button>
-            <button class="link" data-cancel-class="${cls.id}" style="color:#b91c1c;">${t("class.cancel")}</button>
+            <button type="button" class="icon-action-btn" data-edit-class="${cls.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
+            <button type="button" class="icon-action-btn" data-extend-class="${cls.id}" title="${t("classes.extend")}" aria-label="${t("classes.extend")}">🔄</button>
+            <button type="button" class="icon-action-btn danger" data-cancel-class="${cls.id}" title="${t("class.cancel")}" aria-label="${t("class.cancel")}">🚫</button>
           </td>
         </tr>`;
     }));
@@ -2292,7 +2296,7 @@
           <td>${renewalCountCell}</td>
           <td>${statusCell}</td>
           <td style="white-space:nowrap;">
-            <button class="link" data-edit-student="${s.id}">${t("student.edit")}</button>
+            <button type="button" class="icon-action-btn" data-edit-student="${s.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
             ${enrollActionBtn}
             <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
           </td>

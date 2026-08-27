@@ -10,6 +10,10 @@
 <link rel="manifest" href="manifest.json" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
+  .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
+</style>
 </head>
 <body>
 <header class="topnav">
@@ -51,12 +55,11 @@
           <th data-i18n="schedule.col_type">Type</th>
           <th data-i18n="schedule.col_with">With</th>
           <th data-i18n="schedule.col_status">Status</th>
-          <th data-i18n="schedule.col_paid">Paid</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="appt-rows">
-        <tr><td colspan="6" class="empty">Loading…</td></tr>
+        <tr><td colspan="5" class="empty">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -217,8 +220,7 @@
         <td>${typeLabel}</td>
         <td>${a.notes ?? ""}</td>
         <td><span class="status-pill status-${a.status}">${t("status." + a.status)}</span></td>
-        <td>${a.paid ? "✅" : "—"}</td>
-        <td><button class="link" data-id="${a.id}">${t("schedule.edit")}</button></td>
+        <td><button type="button" class="icon-action-btn" data-id="${a.id}" title="${t("schedule.edit")}" aria-label="${t("schedule.edit")}">✏️</button></td>
       </tr>`;
   }
 
@@ -236,11 +238,11 @@
     const { data, error } = await query;
 
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`;
       return;
     }
     if (!data.length) {
-      tbody.innerHTML = `<tr><td colspan="6" class="empty">${t("schedule.empty")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("schedule.empty")}</td></tr>`;
       return;
     }
 
