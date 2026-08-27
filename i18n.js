@@ -181,7 +181,7 @@ const I18N_STRINGS = {
 
     "attstatus.attended": "Attended",
     "attstatus.leave": "Leave",
-    "attstatus.leave_combined_private": "Private makeup",
+    "attstatus.leave_combined_private": "Make-up",
     "attstatus.no_show": "No-show",
     "attstatus.unset": "—",
 
@@ -439,7 +439,7 @@ const I18N_STRINGS = {
     "dialog.price_placeholder": "例如:750",
 
     "type.consultation": "諮詢",
-    "type.lesson": "堂",
+    "type.lesson": "私人堂",
     "type.group_class": "小組班",
 
     "format.1on1": "1對1",
