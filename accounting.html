@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="manifest" href="manifest.json" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   .acct-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
@@ -48,6 +49,7 @@
     <button id="settings-btn" title="Settings">⚙️</button>
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
       <hr />
       <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
@@ -277,7 +279,11 @@
 
       const effPrice = effectivePrice(p, lessons);
       const paidCount = lessons.filter(l => l.paid).length;
-      const paidFromLessons = p.total_lessons ? effPrice * (paidCount / p.total_lessons) : 0;
+      // Each paid lesson is worth exactly one lesson's share of the price —
+      // NOT effPrice proportioned across total_lessons, which understates a
+      // student who paid for every billable lesson but also had a
+      // deducted/free leave mixed into the same package.
+      const paidFromLessons = p.total_lessons ? (p.price / p.total_lessons) * paidCount : 0;
 
       const extraLessons = extraFeeLessons(lessons);
       const extraFeeTotal = extraLessons.reduce((sum, l) => sum + Number(l.make_up_extra_fee), 0);

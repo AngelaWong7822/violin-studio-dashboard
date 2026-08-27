@@ -72,6 +72,8 @@ header.topnav button:hover { background: #f4f4f5; border-color: #a1a1aa; color: 
 .settings-menu button.danger:hover { background: #b91c1c; }
 #settings-lang-toggle { background: #18181b; border-color: #18181b; color: #fff; font-weight: 600; }
 #settings-lang-toggle:hover { background: #000; border-color: #000; }
+#settings-export-btn { background: #e3f3e6; border-color: #cdeed4; color: #1e6b34; font-weight: 600; }
+#settings-export-btn:hover { background: #cdeed4; }
 .settings-menu hr { border: none; border-top: 1px solid #eee; margin: 2px 0; width: 100%; }
 main { padding: 20px; max-width: 1000px; margin: 0 auto; }
 h1 { font-size: 20px; margin: 0 0 16px; }

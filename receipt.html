@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="manifest" href="manifest.json" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <style>
   /* Scoped to this page only — warmer than shared.css's default body tone,
@@ -229,6 +230,7 @@
     <button id="settings-btn" title="Settings">⚙️</button>
     <div id="settings-menu" class="settings-menu" style="display:none;">
       <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
       <hr />
       <button id="settings-wipe-btn" class="danger" data-i18n="settings.wipe_all_data">Delete ALL website data</button>
     </div>
