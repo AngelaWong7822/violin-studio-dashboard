@@ -853,7 +853,7 @@
     if (apptIds.length) {
       const { data } = await supabaseClient
         .from("attendance")
-        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, homework_submitted, students(contacts(name))")
+        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_time, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, homework_submitted, students(contacts(name))")
         .in("appointment_id", apptIds);
       attendanceRows = data ?? [];
     }
@@ -929,7 +929,11 @@
     const parts = [];
     if (row.make_up_date) {
       const d = new Date(`${row.make_up_date}T00:00:00`);
-      parts.push(`${d.toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" })} (${t("day." + d.getDay())})`);
+      const dateLabel = `${d.toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric" })} (${t("day." + d.getDay())})`;
+      const timeLabel = row.make_up_time
+        ? ` ${new Date(`${row.make_up_date}T${row.make_up_time}`).toLocaleTimeString(localeForDates(), { timeStyle: "short" })}`
+        : "";
+      parts.push(`${dateLabel}${timeLabel}`);
     }
     if (row.make_up_extra_fee) parts.push(`+$${row.make_up_extra_fee}`);
     return parts.length ? `, ${parts.join(", ")}` : "";
@@ -1387,6 +1391,7 @@
           </select>
           <input type="text" data-field="make_up_remark" value="${row.make_up_remark ?? ""}" placeholder="${t("makeup.remark_placeholder")}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
           <input type="date" data-field="make_up_date" value="${row.make_up_date ?? ""}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
+          <input type="time" data-field="make_up_time" value="${row.make_up_time ?? ""}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
           <input type="number" step="0.01" min="0" data-field="make_up_extra_fee" value="${row.make_up_extra_fee ?? ""}" placeholder="${t("makeup.extra_fee_placeholder")}" style="width:90px; ${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
         </div>`;
     }).join("");
@@ -1402,6 +1407,7 @@
         if (make_up_status !== "combined_with_private") {
           payload.make_up_remark = null;
           payload.make_up_date = null;
+          payload.make_up_time = null;
           payload.make_up_extra_fee = null;
         }
         // Switching away from "deferred to next package" releases whatever
@@ -1467,6 +1473,16 @@
         const rowEl = input.closest(".makeup-row");
         const make_up_date = input.value || null;
         const { error } = await supabaseClient.from("attendance").update({ make_up_date }).eq("id", rowEl.dataset.attendanceId);
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        await loadClassGrid(attendanceClassSelect.value);
+      });
+    });
+
+    container.querySelectorAll('input[data-field="make_up_time"]').forEach(input => {
+      input.addEventListener("change", async () => {
+        const rowEl = input.closest(".makeup-row");
+        const make_up_time = input.value || null;
+        const { error } = await supabaseClient.from("attendance").update({ make_up_time }).eq("id", rowEl.dataset.attendanceId);
         if (error) { showToast("Update failed: " + error.message, "error"); return; }
         await loadClassGrid(attendanceClassSelect.value);
       });
