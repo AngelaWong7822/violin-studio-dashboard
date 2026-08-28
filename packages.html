@@ -136,6 +136,28 @@
   }
   .hw-toggle:hover { opacity: 0.6; }
   .hw-toggle.hw-done { opacity: 1; filter: none; }
+  /* A little sticky-note-style badge (same warm palette as the quick-reply
+     template cards) once there's actually a remark typed — empty, it stays
+     plain/transparent so it doesn't look like a colored tag on every single
+     date row. */
+  .hw-remark-wrap {
+    display: inline-flex; align-items: center; gap: 3px; max-width: 100%;
+    border: 1px solid transparent; border-radius: 999px; padding: 1px 7px; margin-top: 4px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .hw-remark-wrap .hw-remark-icon { font-size: 9px; flex-shrink: 0; opacity: 0.35; }
+  .hw-remark-wrap.has-content { background: #fffbeb; border-color: #fde68a; }
+  .hw-remark-wrap.has-content .hw-remark-icon { opacity: 1; }
+  .hw-remark-wrap:hover, .hw-remark-wrap:focus-within { border-color: #d4d4d8; }
+  .hw-remark-wrap.has-content:hover, .hw-remark-wrap.has-content:focus-within { border-color: #fcd34d; }
+  .hw-remark-input {
+    border: none; background: transparent; padding: 0; margin: 0; font-size: 10px;
+    color: #71717a; width: 100%; min-width: 30px;
+    text-overflow: ellipsis; /* the longer placeholder wording clips cleanly in this narrow column when not focused */
+  }
+  .hw-remark-wrap.has-content .hw-remark-input { color: #78350f; font-weight: 500; }
+  .hw-remark-input::placeholder { color: #d4d4d8; }
+  .hw-remark-input:focus { outline: none; }
   /* Touch devices only (not just narrow screens — a "coarse" pointer means
      a finger, not a mouse) get a bit more padding on these grid buttons.
      They're packed tight enough on desktop that a bigger jump risks two
@@ -844,7 +866,7 @@
 
     const { data: appts } = await supabaseClient
       .from("appointments")
-      .select("id, scheduled_start, rescheduled_from, reschedule_reason")
+      .select("id, scheduled_start, rescheduled_from, reschedule_reason, homework_remark")
       .eq("class_id", classId)
       .order("scheduled_start", { ascending: true });
 
@@ -1046,7 +1068,7 @@
           </td>`;
       }).join("");
       const isNextUpcoming = nextUpcomingAppt && a.id === nextUpcomingAppt.id;
-      return `<tr${isNextUpcoming ? ' class="next-upcoming-row"' : ""}><td class="date-col"><div style="display:flex; align-items:center; gap:2px; white-space:nowrap;">${dateLabel} <button type="button" class="link reschedule-icon-btn" data-reschedule-appt="${a.id}" data-current-start="${a.scheduled_start}" title="${t("attendance.reschedule")}" aria-label="${t("attendance.reschedule")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button></div>${rescheduleNote}</td>${cells}</tr>`;
+      return `<tr${isNextUpcoming ? ' class="next-upcoming-row"' : ""}><td class="date-col"><div style="display:flex; align-items:center; gap:2px; white-space:nowrap;">${dateLabel} <button type="button" class="link reschedule-icon-btn" data-reschedule-appt="${a.id}" data-current-start="${a.scheduled_start}" title="${t("attendance.reschedule")}" aria-label="${t("attendance.reschedule")}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button></div>${rescheduleNote}<span class="hw-remark-wrap${a.homework_remark ? " has-content" : ""}"><span class="hw-remark-icon">📝</span><input type="text" class="hw-remark-input" data-hw-remark-appt-id="${a.id}" value="${a.homework_remark ?? ""}" title="${t("attendance.homework_remark_placeholder")}" /></span></td>${cells}</tr>`;
     }
 
     // Group the class's dates into 8-lesson terms with a divider between
@@ -1241,6 +1263,28 @@
           showToast("Update failed: " + error.message, "error");
         }
         rerenderLocally();
+      });
+    });
+
+    // The homework remark ("what was assigned") is the same for the whole
+    // class on a given date, not per-student — one input on the date cell
+    // instead of repeating it in every column. Lives on the appointment
+    // itself (always exists already, unlike attendance rows which are
+    // lazily created), saved on blur/Enter (change).
+    table.querySelectorAll("input[data-hw-remark-appt-id]").forEach(input => {
+      // Live-toggles the badge's colored background as you type, not just
+      // on save — typing something un-plains the pill immediately, clearing
+      // it fades the badge back out.
+      input.addEventListener("input", () => {
+        input.closest(".hw-remark-wrap").classList.toggle("has-content", input.value.trim() !== "");
+      });
+      input.addEventListener("change", async () => {
+        const apptId = input.dataset.hwRemarkApptId;
+        const homework_remark = input.value.trim() || null;
+        const appt = appts.find(x => x.id === apptId);
+        if (appt) appt.homework_remark = homework_remark;
+        const { error } = await supabaseClient.from("appointments").update({ homework_remark }).eq("id", apptId);
+        if (error) showToast("Update failed: " + error.message, "error");
       });
     });
 
