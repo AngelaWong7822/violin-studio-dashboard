@@ -230,6 +230,40 @@
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
+  <div class="card" id="attendance-card" style="display:none;">
+    <h1 data-i18n="attendance.title">Attendance</h1>
+    <label><span data-i18n="attendance.class_label">Class</span>
+      <select id="attendance-class-select" style="width:100%; max-width:480px;"></select>
+    </label>
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin:8px 0 0;">
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+        <span class="toggle-switch"><input type="checkbox" id="show-cancelled-classes-toggle" /><span class="slider"></span></span>
+        <span data-i18n="attendance.show_cancelled_classes">Show cancelled classes</span>
+      </label>
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+        <span class="toggle-switch"><input type="checkbox" id="show-withdrawn-toggle" /><span class="slider"></span></span>
+        <span data-i18n="attendance.show_withdrawn">Show withdrawn students</span>
+      </label>
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+        <span class="toggle-switch"><input type="checkbox" id="show-visitors-toggle" /><span class="slider"></span></span>
+        <span data-i18n="attendance.show_visitors">Show make-up visitors</span>
+      </label>
+      <button type="button" id="grid-lock-toggle-btn" style="margin-left:auto;"></button>
+    </div>
+    <div id="grid-section" style="margin-top:16px; display:none;">
+      <div id="grid-wrap">
+        <table id="grid-table" class="hide-withdrawn hide-visitors"></table>
+      </div>
+
+      <h1 style="font-size:16px; margin-top:24px;" data-i18n="attendance.pending_makeups_title">Leave requests needing a decision</h1>
+      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
+        <span class="toggle-switch"><input type="checkbox" id="show-processed-leaves-toggle" /><span class="slider"></span></span>
+        <span data-i18n="attendance.show_processed_leaves">Show processed leaves</span>
+      </label>
+      <div id="makeup-list"><p class="empty" data-i18n="attendance.pending_makeups_empty">None right now.</p></div>
+    </div>
+  </div>
+
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="classes.title">Classes</h1>
@@ -274,46 +308,6 @@
     <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
 
-  <div class="card" id="attendance-card" style="display:none;">
-    <h1 data-i18n="attendance.title">Attendance</h1>
-    <label><span data-i18n="attendance.class_label">Class</span>
-      <select id="attendance-class-select" style="width:100%; max-width:480px;"></select>
-    </label>
-    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin:8px 0 0;">
-      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
-        <span class="toggle-switch"><input type="checkbox" id="show-cancelled-classes-toggle" /><span class="slider"></span></span>
-        <span data-i18n="attendance.show_cancelled_classes">Show cancelled classes</span>
-      </label>
-      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
-        <span class="toggle-switch"><input type="checkbox" id="show-withdrawn-toggle" /><span class="slider"></span></span>
-        <span data-i18n="attendance.show_withdrawn">Show withdrawn students</span>
-      </label>
-      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
-        <span class="toggle-switch"><input type="checkbox" id="show-visitors-toggle" /><span class="slider"></span></span>
-        <span data-i18n="attendance.show_visitors">Show make-up visitors</span>
-      </label>
-      <button type="button" id="grid-lock-toggle-btn" style="margin-left:auto;"></button>
-    </div>
-    <div id="grid-section" style="margin-top:16px; display:none;">
-      <div id="grid-wrap">
-        <table id="grid-table" class="hide-withdrawn hide-visitors"></table>
-      </div>
-
-      <h1 style="font-size:16px; margin-top:24px;" data-i18n="attendance.pending_makeups_title">Leave requests needing a decision</h1>
-      <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
-        <span class="toggle-switch"><input type="checkbox" id="show-processed-leaves-toggle" /><span class="slider"></span></span>
-        <span data-i18n="attendance.show_processed_leaves">Show processed leaves</span>
-      </label>
-      <div id="makeup-list"><p class="empty" data-i18n="attendance.pending_makeups_empty">None right now.</p></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h1 data-i18n="reply_templates.title">💌 Quick replies</h1>
-    <p style="color:#71717a; font-size:13px; margin:-8px 0 12px;" data-i18n="reply_templates.subtitle">Copy a reply for a parent's homework message.</p>
-    <div id="reply-templates-list" class="reply-templates-wrap"></div>
-  </div>
-
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="payments.title">Payments</h1>
@@ -330,6 +324,12 @@
       </tr></thead>
       <tbody id="payment-rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
+  </div>
+
+  <div class="card">
+    <h1 data-i18n="reply_templates.title">💌 Quick replies</h1>
+    <p style="color:#71717a; font-size:13px; margin:-8px 0 12px;" data-i18n="reply_templates.subtitle">Copy a reply for a parent's homework message.</p>
+    <div id="reply-templates-list" class="reply-templates-wrap"></div>
   </div>
 </main>
 
@@ -2821,6 +2821,36 @@ async function initReplyTemplates() {
         await load();
       });
       card.appendChild(delBtn);
+
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "rt-edit-btn";
+      editBtn.textContent = "✏️";
+      editBtn.title = t("reply_templates.edit");
+      editBtn.addEventListener("click", () => {
+        let cancelled = false;
+        const textarea = document.createElement("textarea");
+        textarea.className = "rt-edit-textarea";
+        textarea.value = tpl.text;
+        card.replaceChild(textarea, textDiv);
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+        async function save() {
+          if (cancelled) return;
+          const newText = textarea.value.trim();
+          if (!newText || newText === tpl.text) { render(); return; }
+          const { error } = await supabaseClient.from("reply_templates").update({ text: newText }).eq("id", tpl.id);
+          if (error) { showToast(error.message, "error"); return; }
+          await load();
+        }
+        textarea.addEventListener("blur", save);
+        textarea.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); textarea.blur(); }
+          else if (e.key === "Escape") { cancelled = true; render(); }
+        });
+      });
+      card.appendChild(editBtn);
 
       const copyBtn = document.createElement("button");
       copyBtn.type = "button";

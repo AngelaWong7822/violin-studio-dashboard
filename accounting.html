@@ -33,6 +33,8 @@
   .acct-stat-number { font-size: 32px; font-weight: 700; color: #18181b; }
   .acct-card-footer { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
   .acct-note { font-size: 10px; line-height: 1.4; color: #71717a; margin: 0; }
+  .acct-revenue-sublabel { font-size: 11px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: .03em; margin: 0 0 6px; }
+  .acct-revenue-section { border-top: 1px solid #f0f0f1; padding-top: 12px; }
 </style>
 </head>
 <body>
@@ -61,16 +63,34 @@
 
       <div class="card acct-card" style="margin:0;">
         <h2 data-i18n="accounting.revenue_title">This Month's Revenue</h2>
-        <div class="acct-donut-row">
-          <canvas id="revenue-chart" width="96" height="96"></canvas>
-          <div class="acct-legend">
-            <div class="acct-legend-item"><span class="dot dot-paid"></span><span data-i18n="accounting.paid">Paid</span><b id="revenue-paid">$0</b></div>
-            <div class="acct-legend-item"><span class="dot dot-unpaid"></span><span data-i18n="accounting.unpaid">Outstanding</span><b id="revenue-unpaid">$0</b></div>
-            <div class="acct-legend-total"><span data-i18n="accounting.total">Total</span><b id="revenue-total">$0</b></div>
+
+        <div>
+          <p class="acct-revenue-sublabel" data-i18n="accounting.revenue_group_label">Group Classes</p>
+          <div class="acct-donut-row">
+            <canvas id="revenue-chart" width="96" height="96"></canvas>
+            <div class="acct-legend">
+              <div class="acct-legend-item"><span class="dot dot-paid"></span><span data-i18n="accounting.paid">Paid</span><b id="revenue-paid">$0</b></div>
+              <div class="acct-legend-item"><span class="dot dot-unpaid"></span><span data-i18n="accounting.unpaid">Outstanding</span><b id="revenue-unpaid">$0</b></div>
+              <div class="acct-legend-total"><span data-i18n="accounting.total">Total</span><b id="revenue-total">$0</b></div>
+            </div>
           </div>
+          <span class="acct-trend" id="revenue-trend"></span>
+          <p class="acct-note" id="revenue-prev-month"></p>
         </div>
-        <span class="acct-trend" id="revenue-trend"></span>
-        <p class="acct-note" id="revenue-prev-month"></p>
+
+        <div class="acct-revenue-section">
+          <p class="acct-revenue-sublabel" data-i18n="accounting.revenue_private_label">Private Students</p>
+          <div class="acct-donut-row">
+            <canvas id="private-revenue-chart" width="96" height="96"></canvas>
+            <div class="acct-legend">
+              <div class="acct-legend-item"><span class="dot dot-paid"></span><span data-i18n="accounting.paid">Paid</span><b id="private-revenue-paid">$0</b></div>
+              <div class="acct-legend-item"><span class="dot dot-unpaid"></span><span data-i18n="accounting.unpaid">Outstanding</span><b id="private-revenue-unpaid">$0</b></div>
+              <div class="acct-legend-total"><span data-i18n="accounting.total">Total</span><b id="private-revenue-total">$0</b></div>
+            </div>
+          </div>
+          <span class="acct-trend" id="private-revenue-trend"></span>
+          <p class="acct-note" id="private-revenue-prev-month"></p>
+        </div>
       </div>
 
       <div class="card acct-card" style="margin:0;">
@@ -332,10 +352,14 @@
     requestAnimationFrame(tick);
   }
 
-  function drawDonut(paid, unpaid) {
-    const ctx = document.getElementById("revenue-chart");
-    if (window.__revenueChart) window.__revenueChart.destroy();
-    window.__revenueChart = new Chart(ctx, {
+  // canvasId/storeKey are parameterized so this can draw both the group-
+  // class donut and the private-student donut without them clobbering each
+  // other's Chart.js instance.
+  const donutCharts = {};
+  function drawDonut(canvasId, paid, unpaid) {
+    const ctx = document.getElementById(canvasId);
+    if (donutCharts[canvasId]) donutCharts[canvasId].destroy();
+    donutCharts[canvasId] = new Chart(ctx, {
       type: "doughnut",
       data: {
         datasets: [{
@@ -348,26 +372,67 @@
     });
   }
 
+  // Private lessons are billed per-appointment (no package/term concept),
+  // so "this month's revenue" is every non-cancelled private lesson
+  // scheduled in the month, split by whether its attendance row is marked
+  // paid — same paid/unpaid/total shape as computeRevenue, just a much
+  // simpler calculation since there's no leave-deduction/deferred-credit
+  // logic to replicate for 1-on-1 lessons.
+  async function computePrivateRevenue(startIso, endIso) {
+    const { data: appts } = await supabaseClient
+      .from("appointments")
+      .select("id, price")
+      .eq("type", "lesson").is("class_id", null)
+      .neq("status", "cancelled")
+      .gte("scheduled_start", startIso).lt("scheduled_start", endIso);
+    if (!appts?.length) return { total: 0, paid: 0, unpaid: 0 };
+
+    const apptIds = appts.map(a => a.id);
+    const { data: attRows } = await supabaseClient
+      .from("attendance").select("appointment_id, paid")
+      .in("appointment_id", apptIds);
+    const paidByAppt = new Map((attRows ?? []).map(a => [a.appointment_id, a.paid]));
+
+    let paid = 0, unpaid = 0;
+    for (const a of appts) {
+      const price = a.price ?? 0;
+      if (paidByAppt.get(a.id)) paid += price; else unpaid += price;
+    }
+    return { total: Math.round(paid + unpaid), paid: Math.round(paid), unpaid: Math.round(unpaid) };
+  }
+
   async function load() {
     const thisMonth = monthBounds(0);
     const lastMonth = monthBounds(-1);
 
     // Revenue (needs its own per-package appointment/attendance lookups)
     // and the shared package list (for new-students/enrolled/churn) run
-    // concurrently — neither depends on the other.
-    const [[revenueNow, revenuePrev], allGroupPkgs] = await Promise.all([
+    // concurrently — neither depends on the other. Private revenue is a
+    // separate, much cheaper query, so it just joins the same Promise.all.
+    const [[revenueNow, revenuePrev], allGroupPkgs, [privateRevenueNow, privateRevenuePrev]] = await Promise.all([
       Promise.all([
         computeRevenue(thisMonth.startDateStr, thisMonth.endDateStr),
         computeRevenue(lastMonth.startDateStr, lastMonth.endDateStr),
       ]),
       fetchAllGroupPackages(),
+      Promise.all([
+        computePrivateRevenue(thisMonth.startIso, thisMonth.endIso),
+        computePrivateRevenue(lastMonth.startIso, lastMonth.endIso),
+      ]),
     ]);
     animateNumber(document.getElementById("revenue-paid"), `$${revenueNow.paid}`);
     animateNumber(document.getElementById("revenue-unpaid"), `$${revenueNow.unpaid}`);
     animateNumber(document.getElementById("revenue-total"), `$${revenueNow.total}`);
-    drawDonut(revenueNow.paid, revenueNow.unpaid);
+    drawDonut("revenue-chart", revenueNow.paid, revenueNow.unpaid);
     renderTrend(document.getElementById("revenue-trend"), revenueNow.total, revenuePrev.total);
     document.getElementById("revenue-prev-month").textContent = tf("accounting.prev_month_revenue", { amount: revenuePrev.total });
+
+    animateNumber(document.getElementById("private-revenue-paid"), `$${privateRevenueNow.paid}`);
+    animateNumber(document.getElementById("private-revenue-unpaid"), `$${privateRevenueNow.unpaid}`);
+    animateNumber(document.getElementById("private-revenue-total"), `$${privateRevenueNow.total}`);
+    drawDonut("private-revenue-chart", privateRevenueNow.paid, privateRevenueNow.unpaid);
+    renderTrend(document.getElementById("private-revenue-trend"), privateRevenueNow.total, privateRevenuePrev.total);
+    document.getElementById("private-revenue-prev-month").textContent = tf("accounting.prev_month_revenue", { amount: privateRevenuePrev.total });
 
     const newNow = countNewStudents(allGroupPkgs, thisMonth.startDateStr, thisMonth.endDateStr);
     const newPrev = countNewStudents(allGroupPkgs, lastMonth.startDateStr, lastMonth.endDateStr);

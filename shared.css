@@ -231,17 +231,24 @@ dialog::backdrop {
 /* Quick-reply template cards — deliberately warmer/softer than the rest of
    the (neutral zinc) UI, since these are little sticky-note-style prompts
    for a friendly parent message, not a data table. */
-.reply-templates-wrap { display: flex; flex-wrap: wrap; gap: 12px; }
+/* Grid instead of flex-wrap — with flex-wrap, a row with fewer cards (e.g.
+   the last row) stretched those cards wider than the rows above, so cards
+   ended up visibly different sizes depending on where they landed. A grid's
+   column tracks are fixed for the whole wrap, so every card — and the "add
+   your own" card — is the same width regardless of which row it's in. */
+.reply-templates-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .reply-template-card {
   position: relative;
-  flex: 1 1 240px;
-  max-width: 320px;
+  /* A shared min-height (not a fixed height) keeps every card looking the
+     same size for typical template lengths, without truncating a longer one. */
+  min-height: 132px;
   background: #fffbeb;
   border: 1px solid #fde68a;
   border-radius: 14px;
-  /* Extra right padding reserves a gutter for the delete button so it
-     never sits on top of the last word of a wrapped line. */
-  padding: 14px 42px 40px 16px;
+  /* Extra right padding reserves a gutter for BOTH the edit and delete
+     buttons sitting side by side, so neither ever sits on top of the last
+     word of a wrapped line. */
+  padding: 14px 78px 40px 16px;
   font-size: 13.5px;
   line-height: 1.5;
   color: #3f3f21;
@@ -281,9 +288,30 @@ dialog::backdrop {
 }
 .reply-template-card:hover .rt-delete-btn { opacity: 1; }
 .reply-template-card .rt-delete-btn:hover { background: #fef2f2; color: #b91c1c; }
+.reply-template-card .rt-edit-btn {
+  position: absolute;
+  right: 42px;
+  top: 8px;
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.reply-template-card:hover .rt-edit-btn { opacity: 1; }
+.reply-template-card .rt-edit-btn:hover { background: #fef3c7; color: #92400e; }
+.reply-template-card .rt-edit-textarea {
+  width: 100%; min-height: 60px; resize: vertical;
+  font: inherit; font-size: 13.5px; line-height: 1.5; color: #3f3f21;
+  border: 1px solid #fcd34d; border-radius: 8px; padding: 4px 6px;
+  background: #fff;
+}
 .reply-template-add {
-  flex: 1 1 240px;
-  max-width: 320px;
+  min-height: 132px;
   display: flex;
   flex-direction: column;
   gap: 8px;
