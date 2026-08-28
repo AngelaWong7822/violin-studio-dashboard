@@ -1499,6 +1499,10 @@
             await supabaseClient.from("attendance").insert({ appointment_id: targetAppointmentId, student_id: studentId });
           }
         }
+        // Unlike the other make-up fields, this one changes what shows up
+        // elsewhere in the grid (the visitor column on the target date) —
+        // needs a reload to actually show that without a manual refresh.
+        await loadClassGrid(attendanceClassSelect.value);
       });
     });
 
