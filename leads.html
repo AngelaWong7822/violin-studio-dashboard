@@ -19,6 +19,7 @@
   #board { display: grid; grid-template-columns: repeat(var(--col-count, 4), 1fr); gap: 10px; align-items: start; }
   .col-head { font-weight: 600; font-size: 13px; color: #71717a; margin-bottom: 8px; }
   .lead-card { background: #fff; border-radius: 12px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 10px rgba(0,0,0,.05); font-size: 13px; border-left: 4px solid #e4e4e7; }
+  .lead-card.needs-follow-up { background: #fffbeb; }
   .lead-card.source-facebook_ad { border-left-color: #4267B2; }
   .lead-card.source-whatsapp_direct { border-left-color: #25D366; }
   .lead-card.source-referral { border-left-color: #c9a15c; }
@@ -311,23 +312,43 @@
           ? `<a class="whatsapp-link" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
           : "";
 
+        const appt = lead.appointments;
+        // Once a lead has attended, the consultation-time editor below no
+        // longer applies (there's nothing left to reschedule) — but the
+        // date itself is still worth showing here, since it's otherwise
+        // only visible in the "Needs Follow-up" table at the top. Kept
+        // visible after converting or being marked lost too, since both
+        // are just later stages of the same lead.
+        const attendedDateLine = (status === "attended" || status === "converted" || status === "lost") && appt?.scheduled_start
+          ? `<div class="meta">${tf("lead.attended_on", { date: new Date(appt.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) })}</div>`
+          : "";
+
+        // A warm highlight for anything still sitting un-followed-up in a
+        // stage where that matters — matches which leads the "Needs
+        // Follow-up" table surfaces (see loadFollowUps' status filter).
+        // Not applied to "converted"/"lost": follow-up is a moot point once
+        // a lead has already landed there.
+        const needsFollowUpBg = !lead.followed_up && (status === "consultation_booked" || status === "attended");
+
         const card = document.createElement("div");
-        card.className = `lead-card${c?.source ? ` source-${c.source}` : ""}`;
+        card.className = `lead-card${c?.source ? ` source-${c.source}` : ""}${needsFollowUpBg ? " needs-follow-up" : ""}`;
         card.innerHTML = `
           <div class="name">${c?.name ?? "(no name)"}</div>
           <div class="meta">${whatsappCell}</div>
           ${metaParts.length ? `<div class="meta">${metaParts.join(" · ")}</div>` : ""}
           <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
           <div class="meta stage-age">${timeAgo(lead.updated_at ?? lead.created_at)}</div>
+          ${attendedDateLine}
         `;
 
         // Only shown while there's still a live, upcoming booking to act
         // on — not once it's cancelled (appointment row stays around for
-        // history, lead just no longer points at it) or already attended
+        // history, lead just no longer points at it), already attended
         // (marking "attended" also marks the appointment "completed", so
-        // there's nothing left to cancel).
-        const appt = lead.appointments;
-        if (lead.consultation_appointment_id && appt && appt.status !== "cancelled" && status !== "attended") {
+        // there's nothing left to cancel), already converted (the
+        // consultation is long done and settled by that point), or lost
+        // (nothing left worth cancelling on a dead lead either).
+        if (lead.consultation_appointment_id && appt && appt.status !== "cancelled" && status !== "attended" && status !== "converted" && status !== "lost") {
           const consultRow = document.createElement("div");
           consultRow.className = "meta consultation-row";
           const timeLabel = document.createElement("span");
@@ -448,19 +469,23 @@
         // status, so it doesn't fight with the select above. Toggling it
         // on is also what drops this lead off the "Needs Follow-up" table
         // at the top of the page (see loadFollowUps' followed_up filter).
-        const followUpBtn = document.createElement("button");
-        followUpBtn.type = "button";
-        followUpBtn.className = "icon-action-btn" + (lead.followed_up ? " followed-up-active" : "");
-        followUpBtn.title = t(lead.followed_up ? "lead.followed_up_done_title" : "lead.followed_up_pending_title");
-        followUpBtn.textContent = lead.followed_up ? "✅" : "☎️";
-        followUpBtn.addEventListener("click", async () => {
-          const { error } = await supabaseClient
-            .from("leads").update({ followed_up: !lead.followed_up }).eq("id", lead.id);
-          if (error) { showToast("Update failed: " + error.message, "error"); return; }
-          await loadFollowUps();
-          await loadBoard();
-        });
-        actionsRow.appendChild(followUpBtn);
+        // Not shown for "lost" or "converted": there's nothing left to
+        // follow up on once a lead is dead or already signed up.
+        if (status !== "lost" && status !== "converted") {
+          const followUpBtn = document.createElement("button");
+          followUpBtn.type = "button";
+          followUpBtn.className = "icon-action-btn" + (lead.followed_up ? " followed-up-active" : "");
+          followUpBtn.title = t(lead.followed_up ? "lead.followed_up_done_title" : "lead.followed_up_pending_title");
+          followUpBtn.textContent = lead.followed_up ? "✅" : "☎️";
+          followUpBtn.addEventListener("click", async () => {
+            const { error } = await supabaseClient
+              .from("leads").update({ followed_up: !lead.followed_up }).eq("id", lead.id);
+            if (error) { showToast("Update failed: " + error.message, "error"); return; }
+            await loadFollowUps();
+            await loadBoard();
+          });
+          actionsRow.appendChild(followUpBtn);
+        }
 
         const editBtn = document.createElement("button");
         editBtn.type = "button";

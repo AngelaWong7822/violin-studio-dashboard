@@ -76,6 +76,10 @@
   }
   .count-pill-paid { background: #eff6ff; color: #1d4ed8; }
   .count-pill-warn { background: #fdf1d6; color: #8a6314; }
+  .violin-borrow-days {
+    display: inline-block; background: #eff6ff; color: #1d4ed8;
+    padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  }
   .icon-delete-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #a1a1aa; padding: 2px 4px; border-radius: 4px; }
   .icon-delete-btn:hover { color: #b91c1c; background: #fef2f2; }
   .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
@@ -161,32 +165,41 @@
   .hw-remark-wrap.has-content .hw-remark-input { color: #78350f; font-weight: 500; }
   .hw-remark-input::placeholder { color: #d4d4d8; }
   .hw-remark-input:focus { outline: none; }
-  /* Same "plain until typed" badge pattern as the homework remark, reused
-     for the two per-term-batch student notes — own colors so the three
-     kinds of note (homework/attention/join) are tellable apart at a glance. */
-  .term-note-wrap {
-    display: inline-flex; align-items: center; gap: 3px; max-width: 100%;
-    border: 1px solid transparent; border-radius: 999px; padding: 1px 7px; margin: 2px 0;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+  /* The two per-term-batch student notes (attention/join-likelihood) — bare
+     icons by default so they don't take up a permanent pill's worth of
+     space; the remark text itself surfaces as a native tooltip on hover
+     instead of sitting visibly in an always-open input. */
+  .term-note-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 3px 0; }
+  .term-note-pair { position: relative; display: inline-flex; align-items: center; }
+  .term-note-icon-btn {
+    border: none; background: none; cursor: pointer; font-size: 13px; flex-shrink: 0;
+    opacity: 0.35; padding: 2px 3px; line-height: 1; border-radius: 999px;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
   }
-  .term-note-wrap .term-note-icon-btn {
-    border: none; background: none; cursor: pointer; font-size: 9px; flex-shrink: 0;
-    opacity: 0.35; padding: 0; line-height: 1;
+  .term-note-icon-btn.has-content { opacity: 1; }
+  .term-note-icon-btn.attention.has-content { background: #fef2f2; }
+  /* 🤝 is a warm-toned emoji that barely dims with opacity alone (unlike
+     👀, which is naturally monochrome) — greyscale it while inactive so
+     "off" reads as clearly muted, then drop the filter and light it up in
+     full color once flagged/remarked, matching 👀's light/dark contrast. */
+  .term-note-icon-btn.join { filter: grayscale(1); }
+  .term-note-icon-btn.join.has-content { filter: none; background: #eff6ff; }
+  /* Hidden until the pair is actually hovered/focused, so the grid stays
+     icon-only at a glance — this is purely the trigger to reveal the popup
+     input below, not the note content itself. */
+  .term-note-edit-btn {
+    border: none; background: none; cursor: pointer; color: #a1a1aa; font-size: 9px; flex-shrink: 0;
+    padding: 0; width: 0; opacity: 0; overflow: hidden; line-height: 1;
+    transition: opacity 0.15s ease, width 0.15s ease;
   }
-  .term-note-wrap.has-content .term-note-icon-btn { opacity: 1; }
-  .term-note-wrap .term-note-input {
-    border: none; background: transparent; padding: 0; margin: 0; font-size: 10px;
-    color: #71717a; width: 100%; min-width: 30px; text-overflow: ellipsis;
+  .term-note-pair:hover .term-note-edit-btn, .term-note-pair:focus-within .term-note-edit-btn {
+    opacity: 1; width: 11px; margin-left: 2px;
   }
-  .term-note-input::placeholder { color: #d4d4d8; }
-  .term-note-input:focus { outline: none; }
-  .term-note-wrap.attention.has-content { background: #fef2f2; border-color: #fecaca; }
-  .term-note-wrap.attention.has-content:hover, .term-note-wrap.attention.has-content:focus-within { border-color: #fca5a5; }
-  .term-note-wrap.attention.has-content .term-note-input { color: #991b1b; font-weight: 500; }
-  .term-note-wrap.join.has-content { background: #eff6ff; border-color: #bfdbfe; }
-  .term-note-wrap.join.has-content:hover, .term-note-wrap.join.has-content:focus-within { border-color: #93c5fd; }
-  .term-note-wrap.join.has-content .term-note-input { color: #1d4ed8; font-weight: 500; }
-  .term-note-wrap:hover, .term-note-wrap:focus-within { border-color: #d4d4d8; }
+  .term-note-popup-input {
+    border: 1px solid #d4d4d8; border-radius: 6px; background: #fff; margin-left: 4px;
+    padding: 2px 6px; font-size: 10px; color: #27272a; width: 90px;
+  }
+  .term-note-popup-input:focus { outline: none; border-color: #a1a1aa; }
   /* Touch devices only (not just narrow screens — a "coarse" pointer means
      a finger, not a mouse) get a bit more padding on these grid buttons.
      They're packed tight enough on desktop that a bigger jump risks two
@@ -388,6 +401,10 @@
           <button type="button" class="toggle-btn active" data-value="not_needed" data-i18n="common.no">No</button>
         </div>
         <input type="hidden" id="student-needs-violin" value="not_needed" />
+      </label>
+      <label class="full-width" id="student-violin-borrow-date-field" style="display:none;">
+        <span data-i18n="student.violin_borrow_date">Borrow start date</span>
+        <input type="date" id="student-violin-borrow-date" />
       </label>
       <div id="student-edit-class-field" class="full-width" style="display:none; flex-direction:column; gap:10px; border-top:1px solid #e4e4e7; padding-top:10px;">
         <label><span data-i18n="enroll.col_class">Class</span>
@@ -1138,9 +1155,27 @@
             // optional text remark, so either alone (or both) works.
             const attentionOn = note?.attention_flag || note?.attention_remark;
             const joinOn = note?.join_flag || note?.join_remark;
+            // Bare icon by default — no permanently-visible pill/input taking
+            // up space. Hovering the icon shows the remark text itself (via
+            // the native tooltip) when there is one; the ✎ only appears on
+            // hover of its pair and reveals a small inline input to type or
+            // change the remark. Clicking the icon itself still just toggles
+            // the flag instantly, same as before.
+            const attentionTitle = note?.attention_remark || t("attendance.attention_note_title");
+            const joinTitle = note?.join_remark || t("attendance.join_note_title");
             return `<td${colClass(isWithdrawn, isVisitor, studentId)}>
-              <div><span class="term-note-wrap attention${attentionOn ? " has-content" : ""}"><button type="button" class="term-note-icon-btn" data-term-flag-field="attention_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.attention_note_title")}">⚠️</button><input type="text" class="term-note-input" data-term-note-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.attention_remark ?? ""}" title="${t("attendance.attention_note_title")}" /></span></div>
-              <div><span class="term-note-wrap join${joinOn ? " has-content" : ""}"><button type="button" class="term-note-icon-btn" data-term-flag-field="join_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.join_note_title")}">🔄</button><input type="text" class="term-note-input" data-term-note-field="join_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.join_remark ?? ""}" title="${t("attendance.join_note_title")}" /></span></div>
+              <div class="term-note-row">
+                <span class="term-note-pair">
+                  <button type="button" class="term-note-icon-btn attention${attentionOn ? " has-content" : ""}" data-term-flag-field="attention_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${attentionTitle}">👀</button>
+                  <button type="button" class="term-note-edit-btn" data-term-edit-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.edit_note_title")}">✎</button>
+                  <input type="text" class="term-note-popup-input" data-term-note-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.attention_remark ?? ""}" style="display:none;" />
+                </span>
+                <span class="term-note-pair">
+                  <button type="button" class="term-note-icon-btn join${joinOn ? " has-content" : ""}" data-term-flag-field="join_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${joinTitle}">🤝</button>
+                  <button type="button" class="term-note-edit-btn" data-term-edit-field="join_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.edit_note_title")}">✎</button>
+                  <input type="text" class="term-note-popup-input" data-term-note-field="join_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.join_remark ?? ""}" style="display:none;" />
+                </span>
+              </div>
             </td>`;
           }).join("")}
         </tr>`;
@@ -1161,7 +1196,7 @@
     function rerenderLocally() {
       const gridWrap = document.getElementById("grid-wrap");
       const savedScrollLeft = gridWrap.scrollLeft;
-      renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap);
+      renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap, termNotes);
       renderMakeupList(attendanceRows, appts, allGroupAppts, classId);
       gridWrap.scrollLeft = savedScrollLeft;
     }
@@ -1364,30 +1399,50 @@
     // The two per-term-batch student notes (attention/join-likelihood).
     // Two ways to light up the same badge: click the icon as a plain flag
     // (no typing needed — "just a reminder"), or type an optional detail
-    // into the text field. Either one alone is enough; the field pairing
-    // below maps each note field to its matching flag field so both
-    // handlers can check/update the other half correctly.
+    // via the ✎ popup. Either one alone is enough; the field pairing below
+    // maps each note field to its matching flag field so both handlers can
+    // check/update the other half correctly.
     const TERM_NOTE_FLAG_FOR_FIELD = { attention_remark: "attention_flag", join_remark: "join_flag" };
+    const TERM_NOTE_TITLE_KEY = { attention_remark: "attendance.attention_note_title", join_remark: "attendance.join_note_title" };
+
+    function saveTermNoteField(field, batchIndex, studentId, value) {
+      const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
+      return supabaseClient
+        .from("term_batch_notes")
+        .upsert({ class_id: classId, batch_index: batchIndex, student_id: studentId, ...note, [field]: value }, { onConflict: "class_id,batch_index,student_id" })
+        .then(({ error }) => ({ error, updated: { ...note, [field]: value } }));
+    }
+
+    table.querySelectorAll("button[data-term-edit-field]").forEach(editBtn => {
+      editBtn.addEventListener("click", () => {
+        const input = editBtn.closest(".term-note-pair").querySelector("input[data-term-note-field]");
+        input.style.display = "";
+        input.focus();
+        input.select();
+      });
+    });
 
     table.querySelectorAll("input[data-term-note-field]").forEach(input => {
-      input.addEventListener("input", () => {
-        const batchIndex = Number(input.dataset.batchIndex);
-        const studentId = input.dataset.studentId;
-        const flagField = TERM_NOTE_FLAG_FOR_FIELD[input.dataset.termNoteField];
-        const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
-        input.closest(".term-note-wrap").classList.toggle("has-content", input.value.trim() !== "" || !!note[flagField]);
-      });
-      input.addEventListener("change", async () => {
-        const field = input.dataset.termNoteField;
-        const batchIndex = Number(input.dataset.batchIndex);
-        const studentId = input.dataset.studentId;
+      const originalValue = input.value;
+      const field = input.dataset.termNoteField;
+      const batchIndex = Number(input.dataset.batchIndex);
+      const studentId = input.dataset.studentId;
+      const iconBtn = input.closest(".term-note-pair").querySelector(".term-note-icon-btn");
+
+      async function commit() {
         const value = input.value.trim() || null;
-        const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
-        const { error } = await supabaseClient
-          .from("term_batch_notes")
-          .upsert({ class_id: classId, batch_index: batchIndex, student_id: studentId, ...note, [field]: value }, { onConflict: "class_id,batch_index,student_id" });
+        const { error, updated } = await saveTermNoteField(field, batchIndex, studentId, value);
         if (error) { showToast("Update failed: " + error.message, "error"); return; }
-        termNotes.set(`${batchIndex}:${studentId}`, { ...note, [field]: value });
+        termNotes.set(`${batchIndex}:${studentId}`, updated);
+        const flagField = TERM_NOTE_FLAG_FOR_FIELD[field];
+        iconBtn.classList.toggle("has-content", !!value || !!updated[flagField]);
+        iconBtn.title = value || t(TERM_NOTE_TITLE_KEY[field]);
+        input.style.display = "none";
+      }
+      input.addEventListener("blur", commit);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+        else if (e.key === "Escape") { input.value = originalValue; input.style.display = "none"; }
       });
     });
 
@@ -1405,7 +1460,7 @@
         if (error) { showToast("Update failed: " + error.message, "error"); return; }
         const updated = { ...note, [field]: newValue };
         termNotes.set(`${batchIndex}:${studentId}`, updated);
-        btn.closest(".term-note-wrap").classList.toggle("has-content", newValue || !!updated[remarkField]);
+        btn.classList.toggle("has-content", newValue || !!updated[remarkField]);
       });
     });
   }
@@ -2318,7 +2373,7 @@
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, contacts(name, whatsapp_number, gender, social_media_name, level, age, violin_status)")
+      .select("id, contact_id, contacts(name, whatsapp_number, gender, social_media_name, level, age, violin_status, violin_borrow_date)")
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
@@ -2404,8 +2459,23 @@
       const whatsappCell = rawPhone && digitsOnly
         ? `<a class="whatsapp-link" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
         : "—";
+      const borrowTitle = s.contacts?.violin_borrow_date
+        ? tf("student.violin_borrow_since", { date: new Date(`${s.contacts.violin_borrow_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) })
+        : t("student.violin_borrow");
+      // Counts the start date itself as day 1 (借嗰日就算第1日), not 0 —
+      // matches how this gets counted in conversation, rather than a strict
+      // elapsed-time diff.
+      let borrowDaysBadge = "";
+      if (s.contacts?.violin_status === "borrow" && s.contacts?.violin_borrow_date) {
+        const borrowDate = new Date(`${s.contacts.violin_borrow_date}T00:00:00`);
+        const borrowMidnight = new Date(borrowDate.getFullYear(), borrowDate.getMonth(), borrowDate.getDate());
+        const todayMidnight = new Date();
+        todayMidnight.setHours(0, 0, 0, 0);
+        const daysBorrowed = Math.round((todayMidnight - borrowMidnight) / 86400000) + 1;
+        borrowDaysBadge = ` <span class="violin-borrow-days" title="${borrowTitle}">${tf("student.violin_borrow_days", { n: daysBorrowed })}</span>`;
+      }
       const violinIcon = s.contacts?.violin_status === "buy" ? ' <span title="' + t("student.needs_violin") + '">🎻</span>'
-        : s.contacts?.violin_status === "borrow" ? ' <span title="' + t("student.violin_borrow") + '">🔄</span>' : "";
+        : s.contacts?.violin_status === "borrow" ? ' <span title="' + borrowTitle + '">🔄</span>' + borrowDaysBadge : "";
       const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
       const initial = (s.contacts?.name ?? "?").trim().charAt(0).toUpperCase() || "?";
 
@@ -2487,6 +2557,7 @@
     document.querySelectorAll("#student-needs-violin-group .toggle-btn").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.value === value);
     });
+    document.getElementById("student-violin-borrow-date-field").style.display = value === "borrow" ? "flex" : "none";
   }
   document.querySelectorAll("#student-needs-violin-group .toggle-btn").forEach(btn => {
     btn.addEventListener("click", () => setNeedsViolinToggle(btn.dataset.value));
@@ -2504,6 +2575,7 @@
     document.getElementById("student-social").value = c.social_media_name ?? "";
     document.getElementById("student-level").value = c.level ?? "";
     setNeedsViolinToggle(c.violin_status ?? "not_needed");
+    document.getElementById("student-violin-borrow-date").value = c.violin_borrow_date ?? "";
     document.getElementById("student-age").value = c.age ?? "";
 
     const pkg = student.currentPkg;
@@ -2564,6 +2636,12 @@
       level: document.getElementById("student-level").value || null,
       age: document.getElementById("student-age").value || null,
       violin_status: document.getElementById("student-needs-violin").value,
+      // Only meaningful while actually borrowing — cleared once the toggle
+      // moves off "borrow" so a stale date doesn't linger for e.g. someone
+      // who later buys their own violin.
+      violin_borrow_date: document.getElementById("student-needs-violin").value === "borrow"
+        ? (document.getElementById("student-violin-borrow-date").value || null)
+        : null,
     };
 
     if (studentId && contactId) {

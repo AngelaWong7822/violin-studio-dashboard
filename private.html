@@ -254,6 +254,14 @@
     const idx = ATTENDANCE_CYCLE.indexOf(current || "");
     return ATTENDANCE_CYCLE[(idx + 1) % ATTENDANCE_CYCLE.length];
   }
+  // Maps whatsapp-ingest's raw `intent` field (see supabase/functions/
+  // whatsapp-ingest/index.ts) to a short label for the AI message log —
+  // "none" covers plain chit-chat with no scheduling content at all.
+  function intentLabel(llmParseResult) {
+    const intent = llmParseResult?.intent;
+    if (!intent) return t("private.intent_unanalyzed");
+    return t("private.intent_" + intent);
+  }
   function attendanceSymbol(status) {
     if (status === "attended") return "✓";
     if (status === "leave") return t("attstatus.leave");
@@ -309,7 +317,18 @@
       const lastActivityAt = lessons.length
         ? lessons.reduce((latest, l) => (l.createdAt > latest ? l.createdAt : latest), lessons[0].createdAt)
         : null;
-      return { ...s, lessons, isAiCreated, lastActivityAt };
+
+      // The raw WhatsApp messages whatsapp-ingest has seen for this contact,
+      // plus its AI intent read on each one — shown so Angela can spot-check
+      // what the auto-marking actually picked up, and prune old ones that
+      // are no longer worth keeping.
+      const { data: messages } = await supabaseClient
+        .from("messages")
+        .select("id, direction, body, llm_parse_result, created_at")
+        .eq("contact_id", s.contact_id)
+        .order("created_at", { ascending: false });
+
+      return { ...s, lessons, isAiCreated, lastActivityAt, messages: messages ?? [] };
     }));
 
     // Students with recent lesson activity float to the top (most recent
@@ -351,6 +370,15 @@
           <td><button type="button" class="link" data-delete-lesson="${l.apptId}" style="color:#b91c1c;">${t("private.delete_lesson")}</button></td>
         </tr>`).join("");
 
+      const messageRows = s.messages.map(m => `
+        <tr>
+          <td>${new Date(m.created_at).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
+          <td>${t(m.direction === "outbound" ? "private.msg_outbound" : "private.msg_inbound")}</td>
+          <td style="white-space:normal; word-break:break-word;">${m.body}</td>
+          <td><span class="status-pill status-confirmed">${intentLabel(m.llm_parse_result)}</span></td>
+          <td><button type="button" class="link" data-delete-message="${m.id}" style="color:#b91c1c;">${t("private.delete_message")}</button></td>
+        </tr>`).join("");
+
       const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
       const initial = (s.contacts?.name ?? "?").trim().charAt(0).toUpperCase() || "?";
 
@@ -389,6 +417,20 @@
                   </tr></thead>
                   <tbody>${lessonRows}</tbody>
                 </table>` : `<p class="empty">${t("private.empty_lessons")}</p>`}
+            </div>
+            <div class="lesson-table-wrap" style="margin-top:14px;">
+              <h3 style="margin:0 0 6px; font-size:13px; color:#71717a;">${t("private.ai_messages_title")}</h3>
+              ${s.messages.length ? `
+                <table class="detail-table">
+                  <thead><tr>
+                    <th data-i18n="private.col_when">When</th>
+                    <th data-i18n="private.msg_direction">Direction</th>
+                    <th data-i18n="private.msg_content">Message</th>
+                    <th data-i18n="private.msg_intent">AI intent</th>
+                    <th></th>
+                  </tr></thead>
+                  <tbody>${messageRows}</tbody>
+                </table>` : `<p class="empty">${t("private.ai_messages_empty")}</p>`}
             </div>
           </td>
         </tr>`;
@@ -492,6 +534,22 @@
         // event — same pattern used everywhere else appointments get
         // called off (WhatsApp cancellations, the email "Undo" link).
         const { error } = await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("id", apptId);
+        if (error) { showToast("Delete failed: " + error.message, "error"); return; }
+        await load();
+      });
+    });
+
+    tbody.querySelectorAll("button[data-delete-message]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!(await showConfirm(t("private.delete_message_confirm")))) return;
+        const messageId = btn.dataset.deleteMessage;
+        // pending_actions.message_id has no ON DELETE CASCADE — clear any
+        // review-queue row pointing at this message first, same order the
+        // student-delete flow already uses, or the message delete below
+        // fails on the foreign key.
+        await supabaseClient.from("pending_actions").delete().eq("message_id", messageId);
+        const { error } = await supabaseClient.from("messages").delete().eq("id", messageId);
         if (error) { showToast("Delete failed: " + error.message, "error"); return; }
         await load();
       });
