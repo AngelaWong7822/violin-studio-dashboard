@@ -120,7 +120,10 @@
   #grid-table td:not(.date-col) { min-height: 62px; }
   #grid-table th.date-col, #grid-table td.date-col { text-align: left; font-weight: 600; color: #71717a; width: 130px; }
   #grid-table th:not(.date-col), #grid-table td:not(.date-col) { width: 100px; }
-  .att-toggle { font-size: 12px; padding: 2px 4px; width: 46px; text-align: center; border: none; border-radius: 999px; background: #f4f4f5; color: #71717a; cursor: pointer; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  /* min-width (not a fixed width) — "Make-up"/"私補" is wider than "Leave"/
+     "✓", and a fixed width let that text spill past the pill's rounded
+     edges instead of the pill growing to actually contain it. */
+  .att-toggle { font-size: 12px; padding: 2px 8px; min-width: 46px; text-align: center; border: none; border-radius: 999px; background: #f4f4f5; color: #71717a; cursor: pointer; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); white-space: nowrap; }
   .att-toggle:disabled { opacity: 0.55; cursor: default; }
   .att-toggle.att-attended { background: #1e6b34; color: #fff; }
   .att-toggle.att-leave { background: #b8863a; color: #fff; }
@@ -158,6 +161,32 @@
   .hw-remark-wrap.has-content .hw-remark-input { color: #78350f; font-weight: 500; }
   .hw-remark-input::placeholder { color: #d4d4d8; }
   .hw-remark-input:focus { outline: none; }
+  /* Same "plain until typed" badge pattern as the homework remark, reused
+     for the two per-term-batch student notes — own colors so the three
+     kinds of note (homework/attention/join) are tellable apart at a glance. */
+  .term-note-wrap {
+    display: inline-flex; align-items: center; gap: 3px; max-width: 100%;
+    border: 1px solid transparent; border-radius: 999px; padding: 1px 7px; margin: 2px 0;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .term-note-wrap .term-note-icon-btn {
+    border: none; background: none; cursor: pointer; font-size: 9px; flex-shrink: 0;
+    opacity: 0.35; padding: 0; line-height: 1;
+  }
+  .term-note-wrap.has-content .term-note-icon-btn { opacity: 1; }
+  .term-note-wrap .term-note-input {
+    border: none; background: transparent; padding: 0; margin: 0; font-size: 10px;
+    color: #71717a; width: 100%; min-width: 30px; text-overflow: ellipsis;
+  }
+  .term-note-input::placeholder { color: #d4d4d8; }
+  .term-note-input:focus { outline: none; }
+  .term-note-wrap.attention.has-content { background: #fef2f2; border-color: #fecaca; }
+  .term-note-wrap.attention.has-content:hover, .term-note-wrap.attention.has-content:focus-within { border-color: #fca5a5; }
+  .term-note-wrap.attention.has-content .term-note-input { color: #991b1b; font-weight: 500; }
+  .term-note-wrap.join.has-content { background: #eff6ff; border-color: #bfdbfe; }
+  .term-note-wrap.join.has-content:hover, .term-note-wrap.join.has-content:focus-within { border-color: #93c5fd; }
+  .term-note-wrap.join.has-content .term-note-input { color: #1d4ed8; font-weight: 500; }
+  .term-note-wrap:hover, .term-note-wrap:focus-within { border-color: #d4d4d8; }
   /* Touch devices only (not just narrow screens — a "coarse" pointer means
      a finger, not a mouse) get a bit more padding on these grid buttons.
      They're packed tight enough on desktop that a bigger jump risks two
@@ -927,9 +956,16 @@
 
     const allGroupAppts = await getAllGroupAppointments();
 
+    // Per-student, per-term-batch notes (attention/join-likelihood) — keyed
+    // "batchIndex:studentId" so the grid cell can look its pair up in O(1).
+    const { data: termNotesRaw } = await supabaseClient
+      .from("term_batch_notes").select("batch_index, student_id, attention_remark, join_remark, attention_flag, join_flag")
+      .eq("class_id", classId);
+    const termNotes = new Map((termNotesRaw ?? []).map(n => [`${n.batch_index}:${n.student_id}`, n]));
+
     if (mySeq !== gridLoadSeq) return; // a newer reload has since started — don't clobber it with stale data
 
-    renderGrid(classId, appts ?? [], roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap);
+    renderGrid(classId, appts ?? [], roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap, termNotes);
     renderMakeupList(attendanceRows, appts ?? [], allGroupAppts, classId);
     gridWrap.scrollLeft = savedScrollLeft;
   }
@@ -982,7 +1018,7 @@
     return `<div style="font-size:10px; color:#b91c1c; font-weight:600; white-space:normal;">${t("makeup.unprocessed")}</div>`;
   }
 
-  function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap) {
+  function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap, termNotes) {
     const table = document.getElementById("grid-table");
     if (!appts.length) {
       table.innerHTML = `<tr><td class="empty">${t("attendance.empty_roster")}</td></tr>`;
@@ -1092,7 +1128,20 @@
             if (!isOpen) return `<td${colClass(isWithdrawn, isVisitor, studentId)}></td>`;
             const eligible = batch.some(a => isEligibleCell(a, studentId, isVisitor, isWithdrawn));
             if (!eligible) return `<td${colClass(isWithdrawn, isVisitor, studentId)}></td>`;
-            return `<td${colClass(isWithdrawn, isVisitor, studentId)}><button type="button" class="link mark-all-attended-btn" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.mark_all_attended_title")}">${t("attendance.mark_all_attended")}</button></td>`;
+            const note = termNotes.get(`${batchIndex}:${studentId}`);
+            // Each wrapped in its own block-level div so they stack onto
+            // separate lines in this narrow column instead of competing for
+            // width side by side (the wraps themselves stay inline-flex so
+            // the icon+input pair inside each one stays on one line). The
+            // icon is its own clickable button — a plain flag toggle, no
+            // typing required — and lights up the same badge as the
+            // optional text remark, so either alone (or both) works.
+            const attentionOn = note?.attention_flag || note?.attention_remark;
+            const joinOn = note?.join_flag || note?.join_remark;
+            return `<td${colClass(isWithdrawn, isVisitor, studentId)}>
+              <div><span class="term-note-wrap attention${attentionOn ? " has-content" : ""}"><button type="button" class="term-note-icon-btn" data-term-flag-field="attention_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.attention_note_title")}">⚠️</button><input type="text" class="term-note-input" data-term-note-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.attention_remark ?? ""}" title="${t("attendance.attention_note_title")}" /></span></div>
+              <div><span class="term-note-wrap join${joinOn ? " has-content" : ""}"><button type="button" class="term-note-icon-btn" data-term-flag-field="join_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.join_note_title")}">🔄</button><input type="text" class="term-note-input" data-term-note-field="join_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.join_remark ?? ""}" title="${t("attendance.join_note_title")}" /></span></div>
+            </td>`;
           }).join("")}
         </tr>`;
       return isOpen ? dividerRow + batch.map(dateRowHtml).join("") : dividerRow;
@@ -1312,41 +1361,51 @@
       btn.addEventListener("click", () => openRescheduleDialog(btn.dataset.rescheduleAppt, btn.dataset.currentStart));
     });
 
-    table.querySelectorAll(".mark-all-attended-btn").forEach(btn => {
-      btn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!(await showConfirm(t("attendance.mark_all_attended_confirm"), { danger: false }))) return;
+    // The two per-term-batch student notes (attention/join-likelihood).
+    // Two ways to light up the same badge: click the icon as a plain flag
+    // (no typing needed — "just a reminder"), or type an optional detail
+    // into the text field. Either one alone is enough; the field pairing
+    // below maps each note field to its matching flag field so both
+    // handlers can check/update the other half correctly.
+    const TERM_NOTE_FLAG_FOR_FIELD = { attention_remark: "attention_flag", join_remark: "join_flag" };
 
-        const batch = batches[Number(btn.dataset.batchIndex)];
+    table.querySelectorAll("input[data-term-note-field]").forEach(input => {
+      input.addEventListener("input", () => {
+        const batchIndex = Number(input.dataset.batchIndex);
+        const studentId = input.dataset.studentId;
+        const flagField = TERM_NOTE_FLAG_FOR_FIELD[input.dataset.termNoteField];
+        const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
+        input.closest(".term-note-wrap").classList.toggle("has-content", input.value.trim() !== "" || !!note[flagField]);
+      });
+      input.addEventListener("change", async () => {
+        const field = input.dataset.termNoteField;
+        const batchIndex = Number(input.dataset.batchIndex);
+        const studentId = input.dataset.studentId;
+        const value = input.value.trim() || null;
+        const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
+        const { error } = await supabaseClient
+          .from("term_batch_notes")
+          .upsert({ class_id: classId, batch_index: batchIndex, student_id: studentId, ...note, [field]: value }, { onConflict: "class_id,batch_index,student_id" });
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        termNotes.set(`${batchIndex}:${studentId}`, { ...note, [field]: value });
+      });
+    });
+
+    table.querySelectorAll("button[data-term-flag-field]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const field = btn.dataset.termFlagField;
+        const remarkField = Object.keys(TERM_NOTE_FLAG_FOR_FIELD).find(k => TERM_NOTE_FLAG_FOR_FIELD[k] === field);
+        const batchIndex = Number(btn.dataset.batchIndex);
         const studentId = btn.dataset.studentId;
-        const col = columns.find(c => c.studentId === studentId);
-        const targets = batch
-          .filter(a => isEligibleCell(a, studentId, col.isVisitor, col.isWithdrawn))
-          .map(a => {
-            const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
-            return { apptId: a.id, studentId, attendanceId: row?.id ?? null };
-          });
-
-        const now = new Date().toISOString();
-        const toUpdate = targets.filter(item => item.attendanceId);
-        const toInsert = targets.filter(item => !item.attendanceId);
-
-        if (toUpdate.length) {
-          const { error } = await supabaseClient
-            .from("attendance").update({ status: "attended", marked_at: now }).in("id", toUpdate.map(item => item.attendanceId));
-          if (error) { showToast("Update failed: " + error.message, "error"); return; }
-          toUpdate.forEach(item => {
-            const row = attendanceRows.find(r => r.id === item.attendanceId);
-            if (row) row.status = "attended";
-          });
-        }
-        if (toInsert.length) {
-          const { data, error } = await supabaseClient
-            .from("attendance").insert(toInsert.map(item => ({ appointment_id: item.apptId, student_id: item.studentId, status: "attended", marked_at: now }))).select();
-          if (error) { showToast("Update failed: " + error.message, "error"); return; }
-          (data ?? []).forEach(row => attendanceRows.push({ id: row.id, appointment_id: row.appointment_id, student_id: row.student_id, status: "attended", make_up_status: null, made_up_appointment_id: null }));
-        }
-        rerenderLocally();
+        const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
+        const newValue = !note[field];
+        const { error } = await supabaseClient
+          .from("term_batch_notes")
+          .upsert({ class_id: classId, batch_index: batchIndex, student_id: studentId, ...note, [field]: newValue }, { onConflict: "class_id,batch_index,student_id" });
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        const updated = { ...note, [field]: newValue };
+        termNotes.set(`${batchIndex}:${studentId}`, updated);
+        btn.closest(".term-note-wrap").classList.toggle("has-content", newValue || !!updated[remarkField]);
       });
     });
   }

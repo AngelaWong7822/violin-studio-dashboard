@@ -43,6 +43,20 @@
   }
   .cancel-consultation-btn:hover { background: #fee2e2; }
   .delete-lead-btn { font-size: 11px; margin-top: 8px; color: #b91c1c; }
+  .lead-card-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: 6px; }
+  .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
+  .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
+  .icon-action-btn.danger { color: #b91c1c; }
+  .icon-action-btn.danger:hover { background: #fef2f2; }
+  .icon-action-btn.followed-up-active { color: #16a34a; }
+  .icon-action-btn.followed-up-active:hover { background: #f0fdf4; }
+  .whatsapp-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #e7f9ee; color: #1e6b34; text-decoration: none;
+    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .whatsapp-link:hover { background: #d3f3e0; }
   @media (max-width: 800px) { #board { grid-template-columns: 1fr; } }
   .toggle-switch { position: relative; display: inline-block; width: 34px; height: 19px; vertical-align: middle; }
   .toggle-switch input { opacity: 0; width: 0; height: 0; }
@@ -136,6 +150,34 @@
   </form>
 </dialog>
 
+<dialog id="lead-edit-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
+  <form id="lead-edit-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 data-i18n="dialog.edit_lead">Edit lead</h1>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <input type="hidden" id="lead-edit-contact-id" />
+      <label><span data-i18n="lead.name">Name</span> <input type="text" id="lead-edit-name" required /></label>
+      <label><span data-i18n="lead.phone">WhatsApp number</span> <input type="text" id="lead-edit-phone" data-i18n-placeholder="lead.phone_placeholder" placeholder="+852 9123 4567" /></label>
+      <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="lead-edit-social" /></label>
+      <label><span data-i18n="lead.level">Level</span> <input type="text" id="lead-edit-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span data-i18n="lead.age">Age</span> <input type="text" id="lead-edit-age" data-i18n-placeholder="lead.age_placeholder" placeholder="e.g. 6, or 4.5 (K2)" /></label>
+      <label><span data-i18n="lead.source">Source</span>
+        <select id="lead-edit-source">
+          <option value="facebook_ad" data-i18n="source.facebook_ad">Facebook ad</option>
+          <option value="whatsapp_direct" data-i18n="source.whatsapp_direct">WhatsApp direct</option>
+          <option value="referral" data-i18n="source.referral">Referral</option>
+          <option value="existing_student" data-i18n="source.existing_student">Existing student</option>
+          <option value="rednote" data-i18n="source.rednote">Rednote (小紅書)</option>
+          <option value="instagram" data-i18n="source.instagram">Instagram</option>
+        </select>
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="lead-edit-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
 <script src="supabase-config.js"></script>
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
@@ -189,7 +231,8 @@
     const { data, error } = await supabaseClient
       .from("leads")
       .select("id, status, contacts(name, whatsapp_number), appointments!leads_consultation_appointment_fk(scheduled_start)")
-      .in("status", ["consultation_booked", "attended"]);
+      .in("status", ["consultation_booked", "attended"])
+      .eq("followed_up", false);
     if (error) { tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
     if (!data.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
 
@@ -222,7 +265,7 @@
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, contact_id, status, created_at, updated_at, lost_reason, preferred_times, consultation_appointment_id, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, status)")
+      .select("id, contact_id, status, created_at, updated_at, lost_reason, preferred_times, consultation_appointment_id, followed_up, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, status)")
       .order("created_at", { ascending: false });
 
     const board = document.getElementById("board");
@@ -262,11 +305,17 @@
         if (c?.age) metaParts.push(c.age);
         if (c?.social_media_name) metaParts.push(c.social_media_name);
 
+        const rawPhone = c?.whatsapp_number ?? "";
+        const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
+        const whatsappCell = rawPhone && digitsOnly
+          ? `<a class="whatsapp-link" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
+          : "";
+
         const card = document.createElement("div");
         card.className = `lead-card${c?.source ? ` source-${c.source}` : ""}`;
         card.innerHTML = `
           <div class="name">${c?.name ?? "(no name)"}</div>
-          <div class="meta">${c?.whatsapp_number ?? ""}</div>
+          <div class="meta">${whatsappCell}</div>
           ${metaParts.length ? `<div class="meta">${metaParts.join(" · ")}</div>` : ""}
           <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
           <div class="meta stage-age">${timeAgo(lead.updated_at ?? lead.created_at)}</div>
@@ -392,12 +441,44 @@
           card.appendChild(lostReasonInput);
         }
 
+        const actionsRow = document.createElement("div");
+        actionsRow.className = "lead-card-actions";
+
+        // Manual "did I follow up on this yet" marker — independent of
+        // status, so it doesn't fight with the select above. Toggling it
+        // on is also what drops this lead off the "Needs Follow-up" table
+        // at the top of the page (see loadFollowUps' followed_up filter).
+        const followUpBtn = document.createElement("button");
+        followUpBtn.type = "button";
+        followUpBtn.className = "icon-action-btn" + (lead.followed_up ? " followed-up-active" : "");
+        followUpBtn.title = t(lead.followed_up ? "lead.followed_up_done_title" : "lead.followed_up_pending_title");
+        followUpBtn.textContent = lead.followed_up ? "✅" : "☎️";
+        followUpBtn.addEventListener("click", async () => {
+          const { error } = await supabaseClient
+            .from("leads").update({ followed_up: !lead.followed_up }).eq("id", lead.id);
+          if (error) { showToast("Update failed: " + error.message, "error"); return; }
+          await loadFollowUps();
+          await loadBoard();
+        });
+        actionsRow.appendChild(followUpBtn);
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "icon-action-btn";
+        editBtn.title = t("lead.edit");
+        editBtn.textContent = "✏️";
+        editBtn.addEventListener("click", () => openEditLead(lead));
+        actionsRow.appendChild(editBtn);
+
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
-        deleteBtn.className = "link delete-lead-btn";
-        deleteBtn.textContent = t("lead.delete");
+        deleteBtn.className = "icon-action-btn danger";
+        deleteBtn.title = t("lead.delete");
+        deleteBtn.textContent = "🗑️";
         deleteBtn.addEventListener("click", () => deleteLead(lead));
-        card.appendChild(deleteBtn);
+        actionsRow.appendChild(deleteBtn);
+
+        card.appendChild(actionsRow);
 
         col.appendChild(card);
       });
@@ -513,6 +594,47 @@
     }
 
     dialog.close();
+    await loadFollowUps();
+    await loadBoard();
+  });
+
+  // Editing an existing lead only ever touches its already-existing
+  // contacts row — unlike the "new lead" form above, there's no dedup/merge
+  // logic to run and no appointment to book, so this is a plain update.
+  const editDialog = document.getElementById("lead-edit-dialog");
+  function openEditLead(lead) {
+    const c = lead.contacts;
+    document.getElementById("lead-edit-contact-id").value = lead.contact_id;
+    document.getElementById("lead-edit-name").value = c?.name ?? "";
+    document.getElementById("lead-edit-phone").value = c?.whatsapp_number ?? "";
+    document.getElementById("lead-edit-social").value = c?.social_media_name ?? "";
+    document.getElementById("lead-edit-level").value = c?.level ?? "";
+    document.getElementById("lead-edit-age").value = c?.age ?? "";
+    document.getElementById("lead-edit-source").value = c?.source ?? "facebook_ad";
+    editDialog.showModal();
+  }
+  document.getElementById("lead-edit-cancel-btn").addEventListener("click", () => editDialog.close());
+
+  document.getElementById("lead-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const contactId = document.getElementById("lead-edit-contact-id").value;
+    const name = document.getElementById("lead-edit-name").value;
+    const whatsapp_number = document.getElementById("lead-edit-phone").value || null;
+    const social_media_name = document.getElementById("lead-edit-social").value || null;
+    const level = document.getElementById("lead-edit-level").value || null;
+    const age = document.getElementById("lead-edit-age").value || null;
+    const source = document.getElementById("lead-edit-source").value;
+
+    const { error } = await supabaseClient
+      .from("contacts")
+      .update({ name, whatsapp_number, social_media_name, level, age, source })
+      .eq("id", contactId);
+    // whatsapp_number has a unique constraint — this is the most likely way
+    // this update can fail (editing the number to one another contact
+    // already has), so surface it rather than a generic message.
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
+
+    editDialog.close();
     await loadFollowUps();
     await loadBoard();
   });
