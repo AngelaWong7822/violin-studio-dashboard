@@ -629,12 +629,32 @@
   // start_date — sequential, not a fixed N-week calendar window — so a
   // holiday closure (Christmas/CNY etc.) mid-term doesn't permanently
   // strand the package a few lessons short.
-  async function getPackageLessonAppointments(classId, startDate, totalLessons) {
-    const { data } = await supabaseClient
-      .from("appointments").select("id, scheduled_start")
-      .eq("class_id", classId).gte("scheduled_start", startDate)
-      .order("scheduled_start", { ascending: true }).limit(totalLessons);
-    return data ?? [];
+  // Optional `cache`: many students share the same class+term (same
+  // classId+startDate+totalLessons), which used to mean one identical query
+  // per student instead of one per distinct term. Callers that loop over a
+  // whole table (loadStudents/loadPayments) pass in a Map that lives only
+  // for that one pass, so students sharing a term reuse the same in-flight
+  // request instead of each firing their own — safe against staleness since
+  // it's thrown away right after, never reused across separate loads.
+  async function getPackageLessonAppointments(classId, startDate, totalLessons, cache) {
+    if (!cache) {
+      const { data } = await supabaseClient
+        .from("appointments").select("id, scheduled_start")
+        .eq("class_id", classId).gte("scheduled_start", startDate)
+        .order("scheduled_start", { ascending: true }).limit(totalLessons);
+      return data ?? [];
+    }
+    const key = `${classId}|${startDate}|${totalLessons}`;
+    if (!cache.has(key)) {
+      cache.set(key, (async () => {
+        const { data } = await supabaseClient
+          .from("appointments").select("id, scheduled_start")
+          .eq("class_id", classId).gte("scheduled_start", startDate)
+          .order("scheduled_start", { ascending: true }).limit(totalLessons);
+        return data ?? [];
+      })());
+    }
+    return cache.get(key);
   }
 
   // A "deferred to next package" leave never touches packages.price at all
@@ -1765,9 +1785,10 @@
 
     const incomingCreditAmounts = await getIncomingCreditAmounts(pkgs.map(p => p.id));
 
+    const apptCache = new Map();
     paymentPackages = await Promise.all(pkgs.map(async (pkg) => {
       pkg.incomingCreditAmount = incomingCreditAmounts.get(pkg.id) ?? 0;
-      const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
+      const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons, apptCache);
       const apptIds = appts.map(a => a.id);
 
       let attRows = [];
@@ -2380,6 +2401,7 @@
     if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
     students = data;
 
+    const apptCache = new Map();
     const rowsHtml = await Promise.all(data.map(async (s) => {
       // One query for every package this student has ever had, instead of
       // a separate "just the latest" query — "current" (most recently
@@ -2425,7 +2447,7 @@
       // slow to load.
       const ownIncomingCreditAmounts = await getIncomingCreditAmounts((allOwnPkgs ?? []).map(p => p.id));
       const perPackageResults = await Promise.all((allOwnPkgs ?? []).map(async (p) => {
-        const pAppts = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
+        const pAppts = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons, apptCache);
         const pApptIds = pAppts.map(a => a.id);
         const incomingCredit = ownIncomingCreditAmounts.get(p.id) ?? 0;
         if (!pApptIds.length) return { leaves: 0, deduction: incomingCredit };
