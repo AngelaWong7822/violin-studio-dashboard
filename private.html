@@ -99,6 +99,11 @@
     padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
   }
   .count-pill-paid { background: #eff6ff; color: #1d4ed8; }
+  .next-lesson-badge {
+    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    background: #fffbeb; color: #78350f; padding: 3px 10px;
+    border-radius: 999px; font-size: 12px; font-weight: 600;
+  }
   .student-row { cursor: pointer; }
   .student-row:hover { background: #f4f4f5; }
   .expand-arrow { display: inline-block; width: 14px; transition: transform 0.15s; }
@@ -158,13 +163,14 @@
       <thead><tr>
         <th></th>
         <th data-i18n="student.name">Name</th>
+        <th data-i18n="private.col_next_lesson" style="text-align:center;">Next lesson</th>
         <th data-i18n="student.phone">WhatsApp number</th>
         <th data-i18n="contacts.col_allowed">Allowed (AI analyzes)</th>
         <th data-i18n="private.col_total_lessons">Lessons logged</th>
         <th data-i18n="private.col_total_paid">Total paid</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
@@ -281,7 +287,7 @@
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${error.message}</td></tr>`; return; }
 
     students = await Promise.all(data.map(async (s) => {
       const { data: appts } = await supabaseClient
@@ -312,12 +318,13 @@
       // Badge shown next to the name so it's obvious at a glance which
       // students the WhatsApp AI added on its own vs. ones added by hand.
       const isAiCreated = lessons.some(l => l.created_via === "whatsapp_ai_auto" || l.created_via === "whatsapp_ai_confirmed_by_angela");
-      // Most recent lesson booking across this student's lessons — used to
-      // surface "who just had activity" (e.g. a WhatsApp auto-booking) at
-      // the top of the list instead of making Angela scan the whole table.
-      const lastActivityAt = lessons.length
-        ? lessons.reduce((latest, l) => (l.createdAt > latest ? l.createdAt : latest), lessons[0].createdAt)
-        : null;
+      // The soonest lesson that hasn't happened yet — shown as its own
+      // column so Angela can see at a glance when someone's next due in,
+      // without opening the row.
+      const now = new Date();
+      const nextLesson = lessons
+        .filter(l => new Date(l.when) >= now)
+        .sort((a, b) => new Date(a.when) - new Date(b.when))[0] ?? null;
 
       // The raw WhatsApp messages whatsapp-ingest has seen for this contact,
       // plus its AI intent read on each one — shown so Angela can spot-check
@@ -329,22 +336,18 @@
         .eq("contact_id", s.contact_id)
         .order("created_at", { ascending: false });
 
-      // Separate from lastActivityAt (last lesson *added to the system*) —
-      // this is when the WhatsApp thread itself was last touched, which can
-      // lag behind or run ahead of it (e.g. a booking already on the books
-      // vs. a fresh message still awaiting review).
       const lastMessageAt = messages?.[0]?.created_at ?? null;
 
-      return { ...s, lessons, isAiCreated, lastActivityAt, lastMessageAt, messages: messages ?? [] };
+      return { ...s, lessons, isAiCreated, nextLesson, lastMessageAt, messages: messages ?? [] };
     }));
 
-    // Students with recent lesson activity float to the top (most recent
-    // first); students with no lessons yet keep their original order
-    // (newest-created student first) at the bottom.
+    // Students with a recent WhatsApp message float to the top (newest
+    // first); students with no message history yet keep their original
+    // order (newest-created student first) at the bottom.
     students.sort((a, b) => {
-      if (a.lastActivityAt && b.lastActivityAt) return b.lastActivityAt.localeCompare(a.lastActivityAt);
-      if (a.lastActivityAt) return -1;
-      if (b.lastActivityAt) return 1;
+      if (a.lastMessageAt && b.lastMessageAt) return b.lastMessageAt.localeCompare(a.lastMessageAt);
+      if (a.lastMessageAt) return -1;
+      if (b.lastMessageAt) return 1;
       return 0;
     });
 
@@ -354,7 +357,7 @@
   function render() {
     const tbody = document.getElementById("student-rows");
     if (!students.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty">${t("private.empty_students")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">${t("private.empty_students")}</td></tr>`;
       return;
     }
 
@@ -392,7 +395,8 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}${s.lastActivityAt ? `<span class="last-activity last-activity-lesson" title="${t("private.last_lesson_added_title")}">📅 ${timeAgo(s.lastActivityAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
+          <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
           <td><span class="count-pill">${s.lessons.length}</span></td>
@@ -770,6 +774,22 @@
     if (hours < 24) return tf("private.time_hours_ago", { n: hours });
     const days = Math.floor(hours / 24);
     return tf("private.time_days_ago", { n: days });
+  }
+
+  // Fixed DD/MM/YY(weekday) hh:mmAM/PM format, independent of site
+  // language/locale (only the weekday letter itself follows the site
+  // language, via the same "day.N" keys packages.html's make-up-date
+  // labels already use) — for the "下次上堂" column specifically, per
+  // Angela's own preferred format.
+  function formatNextLesson(d) {
+    const pad = (n) => String(n).padStart(2, "0");
+    const day = pad(d.getDate());
+    const month = pad(d.getMonth() + 1);
+    const year = pad(d.getFullYear() % 100);
+    const weekday = t("day." + d.getDay());
+    const ampm = d.getHours() >= 12 ? "PM" : "AM";
+    const hours12 = d.getHours() % 12 || 12;
+    return `${day}/${month}/${year}(${weekday}) ${hours12}:${pad(d.getMinutes())}${ampm}`;
   }
 
   async function resolveStudentForContact(contactId) {
