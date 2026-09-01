@@ -190,12 +190,33 @@
   // start_date — mirrors packages.html's own getPackageLessonAppointments,
   // duplicated here since this page has no way to import it (no build step,
   // no shared modules across pages in this codebase).
-  async function getPackageLessonAppointments(classId, startDate, totalLessons) {
-    const { data } = await supabaseClient
-      .from("appointments").select("id")
-      .eq("class_id", classId).gte("scheduled_start", startDate)
-      .order("scheduled_start", { ascending: true }).limit(totalLessons);
-    return data ?? [];
+  //
+  // Optional `cache`: many packages share the same class+term (same
+  // classId+startDate+totalLessons — e.g. several students who joined the
+  // same class on the same day), which used to mean one identical query
+  // per package instead of one per distinct term. computeRevenue passes in
+  // a Map that lives only for that one call, so packages sharing a term
+  // reuse the same in-flight request instead of each firing their own —
+  // this is what made the Operations Overview page slow to load.
+  async function getPackageLessonAppointments(classId, startDate, totalLessons, cache) {
+    if (!cache) {
+      const { data } = await supabaseClient
+        .from("appointments").select("id")
+        .eq("class_id", classId).gte("scheduled_start", startDate)
+        .order("scheduled_start", { ascending: true }).limit(totalLessons);
+      return data ?? [];
+    }
+    const key = `${classId}|${startDate}|${totalLessons}`;
+    if (!cache.has(key)) {
+      cache.set(key, (async () => {
+        const { data } = await supabaseClient
+          .from("appointments").select("id")
+          .eq("class_id", classId).gte("scheduled_start", startDate)
+          .order("scheduled_start", { ascending: true }).limit(totalLessons);
+        return data ?? [];
+      })());
+    }
+    return cache.get(key);
   }
 
   function monthBounds(offsetMonths) {
@@ -334,11 +355,13 @@
     // Each package needs its own two lookups (lesson appointments, then
     // their attendance rows) — running the packages concurrently instead
     // of one at a time is what keeps this fast when several packages
-    // started in the same month.
+    // started in the same month. apptCache further collapses packages that
+    // share the exact same class+term into a single query.
+    const apptCache = new Map();
     const perPackage = await Promise.all((pkgs ?? []).map(async (p) => {
       p.incomingCreditAmount = incomingCreditAmounts.get(p.id) ?? 0;
       if (!p.total_lessons) return { total: p.price ?? 0, paidAmount: 0 };
-      const apptRows = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons);
+      const apptRows = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons, apptCache);
       if (!apptRows.length) return { total: p.price ?? 0, paidAmount: 0 };
       const apptIds = apptRows.map(a => a.id);
       const { data: attRows } = await supabaseClient

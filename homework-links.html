@@ -141,6 +141,9 @@
     render();
   }
 
+  // Public, permanent link — deliberate: Angela copies these straight into
+  // WhatsApp groups for parents, so it needs to keep working whenever they
+  // open it, not expire like a signed URL would.
   function fileUrl(filePath) {
     return supabaseClient.storage.from(BUCKET).getPublicUrl(filePath).data.publicUrl;
   }
