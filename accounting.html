@@ -35,6 +35,35 @@
   .acct-note { font-size: 10px; line-height: 1.4; color: #71717a; margin: 0; }
   .acct-revenue-sublabel { font-size: 11px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: .03em; margin: 0 0 6px; }
   .acct-revenue-section { border-top: 1px solid #f0f0f1; padding-top: 12px; }
+  .travel-windows-list { display: flex; flex-direction: column; gap: 8px; }
+  .travel-window-row {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: 10px 14px; border-radius: 8px; background: #f0fdf4; border: 1px solid #bbf7d0;
+  }
+  .travel-window-row b { color: #166534; font-size: 14px; }
+  .travel-window-row span { color: #16a34a; font-size: 12px; white-space: nowrap; }
+  .travel-window-row.onwards { background: #f4f4f5; border-color: #e4e4e7; }
+  .travel-window-row.onwards b { color: #52525b; }
+  .travel-window-note { margin: 4px 0 0 4px; font-size: 11px; color: #71717a; }
+  .expand-arrow { display: inline-block; width: 12px; transition: transform 0.15s; font-size: 10px; }
+  .expand-arrow.open { transform: rotate(90deg); }
+  .class-status-header {
+    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    border: none; background: none; padding: 0; font: inherit;
+    font-size: 11px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: .03em;
+  }
+  .class-status-list { display: none; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .class-status-list.open { display: flex; }
+  .class-status-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-size: 12px; padding: 8px 12px; border-radius: 10px; background: #fafafa;
+  }
+  .class-status-row .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; display: inline-block; }
+  .class-status-row .status-name { display: flex; align-items: center; color: #27272a; font-weight: 500; }
+  .class-status-row.status-busy .status-dot { background: #f59e0b; }
+  .class-status-row.status-upcoming .status-dot { background: #60a5fa; }
+  .class-status-row.status-none .status-dot { background: #d4d4d8; }
+  .class-status-note { color: #71717a; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -61,8 +90,21 @@
     <h1 style="margin:0 0 14px;" data-i18n="accounting.title">Accounting</h1>
     <div class="acct-grid">
 
+      <div class="card acct-card" style="margin:0; grid-column:1 / -1;">
+        <h2 data-i18n="accounting.travel_title">🧳 Best Time to Travel</h2>
+        <div id="travel-windows-list" class="travel-windows-list"></div>
+        <div class="acct-revenue-section">
+          <button type="button" id="travel-status-toggle" class="class-status-header">
+            <span class="expand-arrow">▶</span>
+            <span data-i18n="accounting.travel_status_title">Class Status</span>
+          </button>
+          <div id="travel-class-status-list" class="class-status-list"></div>
+        </div>
+      </div>
+
       <div class="card acct-card" style="margin:0;">
         <h2 data-i18n="accounting.revenue_title">This Month's Revenue</h2>
+        <p class="acct-note" id="revenue-date-range" style="margin:2px 0 10px;"></p>
 
         <div>
           <p class="acct-revenue-sublabel" data-i18n="accounting.revenue_group_label">Group Classes</p>
@@ -135,6 +177,14 @@
   initSettingsMenu();
   window.onLangChange = () => load();
 
+  // Collapsed by default — the safe-window pills above already answer
+  // "when can I travel"; this per-class breakdown is only needed when
+  // double-checking a specific date, so it stays out of the way otherwise.
+  document.getElementById("travel-status-toggle").addEventListener("click", () => {
+    document.getElementById("travel-status-toggle").querySelector(".expand-arrow").classList.toggle("open");
+    document.getElementById("travel-class-status-list").classList.toggle("open");
+  });
+
   // A package's "N lessons" are the first N real appointments on/after its
   // start_date — mirrors packages.html's own getPackageLessonAppointments,
   // duplicated here since this page has no way to import it (no build step,
@@ -151,7 +201,15 @@
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth() + offsetMonths, 1);
     const end = new Date(now.getFullYear(), now.getMonth() + offsetMonths + 1, 1);
-    const toDateStr = (d) => d.toISOString().slice(0, 10);
+    // Reads the LOCAL calendar date directly — going through toISOString()
+    // first converts to UTC, which in Hong Kong's UTC+8 silently shifted
+    // every date back by one day (local midnight on the 1st becomes the
+    // last day of the *previous* month once expressed in UTC), corrupting
+    // every gte/lt filter below that compares against a plain `date`
+    // column. startIso/endIso are unaffected — those keep the full instant
+    // for timestamptz comparisons, where the shift never mattered.
+    const pad = (n) => String(n).padStart(2, "0");
+    const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     return { startDateStr: toDateStr(start), endDateStr: toDateStr(end), startIso: start.toISOString(), endIso: end.toISOString() };
   }
 
@@ -401,15 +459,158 @@
     return { total: Math.round(paid + unpaid), paid: Math.round(paid), unpaid: Math.round(unpaid) };
   }
 
+  // ---------- Best time to travel (group classes) ----------
+  // A class is "mid-term" for the span from its current 8-lesson batch's
+  // first lesson to its last (same grouping packages.html's attendance
+  // grid divider rows use) — leaving partway through means missing a
+  // lesson and arranging cover. A class that hasn't been extended past its
+  // current batch simply has no scheduled span beyond it, so anything
+  // after the last *scheduled* lesson anywhere is treated as safe by
+  // default (there's nothing booked to disrupt).
+  const TRAVEL_LESSONS_PER_TERM = 8;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  function groupIntoTermBatches(sortedDates) {
+    const batches = [];
+    for (let i = 0; i < sortedDates.length; i += TRAVEL_LESSONS_PER_TERM) {
+      batches.push(sortedDates.slice(i, i + TRAVEL_LESSONS_PER_TERM));
+    }
+    return batches;
+  }
+
+  async function computeTravelWindows() {
+    const { data: classes } = await supabaseClient.from("classes").select("id, name").eq("active", true);
+    const classNameById = new Map((classes ?? []).map(c => [c.id, c.name]));
+    const classIds = [...classNameById.keys()];
+    const now = new Date();
+
+    const busySpans = [];
+    // One entry per class's nearest current/future batch, for the
+    // "各班現況" reference list — lets Angela check *why* any given date
+    // isn't clear, not just which windows are.
+    const classStatuses = [];
+
+    if (classIds.length) {
+      const { data: appts } = await supabaseClient
+        .from("appointments")
+        .select("class_id, scheduled_start")
+        .in("class_id", classIds)
+        .eq("type", "group_class")
+        .neq("status", "cancelled")
+        .order("scheduled_start", { ascending: true });
+
+      const byClass = new Map();
+      (appts ?? []).forEach(a => {
+        if (!byClass.has(a.class_id)) byClass.set(a.class_id, []);
+        byClass.get(a.class_id).push(new Date(a.scheduled_start));
+      });
+
+      for (const [classId, dates] of byClass.entries()) {
+        const name = classNameById.get(classId) ?? "";
+        let nearestBatch = null;
+        for (const batch of groupIntoTermBatches(dates)) {
+          const start = batch[0];
+          const end = batch[batch.length - 1];
+          if (end < now) continue; // fully in the past — irrelevant to future travel
+          busySpans.push({ start, end, classNames: [name] });
+          if (!nearestBatch) nearestBatch = { start, end };
+        }
+        classStatuses.push({ name, batch: nearestBatch });
+      }
+      // Classes with zero appointments at all still belong on the status
+      // list (clearly "nothing scheduled"), not silently omitted.
+      for (const [classId, name] of classNameById.entries()) {
+        if (!byClass.has(classId)) classStatuses.push({ name, batch: null });
+      }
+    }
+
+    if (!busySpans.length) return { gaps: [], openEndedFrom: now, classStatuses };
+
+    busySpans.sort((a, b) => a.start - b.start);
+    const merged = [];
+    for (const span of busySpans) {
+      const last = merged[merged.length - 1];
+      if (last && span.start <= last.end) {
+        if (span.end > last.end) last.end = span.end;
+        last.classNames.push(...span.classNames);
+      } else {
+        merged.push({ start: span.start, end: span.end, classNames: [...span.classNames] });
+      }
+    }
+
+    const gaps = [];
+    let cursor = now;
+    for (const span of merged) {
+      if (span.start.getTime() - cursor.getTime() > DAY_MS) {
+        // The classes in `span` are the ones that end this gap — i.e. what
+        // Angela needs to be back for.
+        gaps.push({ start: cursor, end: new Date(span.start.getTime() - DAY_MS), resumingClasses: span.classNames });
+      }
+      if (span.end.getTime() + DAY_MS > cursor.getTime()) cursor = new Date(span.end.getTime() + DAY_MS);
+    }
+    return { gaps, openEndedFrom: cursor, classStatuses };
+  }
+
+  function renderTravelWindows({ gaps, openEndedFrom, classStatuses }) {
+    const el = document.getElementById("travel-windows-list");
+    const fmtOpts = { month: "short", day: "numeric" };
+    const rows = gaps.map(g => {
+      const days = Math.round((g.end - g.start) / DAY_MS) + 1;
+      const resumeNote = g.resumingClasses?.length
+        ? `<p class="travel-window-note">${tf("accounting.travel_resume_note", { names: g.resumingClasses.join("、") })}</p>`
+        : "";
+      return `<div class="travel-window-row-wrap">` +
+        `<div class="travel-window-row">` +
+          `<b>${g.start.toLocaleDateString(localeForDates(), fmtOpts)} - ${g.end.toLocaleDateString(localeForDates(), fmtOpts)}</b>` +
+          `<span>${tf("accounting.travel_days", { n: days })}</span>` +
+        `</div>` +
+        resumeNote +
+      `</div>`;
+    });
+    rows.push(
+      `<div class="travel-window-row onwards">` +
+        `<b>${tf("accounting.travel_onwards", { date: openEndedFrom.toLocaleDateString(localeForDates(), fmtOpts) })}</b>` +
+      `</div>`
+    );
+
+    // Reference list so any date can be double-checked against what's
+    // actually driving it, not just the computed safe windows above.
+    const now = new Date();
+    const statusRows = (classStatuses ?? []).map(({ name, batch }) => {
+      if (!batch) {
+        return `<div class="class-status-row status-none"><span class="status-name"><span class="status-dot"></span>${name}</span><span class="class-status-note">${t("accounting.travel_status_none")}</span></div>`;
+      }
+      const isCurrent = batch.start <= now;
+      const statusClass = isCurrent ? "status-busy" : "status-upcoming";
+      const label = isCurrent
+        ? tf("accounting.travel_status_current", { date: batch.end.toLocaleDateString(localeForDates(), fmtOpts) })
+        : tf("accounting.travel_status_next", { start: batch.start.toLocaleDateString(localeForDates(), fmtOpts), end: batch.end.toLocaleDateString(localeForDates(), fmtOpts) });
+      return `<div class="class-status-row ${statusClass}"><span class="status-name"><span class="status-dot"></span>${name}</span><span class="class-status-note">${label}</span></div>`;
+    });
+    document.querySelector("#travel-status-toggle span:last-child").textContent =
+      `${t("accounting.travel_status_title")} (${(classStatuses ?? []).length})`;
+    const statusEl = document.getElementById("travel-class-status-list");
+    if (statusEl) statusEl.innerHTML = statusRows.join("") || `<p class="empty">${t("accounting.travel_status_empty")}</p>`;
+    el.innerHTML = rows.join("");
+  }
+
   async function load() {
     const thisMonth = monthBounds(0);
     const lastMonth = monthBounds(-1);
+
+    // thisMonth.endDateStr is the *exclusive* first day of next month (see
+    // monthBounds) — step back one day to show the actual last day covered.
+    const rangeStart = new Date(`${thisMonth.startDateStr}T00:00:00`);
+    const rangeEnd = new Date(new Date(`${thisMonth.endDateStr}T00:00:00`).getTime() - 86400000);
+    const fmtOpts = { month: "short", day: "numeric" };
+    document.getElementById("revenue-date-range").textContent =
+      `${rangeStart.toLocaleDateString(localeForDates(), fmtOpts)} - ${rangeEnd.toLocaleDateString(localeForDates(), fmtOpts)}`;
 
     // Revenue (needs its own per-package appointment/attendance lookups)
     // and the shared package list (for new-students/enrolled/churn) run
     // concurrently — neither depends on the other. Private revenue is a
     // separate, much cheaper query, so it just joins the same Promise.all.
-    const [[revenueNow, revenuePrev], allGroupPkgs, [privateRevenueNow, privateRevenuePrev]] = await Promise.all([
+    const [[revenueNow, revenuePrev], allGroupPkgs, [privateRevenueNow, privateRevenuePrev], travelWindows] = await Promise.all([
       Promise.all([
         computeRevenue(thisMonth.startDateStr, thisMonth.endDateStr),
         computeRevenue(lastMonth.startDateStr, lastMonth.endDateStr),
@@ -419,7 +620,9 @@
         computePrivateRevenue(thisMonth.startIso, thisMonth.endIso),
         computePrivateRevenue(lastMonth.startIso, lastMonth.endIso),
       ]),
+      computeTravelWindows(),
     ]);
+    renderTravelWindows(travelWindows);
     animateNumber(document.getElementById("revenue-paid"), `$${revenueNow.paid}`);
     animateNumber(document.getElementById("revenue-unpaid"), `$${revenueNow.unpaid}`);
     animateNumber(document.getElementById("revenue-total"), `$${revenueNow.total}`);

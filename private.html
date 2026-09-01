@@ -27,6 +27,7 @@
     background: #eff6ff; color: #1d4ed8; border-radius: 999px;
     font-size: 11px; font-weight: 600; vertical-align: middle;
   }
+  .last-activity-message { background: #e7f9ee; color: #1e6b34; }
   .dialog-avatar {
     display: inline-flex; align-items: center; justify-content: center;
     width: 40px; height: 40px; border-radius: 50%;
@@ -328,7 +329,13 @@
         .eq("contact_id", s.contact_id)
         .order("created_at", { ascending: false });
 
-      return { ...s, lessons, isAiCreated, lastActivityAt, messages: messages ?? [] };
+      // Separate from lastActivityAt (last lesson *added to the system*) —
+      // this is when the WhatsApp thread itself was last touched, which can
+      // lag behind or run ahead of it (e.g. a booking already on the books
+      // vs. a fresh message still awaiting review).
+      const lastMessageAt = messages?.[0]?.created_at ?? null;
+
+      return { ...s, lessons, isAiCreated, lastActivityAt, lastMessageAt, messages: messages ?? [] };
     }));
 
     // Students with recent lesson activity float to the top (most recent
@@ -385,7 +392,7 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.lastActivityAt ? `<span class="last-activity">${timeAgo(s.lastActivityAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}${s.lastActivityAt ? `<span class="last-activity last-activity-lesson" title="${t("private.last_lesson_added_title")}">📅 ${timeAgo(s.lastActivityAt)}</span>` : ""}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
           <td><span class="count-pill">${s.lessons.length}</span></td>
