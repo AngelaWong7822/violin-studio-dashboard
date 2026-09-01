@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Homework Links</title>
+<link rel="stylesheet" href="shared.css" />
+<link rel="icon" href="logo.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .search-wrap { position: relative; width: 100%; max-width: 320px; }
+  .search-wrap .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; opacity: 0.6; }
+  #hwlink-search { width: 100%; padding-left: 30px; border-radius: 10px; border: 1px solid #d4d4d8; }
+  .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
+  .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
+  .icon-action-btn.danger { color: #b91c1c; }
+  .icon-action-btn.danger:hover { background: #fef2f2; }
+  .hwlink-open {
+    display: inline-flex; align-items: center; gap: 4px;
+    text-decoration: none; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .hwlink-open.type-youtube { background: #fee2e2; color: #b91c1c; }
+  .hwlink-open.type-pdf { background: #eff6ff; color: #1d4ed8; }
+  .hwlink-tag { display: inline-block; background: #f4f4f5; color: #52525b; padding: 2px 8px; border-radius: 999px; font-size: 11px; margin: 1px 3px 1px 0; }
+  .toggle-btn-group { display: flex; gap: 8px; }
+  .toggle-btn { flex: 1; padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; background: #f4f4f5; color: #71717a; cursor: pointer; font-size: 14px; }
+  .toggle-btn.active { background: #18181b; border-color: #18181b; color: #fff; font-weight: 600; }
+  /* Same plain circular icon-button style packages.html's grid-lock toggle
+     already uses — matches the rest of the site instead of standing out. */
+  #new-link-btn {
+    background: #fff; color: #71717a; border: 1px solid #d4d4d8;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  #new-link-btn:hover { background: #f4f4f5; color: #18181b; }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
+  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="packages.html" data-i18n="nav.packages">Packages</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
+  <a href="homework-links.html" class="active" data-i18n="nav.homework_links">Homework Links</a>
+  <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" data-i18n="nav.accounting">Accounting</a>
+  <span class="spacer"></span>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
+    </div>
+  </div>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap;">
+      <h1 style="margin:0;" data-i18n="hwlink.title_page">Homework Links</h1>
+      <button id="new-link-btn" style="width:32px; height:32px; padding:0; border-radius:50%; font-size:16px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" aria-label="New link">📎</button>
+    </div>
+    <div class="search-wrap" style="margin-bottom:14px;">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="hwlink-search" data-i18n-placeholder="hwlink.search_placeholder" placeholder="Search by title or tag…" />
+    </div>
+    <table>
+      <thead><tr>
+        <th data-i18n="hwlink.col_title">Title</th>
+        <th data-i18n="hwlink.col_tags">Tags</th>
+        <th data-i18n="hwlink.col_notes">Notes</th>
+        <th></th>
+        <th></th>
+      </tr></thead>
+      <tbody id="link-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<dialog id="link-dialog" style="border:none; border-radius:10px; padding:0; width:400px;">
+  <form id="link-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 id="link-dialog-title" data-i18n="hwlink.dialog_new">New homework link</h1>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <input type="hidden" id="link-id" />
+      <input type="hidden" id="link-existing-file-path" />
+      <label><span data-i18n="hwlink.field_title">Title</span> <input type="text" id="link-title" required /></label>
+      <label><span data-i18n="hwlink.field_type">Type</span>
+        <div class="toggle-btn-group" id="link-type-group">
+          <button type="button" class="toggle-btn active" data-value="youtube" data-i18n="hwlink.type_youtube">YouTube</button>
+          <button type="button" class="toggle-btn" data-value="pdf" data-i18n="hwlink.type_pdf">File</button>
+        </div>
+        <input type="hidden" id="link-type" value="youtube" />
+      </label>
+      <label id="link-url-field"><span data-i18n="hwlink.field_url">YouTube link</span> <input type="url" id="link-url" placeholder="https://youtu.be/…" /></label>
+      <label id="link-file-field" style="display:none;">
+        <span data-i18n="hwlink.field_file">File (PDF, PNG, JPG)</span> <input type="file" id="link-file" accept="application/pdf,image/png,image/jpeg" />
+        <p class="empty" id="link-existing-file-note" style="padding:2px 0 0; font-size:11px;"></p>
+      </label>
+      <label><span data-i18n="hwlink.field_tags">Tags</span> <input type="text" id="link-tags" data-i18n-placeholder="hwlink.tags_placeholder" placeholder="e.g. Beginner, Rhythm" /></label>
+      <label><span data-i18n="hwlink.field_notes">Notes</span> <input type="text" id="link-notes" /></label>
+      <p id="link-error" style="display:none; color:#b91c1c; font-size:12px; margin:0;"></p>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="link" id="link-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" id="link-save-btn" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  initSettingsMenu();
+  // Icon-only button — no data-i18n hook exists for `title` (applyI18n only
+  // handles textContent and placeholder), so it's set directly here.
+  function applyNewLinkBtnTitle() { document.getElementById("new-link-btn").title = t("hwlink.new"); }
+  applyNewLinkBtnTitle();
+  window.onLangChange = () => { applyNewLinkBtnTitle(); render(); };
+
+  const BUCKET = "homework-files";
+  let links = [];
+
+  async function load() {
+    const tbody = document.getElementById("link-rows");
+    const { data, error } = await supabaseClient
+      .from("homework_links")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    links = data ?? [];
+    render();
+  }
+
+  function fileUrl(filePath) {
+    return supabaseClient.storage.from(BUCKET).getPublicUrl(filePath).data.publicUrl;
+  }
+
+  // The "file" type now covers PDFs and images alike — pick an icon/label
+  // that actually matches what's behind the link, based on the ORIGINAL
+  // filename (file_name), not the randomised storage path.
+  function fileKind(fileName) {
+    const ext = (fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
+    if (ext === "pdf") return { icon: "📄", labelKey: "hwlink.open_pdf" };
+    if (["png", "jpg", "jpeg"].includes(ext)) return { icon: "🖼️", labelKey: "hwlink.open_image" };
+    return { icon: "📎", labelKey: "hwlink.open_file" };
+  }
+
+  function render() {
+    const tbody = document.getElementById("link-rows");
+    const searchText = document.getElementById("hwlink-search").value.trim().toLowerCase();
+    const filtered = !searchText ? links : links.filter(l =>
+      (l.title ?? "").toLowerCase().includes(searchText) || (l.tags ?? "").toLowerCase().includes(searchText)
+    );
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("hwlink.empty")}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(l => {
+      const tagsHtml = (l.tags ?? "").split(",").map(s => s.trim()).filter(Boolean)
+        .map(tag => `<span class="hwlink-tag">${tag}</span>`).join("");
+      const openHref = l.type === "pdf" ? (l.file_path ? fileUrl(l.file_path) : "") : (l.url ?? "");
+      const kind = l.type === "pdf" ? fileKind(l.file_name) : { icon: "▶️", labelKey: "hwlink.open_youtube" };
+      const openCell = openHref
+        ? `<a class="hwlink-open type-${l.type}" href="${openHref}" target="_blank" rel="noopener">${kind.icon} ${t(kind.labelKey)}</a>`
+        : "—";
+      return `
+        <tr data-link-id="${l.id}">
+          <td>${l.title}</td>
+          <td>${tagsHtml}</td>
+          <td style="color:#71717a; font-size:13px;">${l.notes ?? ""}</td>
+          <td>${openCell}</td>
+          <td style="white-space:nowrap;">
+            <button type="button" class="icon-action-btn" data-edit-link="${l.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
+            <button type="button" class="icon-action-btn danger" data-delete-link="${l.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
+          </td>
+        </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll("button[data-edit-link]").forEach(btn => {
+      btn.addEventListener("click", () => openEditLink(links.find(l => l.id === btn.dataset.editLink)));
+    });
+    tbody.querySelectorAll("button[data-delete-link]").forEach(btn => {
+      btn.addEventListener("click", () => deleteLink(links.find(l => l.id === btn.dataset.deleteLink)));
+    });
+  }
+  document.getElementById("hwlink-search").addEventListener("input", render);
+
+  async function deleteLink(link) {
+    if (!link) return;
+    if (!(await showConfirm(t("hwlink.delete_confirm")))) return;
+    // Clear the uploaded file first — an orphaned storage object left
+    // behind after the row is gone can never be found or cleaned up again.
+    if (link.file_path) {
+      await supabaseClient.storage.from(BUCKET).remove([link.file_path]);
+    }
+    const { error } = await supabaseClient.from("homework_links").delete().eq("id", link.id);
+    if (error) { showToast("Delete failed: " + error.message, "error"); return; }
+    await load();
+  }
+
+  function setLinkType(value) {
+    document.getElementById("link-type").value = value;
+    document.querySelectorAll("#link-type-group .toggle-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.value === value);
+    });
+    document.getElementById("link-url-field").style.display = value === "youtube" ? "" : "none";
+    document.getElementById("link-file-field").style.display = value === "pdf" ? "" : "none";
+  }
+  document.querySelectorAll("#link-type-group .toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => setLinkType(btn.dataset.value));
+  });
+
+  const linkDialog = document.getElementById("link-dialog");
+  document.getElementById("new-link-btn").addEventListener("click", () => {
+    document.getElementById("link-form").reset();
+    document.getElementById("link-id").value = "";
+    document.getElementById("link-existing-file-path").value = "";
+    document.getElementById("link-existing-file-note").textContent = "";
+    document.getElementById("link-dialog-title").textContent = t("hwlink.dialog_new");
+    clearLinkError();
+    setLinkType("youtube");
+    linkDialog.showModal();
+  });
+  document.getElementById("link-cancel-btn").addEventListener("click", () => linkDialog.close());
+
+  function openEditLink(link) {
+    if (!link) return;
+    document.getElementById("link-dialog-title").textContent = t("hwlink.dialog_edit");
+    document.getElementById("link-id").value = link.id;
+    document.getElementById("link-title").value = link.title ?? "";
+    document.getElementById("link-url").value = link.url ?? "";
+    document.getElementById("link-tags").value = link.tags ?? "";
+    document.getElementById("link-notes").value = link.notes ?? "";
+    document.getElementById("link-existing-file-path").value = link.file_path ?? "";
+    document.getElementById("link-file").value = "";
+    document.getElementById("link-existing-file-note").textContent = link.file_path
+      ? tf("hwlink.current_file_note", { name: link.file_name || link.file_path })
+      : "";
+    clearLinkError();
+    setLinkType(link.type ?? "youtube");
+    linkDialog.showModal();
+  }
+
+  // A <dialog> shown via showModal() renders in the browser's native "top
+  // layer" — above every other element regardless of z-index — so a toast
+  // appended to document.body (see settings.js) is invisible while this
+  // dialog is open. Errors while the dialog is up go here instead, which
+  // is guaranteed visible; the toast is still used once the dialog closes.
+  function showLinkError(message) {
+    const el = document.getElementById("link-error");
+    el.textContent = message;
+    el.style.display = "block";
+  }
+  function clearLinkError() {
+    const el = document.getElementById("link-error");
+    el.textContent = "";
+    el.style.display = "none";
+  }
+
+  document.getElementById("link-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearLinkError();
+    const saveBtn = document.getElementById("link-save-btn");
+    const id = document.getElementById("link-id").value;
+    const type = document.getElementById("link-type").value;
+    const title = document.getElementById("link-title").value;
+    const tags = document.getElementById("link-tags").value || null;
+    const notes = document.getElementById("link-notes").value || null;
+    const existingFilePath = document.getElementById("link-existing-file-path").value || null;
+    const fileInput = document.getElementById("link-file");
+    const chosenFile = fileInput.files?.[0] ?? null;
+
+    if (type === "youtube" && !document.getElementById("link-url").value) {
+      showLinkError(t("hwlink.url_required"));
+      return;
+    }
+    if (type === "pdf" && !chosenFile && !existingFilePath) {
+      showLinkError(t("hwlink.file_required"));
+      return;
+    }
+
+    saveBtn.disabled = true;
+    try {
+      let filePath = type === "pdf" ? existingFilePath : null;
+      if (type === "pdf" && chosenFile) {
+        // A random name plus just the extension — not the original
+        // filename. A raw filename (spaces, Chinese characters, brackets —
+        // all common in real homework PDFs) risks being rejected or
+        // mis-encoded as a storage object key; the original name is kept
+        // as `file_name` below purely for display.
+        const extMatch = chosenFile.name.match(/\.[^.]+$/);
+        const newPath = `${crypto.randomUUID()}${extMatch ? extMatch[0] : ""}`;
+        const { error: uploadError } = await supabaseClient.storage.from(BUCKET).upload(newPath, chosenFile);
+        if (uploadError) { showLinkError("Upload failed: " + uploadError.message); return; }
+        // Replacing an existing file — the old object is now unreferenced,
+        // so remove it rather than leaving it to pile up in storage forever.
+        if (existingFilePath) await supabaseClient.storage.from(BUCKET).remove([existingFilePath]);
+        filePath = newPath;
+      }
+
+      const payload = {
+        title, type,
+        url: type === "youtube" ? document.getElementById("link-url").value : null,
+        file_path: filePath,
+        file_name: type === "pdf" ? (chosenFile ? chosenFile.name : links.find(l => l.id === id)?.file_name ?? null) : null,
+        tags, notes,
+      };
+
+      const { error } = id
+        ? await supabaseClient.from("homework_links").update(payload).eq("id", id)
+        : await supabaseClient.from("homework_links").insert(payload);
+      if (error) { showLinkError("Save failed: " + error.message); return; }
+
+      linkDialog.close();
+      await load();
+    } catch (err) {
+      // Anything unexpected (a thrown exception, not a returned {error})
+      // used to disappear as a silent unhandled-rejection — this is what
+      // made a real failure here look like "nothing happened" at all.
+      showLinkError(String(err?.message ?? err));
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  await load();
+})();
+</script>
+</body>
+</html>
