@@ -172,12 +172,22 @@
   .term-note-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 3px 0; }
   .term-note-pair { position: relative; display: inline-flex; align-items: center; }
   .term-note-icon-btn {
+    position: relative;
     border: none; background: none; cursor: pointer; font-size: 13px; flex-shrink: 0;
     opacity: 0.35; padding: 2px 3px; line-height: 1; border-radius: 999px;
     transition: opacity 0.15s ease, background-color 0.15s ease;
   }
   .term-note-icon-btn.has-content { opacity: 1; }
   .term-note-icon-btn.attention.has-content { background: #fef2f2; }
+  /* A nudge, not a flag — 2+ still-outstanding leaves this term puts a red
+     dot on the (otherwise still-muted) icon, without lighting it up as if
+     Angela had actually flagged it herself. */
+  .term-note-icon-btn.attention-suggested { opacity: 1; }
+  .term-note-icon-btn.attention-suggested::after {
+    content: ""; position: absolute; top: 0; right: 0;
+    width: 6px; height: 6px; border-radius: 50%; background: #dc2626;
+    border: 1.5px solid #fff;
+  }
   /* 🤝 is a warm-toned emoji that barely dims with opacity alone (unlike
      👀, which is naturally monochrome) — greyscale it while inactive so
      "off" reads as clearly muted, then drop the filter and light it up in
@@ -1036,6 +1046,21 @@
     return parts.length ? `, ${parts.join(", ")}` : "";
   }
 
+  // True exactly when makeupNoteHtml below would render the red
+  // "請假(未處理)" fallback label — i.e. a leave with no decision made yet
+  // at all (not deferred, not marked pending, not made up, not combined
+  // with a private lesson). Kept as its own function so the term-batch
+  // attention-suggestion dot below counts precisely this state, not any
+  // "still outstanding in some way" leave.
+  function isUnprocessedLeave(row) {
+    if (!row || row.status !== "leave") return false;
+    if (row.make_up_status === "made_up" && row.made_up_appointment_id) return false;
+    if (row.make_up_status === "deferred_to_next_package") return false;
+    if (row.make_up_status === "pending") return false;
+    if (row.make_up_status === "combined_with_private" && row.make_up_remark) return false;
+    return true;
+  }
+
   function makeupNoteHtml(row, allGroupAppts) {
     if (!row || row.status !== "leave") return "";
     if (row.make_up_status === "made_up" && row.made_up_appointment_id) {
@@ -1177,18 +1202,34 @@
             // optional text remark, so either alone (or both) works.
             const attentionOn = note?.attention_flag || note?.attention_remark;
             const joinOn = note?.join_flag || note?.join_remark;
+            // A small nudge, not an auto-flag: 2+ leaves still sitting as
+            // "請假(未處理)" (no make-up decision made at all — see
+            // isUnprocessedLeave) in this term batch puts a dot on the 👀
+            // icon so it isn't missed — but never sets attention_flag/
+            // attention_remark on its own, since Angela may already know
+            // the reason and not want it logged. Suppressed once she's
+            // actually flagged it herself; the nudge has done its job by
+            // then. Leaves already pending/deferred/made-up/combined don't
+            // count — those already have a decision attached.
+            const batchApptIds = new Set(batch.map(a => a.id));
+            const outstandingLeaveCount = attendanceRows.filter(r =>
+              r.student_id === studentId && batchApptIds.has(r.appointment_id) && isUnprocessedLeave(r)
+            ).length;
+            const suggestAttention = !attentionOn && outstandingLeaveCount >= 2;
             // Bare icon by default — no permanently-visible pill/input taking
             // up space. Hovering the icon shows the remark text itself (via
             // the native tooltip) when there is one; the ✎ only appears on
             // hover of its pair and reveals a small inline input to type or
             // change the remark. Clicking the icon itself still just toggles
             // the flag instantly, same as before.
-            const attentionTitle = note?.attention_remark || t("attendance.attention_note_title");
+            const attentionTitle = suggestAttention
+              ? tf("attendance.attention_suggested_title", { n: outstandingLeaveCount })
+              : (note?.attention_remark || t("attendance.attention_note_title"));
             const joinTitle = note?.join_remark || t("attendance.join_note_title");
             return `<td${colClass(isWithdrawn, isVisitor, studentId)}>
               <div class="term-note-row">
                 <span class="term-note-pair">
-                  <button type="button" class="term-note-icon-btn attention${attentionOn ? " has-content" : ""}" data-term-flag-field="attention_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${attentionTitle}">👀</button>
+                  <button type="button" class="term-note-icon-btn attention${attentionOn ? " has-content" : ""}${suggestAttention ? " attention-suggested" : ""}" data-term-flag-field="attention_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${attentionTitle}">👀</button>
                   <button type="button" class="term-note-edit-btn" data-term-edit-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.edit_note_title")}">✎</button>
                   <input type="text" class="term-note-popup-input" data-term-note-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.attention_remark ?? ""}" style="display:none;" />
                 </span>
