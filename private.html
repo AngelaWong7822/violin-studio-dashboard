@@ -88,10 +88,10 @@
   .row-menu button:hover { background: #f4f4f5; }
   .row-menu button.danger-item { color: #b91c1c; }
   .whatsapp-chip {
-    display: inline-flex; align-items: center; gap: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px;
     background: #e7f9ee; color: #1e6b34; text-decoration: none;
-    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
-    white-space: nowrap;
+    border-radius: 50%; font-size: 13px;
   }
   .whatsapp-chip:hover { background: #d3f3e0; }
   .count-pill {
@@ -104,6 +104,31 @@
     background: #fffbeb; color: #78350f; padding: 3px 10px;
     border-radius: 999px; font-size: 12px; font-weight: 600;
   }
+  .regular-schedule-badge {
+    display: inline-block; margin-left: 8px; padding: 1px 8px;
+    background: #f3e8ff; color: #7e22ce; border-radius: 999px;
+    font-size: 11px; font-weight: 600; vertical-align: middle; white-space: nowrap;
+  }
+  .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 15px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
+  .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
+  .week-calendar-grid { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .week-calendar-day {
+    flex: 1 1 0; min-width: 108px; background: #fafafa; border-radius: 12px;
+    padding: 8px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .week-calendar-day.is-today { background: #fffbeb; border: 1px solid #fde68a; }
+  .week-calendar-day-header { text-align: center; padding-bottom: 6px; border-bottom: 1px solid #eee; }
+  .week-calendar-daynum { font-size: 18px; font-weight: 700; color: #27272a; line-height: 1.1; }
+  .week-calendar-weekday { font-size: 11px; color: #a1a1aa; }
+  .week-calendar-day.is-today .week-calendar-daynum { color: #92400e; }
+  .week-calendar-day.is-today .week-calendar-weekday { color: #b45309; }
+  .week-calendar-lessons { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .week-calendar-lesson { display: flex; align-items: center; gap: 5px; background: #fff; border-radius: 8px; padding: 4px 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  .week-calendar-lesson .avatar { width: 20px; height: 20px; font-size: 10px; margin-right: 0; }
+  .week-calendar-lesson-info { display: flex; flex-direction: column; min-width: 0; }
+  .week-calendar-time { font-size: 10px; color: #78350f; font-weight: 700; }
+  .week-calendar-name { font-size: 11px; color: #27272a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 68px; }
+  .week-calendar-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #d4d4d8; font-size: 11px; }
   .student-row { cursor: pointer; }
   .student-row:hover { background: #f4f4f5; }
   .expand-arrow { display: inline-block; width: 14px; transition: transform 0.15s; }
@@ -151,6 +176,10 @@
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
+  <div class="card">
+    <h1 style="margin:0 0 10px;" data-i18n="private.week_bookings_title">This Week's Bookings</h1>
+    <div id="week-bookings-list"></div>
+  </div>
   <div class="card" id="pending-reviews-card" style="display:none;">
     <h1 style="margin:0 0 10px;" data-i18n="private.pending_reviews_title">WhatsApp bookings needing review</h1>
     <div id="pending-reviews"></div>
@@ -165,7 +194,7 @@
         <th></th>
         <th data-i18n="student.name">Name</th>
         <th data-i18n="private.col_next_lesson" style="text-align:center;">Next lesson</th>
-        <th data-i18n="student.phone">WhatsApp number</th>
+        <th data-i18n="private.col_whatsapp">Wts</th>
         <th data-i18n="contacts.col_allowed">Allowed (AI analyzes)</th>
         <th data-i18n="private.col_total_lessons">Lessons logged</th>
         <th data-i18n="private.col_total_paid">Total paid</th>
@@ -197,6 +226,21 @@
       <label><span class="field-label-row"><span class="field-icon">🎂</span><span data-i18n="student.age">Age</span></span><input type="number" id="student-age" min="0" step="1" /></label>
       <label><span class="field-label-row"><span class="field-icon">📱</span><span data-i18n="lead.social_media_name">Social media name</span></span><input type="text" id="student-social" /></label>
       <label><span class="field-label-row"><span class="field-icon">🎻</span><span data-i18n="lead.level">Level</span></span><input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span class="field-label-row"><span class="field-icon">🔁</span><span data-i18n="private.regular_schedule">Regular weekly time</span></span>
+        <div style="display:flex; gap:8px;">
+          <select id="student-regular-weekday" style="flex:1;">
+            <option value="" data-i18n="private.regular_none">Not regular</option>
+            <option value="0" data-i18n="weekday_full.0">Sunday</option>
+            <option value="1" data-i18n="weekday_full.1">Monday</option>
+            <option value="2" data-i18n="weekday_full.2">Tuesday</option>
+            <option value="3" data-i18n="weekday_full.3">Wednesday</option>
+            <option value="4" data-i18n="weekday_full.4">Thursday</option>
+            <option value="5" data-i18n="weekday_full.5">Friday</option>
+            <option value="6" data-i18n="weekday_full.6">Saturday</option>
+          </select>
+          <input type="time" id="student-regular-time" style="flex:1;" />
+        </div>
+      </label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="student-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -284,7 +328,7 @@
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, contacts(name, whatsapp_number, gender, age, allowed_for_ai)")
+      .select("id, contact_id, contacts(name, whatsapp_number, gender, age, allowed_for_ai, social_media_name, level, regular_weekday, regular_time)")
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
@@ -352,7 +396,70 @@
       return 0;
     });
 
+    renderWeekBookings();
     render();
+  }
+
+  // Just headcount + time, per Angela's own request — no price/paid detail
+  // here, that's what the students table below is for. Pulls straight from
+  // the lessons already loaded above rather than a separate query.
+  function formatTimeOnly(d) {
+    const pad = (n) => String(n).padStart(2, "0");
+    const ampm = d.getHours() >= 12 ? "PM" : "AM";
+    const hours12 = d.getHours() % 12 || 12;
+    return `${hours12}:${pad(d.getMinutes())}${ampm}`;
+  }
+
+  // A real 7-day calendar strip (today + the next 6 days), each day always
+  // shown even when empty — closer to glancing at an actual calendar than
+  // a plain list, per Angela's own request.
+  function renderWeekBookings() {
+    const el = document.getElementById("week-bookings-list");
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const allLessons = students
+      .flatMap(s => s.lessons.map(l => ({ ...l, studentName: s.contacts?.name ?? "", gender: s.contacts?.gender })));
+
+    const days = [];
+    let totalCount = 0;
+    for (let i = 0; i < 7; i++) {
+      const dayStart = new Date(startOfToday.getTime() + i * 24 * 60 * 60 * 1000);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      // Today only counts lessons still ahead (not already passed) — this
+      // is meant to double as "what's left today", not a historical log.
+      const lessons = allLessons
+        .filter(l => { const w = new Date(l.when); return w >= dayStart && w < dayEnd && w >= now; })
+        .sort((a, b) => new Date(a.when) - new Date(b.when));
+      totalCount += lessons.length;
+      days.push({ date: dayStart, lessons, isToday: i === 0 });
+    }
+
+    el.innerHTML =
+      `<p style="margin:0 0 10px; color:#71717a; font-size:12px;">${tf("private.week_bookings_count", { n: totalCount })}</p>` +
+      `<div class="week-calendar-grid">` +
+      days.map(day => `
+        <div class="week-calendar-day${day.isToday ? " is-today" : ""}">
+          <div class="week-calendar-day-header">
+            <div class="week-calendar-daynum">${day.date.getDate()}</div>
+            <div class="week-calendar-weekday">${t("day." + day.date.getDay())}</div>
+          </div>
+          <div class="week-calendar-lessons">
+            ${day.lessons.length ? day.lessons.map(l => {
+              const genderClass = l.gender === "female" ? "female" : l.gender === "male" ? "male" : "unknown";
+              const initial = (l.studentName || "?").trim().charAt(0).toUpperCase() || "?";
+              return `
+              <div class="week-calendar-lesson">
+                <span class="avatar gender-${genderClass}">${initial}</span>
+                <span class="week-calendar-lesson-info">
+                  <span class="week-calendar-time">${formatTimeOnly(new Date(l.when))}</span>
+                  <span class="week-calendar-name">${l.studentName}</span>
+                </span>
+              </div>`;
+            }).join("") : `<div class="week-calendar-empty">—</div>`}
+          </div>
+        </div>`).join("") +
+      `</div>`;
   }
 
   function render() {
@@ -368,7 +475,7 @@
       const rawPhone = s.contacts?.whatsapp_number ?? "";
       const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
       const whatsappCell = rawPhone && digitsOnly
-        ? `<a class="whatsapp-chip" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
+        ? `<a class="whatsapp-chip" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener" title="${rawPhone}">💬</a>`
         : "—";
 
       const lessonRows = s.lessons.map(l => `
@@ -396,14 +503,15 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.contacts?.regular_weekday != null && s.contacts?.regular_time ? `<span class="regular-schedule-badge" title="${t("private.regular_schedule")}">🔁 ${formatRegularSchedule(s.contacts.regular_weekday, s.contacts.regular_time)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
           <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
           <td><span class="count-pill">${s.lessons.length}</span></td>
           <td><span class="count-pill count-pill-paid">$${totalPaid}</span></td>
           <td style="white-space:nowrap;">
-            <button class="link" data-add-lesson="${s.id}">${t("private.new_lesson")}</button>
+            ${s.contacts?.regular_weekday != null && s.contacts?.regular_time ? `<button type="button" class="icon-action-btn" data-book-month="${s.id}" title="${t("private.book_month")}" aria-label="${t("private.book_month")}">📅</button>` : ""}
+            <button type="button" class="icon-action-btn" data-add-lesson="${s.id}" title="${t("private.new_lesson")}" aria-label="${t("private.new_lesson")}">➕</button>
             <span class="row-menu-wrap">
               <button type="button" class="row-menu-btn" data-row-menu-toggle="${s.id}" title="${t("private.more_actions")}">⋯</button>
               <div class="row-menu" data-row-menu="${s.id}">
@@ -462,6 +570,9 @@
     });
     tbody.querySelectorAll("button[data-add-lesson]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); openLessonDialog(students.find(s => s.id === btn.dataset.addLesson)); });
+    });
+    tbody.querySelectorAll("button[data-book-month]").forEach(btn => {
+      btn.addEventListener("click", (e) => { e.stopPropagation(); bookThisMonth(students.find(s => s.id === btn.dataset.bookMonth)); });
     });
     tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)); });
@@ -594,6 +705,8 @@
     document.getElementById("student-social").value = c.social_media_name ?? "";
     document.getElementById("student-level").value = c.level ?? "";
     document.getElementById("student-age").value = c.age ?? "";
+    document.getElementById("student-regular-weekday").value = c.regular_weekday ?? "";
+    document.getElementById("student-regular-time").value = c.regular_time ?? "";
     studentDialog.showModal();
   }
   document.getElementById("new-student-btn").addEventListener("click", () => {
@@ -603,6 +716,8 @@
     document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
     document.getElementById("student-dialog-avatar").textContent = "?";
     setDialogGender("male");
+    document.getElementById("student-regular-weekday").value = "";
+    document.getElementById("student-regular-time").value = "";
     studentDialog.showModal();
   });
   document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());
@@ -618,6 +733,8 @@
       social_media_name: document.getElementById("student-social").value || null,
       level: document.getElementById("student-level").value || null,
       age: document.getElementById("student-age").value || null,
+      regular_weekday: document.getElementById("student-regular-weekday").value === "" ? null : parseInt(document.getElementById("student-regular-weekday").value, 10),
+      regular_time: document.getElementById("student-regular-time").value || null,
     };
 
     if (studentId && contactId) {
@@ -791,6 +908,73 @@
     const ampm = d.getHours() >= 12 ? "PM" : "AM";
     const hours12 = d.getHours() % 12 || 12;
     return `${day}/${month}/${year}(${weekday}) ${hours12}:${pad(d.getMinutes())}${ampm}`;
+  }
+
+  // "逢四 6:30PM" — same 12h AM/PM convention as formatNextLesson, but for
+  // a recurring weekday+time (no specific date) rather than one lesson.
+  function formatRegularSchedule(weekday, timeStr) {
+    const [h, m] = timeStr.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hours12 = h % 12 || 12;
+    return `${tf("private.regular_weekly", { weekday: t("day." + weekday) })} ${hours12}:${String(m).padStart(2, "0")}${ampm}`;
+  }
+
+  // "This month" = today through the last day of the current calendar
+  // month — already-past weeks aren't retroactively booked, and next
+  // month's occurrences wait for next month's own click. Skips any date
+  // that already has a lesson (of any time) for this student, so re-running
+  // it after partially booking a month is safe.
+  async function bookThisMonth(student) {
+    if (!student) return;
+    const c = student.contacts ?? {};
+    if (c.regular_weekday == null || !c.regular_time) return;
+
+    const now = new Date();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const [h, m] = c.regular_time.split(":").map(Number);
+
+    const existingDateKeys = new Set(student.lessons.map(l => new Date(l.when).toDateString()));
+    const candidateDates = [];
+    for (let d = new Date(now.getFullYear(), now.getMonth(), now.getDate()); d < endOfMonth; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== c.regular_weekday) continue;
+      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
+      if (start < now) continue; // today's slot already passed
+      if (existingDateKeys.has(start.toDateString())) continue; // already booked that day
+      candidateDates.push(start);
+    }
+
+    const weekdayLabel = t("day." + c.regular_weekday);
+    if (!candidateDates.length) {
+      showToast(tf("private.book_month_none", { weekday: weekdayLabel }), "default");
+      return;
+    }
+    if (!(await showConfirm(tf("private.book_month_confirm", { n: candidateDates.length, weekday: weekdayLabel, time: c.regular_time })))) return;
+
+    // Reuse the most recently-booked lesson's price/format as the template
+    // — falls back to the same defaults the "New lesson" dialog itself uses
+    // for a student with no lessons yet at all. Duration isn't tracked on
+    // the loaded lesson list, so this always uses the standard 45min, same
+    // as that dialog's own default.
+    const template = student.lessons[0]; // lessons are ordered newest-first (see load())
+    const format = template?.format ?? "1on1";
+    const price = template?.price ?? 750;
+    const durationMin = 45;
+
+    const rows = candidateDates.map(start => ({
+      type: "lesson", lesson_format: format, student_id: student.id,
+      scheduled_start: start.toISOString(),
+      scheduled_end: new Date(start.getTime() + durationMin * 60 * 1000).toISOString(),
+      status: "confirmed", created_via: "manual_dashboard", price,
+    }));
+    const { data: inserted, error } = await supabaseClient.from("appointments").insert(rows).select();
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
+
+    const attRows = inserted.map(a => ({ appointment_id: a.id, student_id: student.id }));
+    const { error: attError } = await supabaseClient.from("attendance").insert(attRows);
+    if (attError) { showToast("Lessons saved, but couldn't create their attendance rows: " + attError.message, "error", 5000); return; }
+
+    showToast(tf("private.book_month_done", { n: inserted.length }));
+    await load();
   }
 
   async function resolveStudentForContact(contactId) {
