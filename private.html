@@ -82,11 +82,13 @@
   }
   .row-menu.open { display: flex; }
   .row-menu button {
-    border: none; background: none; text-align: left; padding: 7px 10px;
-    border-radius: 6px; cursor: pointer; font-size: 13px; color: #18181b; width: 100%;
+    border: none; background: none; text-align: left; padding: 6px 10px;
+    border-radius: 6px; cursor: pointer; font-size: 12px; color: #18181b; width: 100%; white-space: nowrap;
+    display: flex; align-items: center; gap: 7px;
   }
   .row-menu button:hover { background: #f4f4f5; }
   .row-menu button.danger-item { color: #b91c1c; }
+  .row-menu .menu-icon { width: 15px; text-align: center; font-size: 12px; flex-shrink: 0; }
   .whatsapp-chip {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px;
@@ -109,6 +111,8 @@
     background: #f3e8ff; color: #7e22ce; border-radius: 999px;
     font-size: 11px; font-weight: 600; vertical-align: middle; white-space: nowrap;
   }
+  .regular-schedule-badge[data-edit-schedule] { cursor: pointer; }
+  .regular-schedule-badge[data-edit-schedule]:hover { background: #e9d5ff; }
   .parent-tag {
     display: inline-block; margin-left: 8px; padding: 1px 7px;
     background: #f4f4f5; color: #71717a; border-radius: 999px;
@@ -869,7 +873,7 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" title="${t("private.regular_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" role="button" tabindex="0" data-edit-schedule="${s.id}" title="${t("private.edit_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
           <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
@@ -879,9 +883,9 @@
             <span class="row-menu-wrap">
               <button type="button" class="row-menu-btn" data-row-menu-toggle="${s.id}" title="${t("private.more_actions")}">⋯</button>
               <div class="row-menu" data-row-menu="${s.id}">
-                <button type="button" data-edit-student="${s.id}">${t("student.edit")}</button>
-                <button type="button" data-add-sibling="${s.contact_id}">${t("private.add_sibling")}</button>
-                <button type="button" class="danger-item" data-delete-student="${s.id}">${t("student.delete")}</button>
+                <button type="button" data-edit-student="${s.id}"><span class="menu-icon">✏️</span>${t("student.edit")}</button>
+                <button type="button" data-add-sibling="${s.contact_id}"><span class="menu-icon">🧒</span>${t("private.add_sibling")}</button>
+                <button type="button" class="danger-item" data-delete-student="${s.id}"><span class="menu-icon">🗑️</span>${t("student.delete")}</button>
               </div>
             </span>
           </td>
@@ -939,6 +943,13 @@
     });
     tbody.querySelectorAll("button[data-add-sibling]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); openAddSibling(btn.dataset.addSibling); });
+    });
+    // The 🔁 regular-schedule badge is a shortcut into the edit dialog
+    // (weekday + time live there) — click or keyboard-activate it.
+    tbody.querySelectorAll("[data-edit-schedule]").forEach(el => {
+      const open = (e) => { e.stopPropagation(); openEditStudent(students.find(s => s.id === el.dataset.editSchedule)); };
+      el.addEventListener("click", open);
+      el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(e); } });
     });
     tbody.querySelectorAll("button[data-add-lesson]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); openLessonDialog(students.find(s => s.id === btn.dataset.addLesson)); });

@@ -66,8 +66,11 @@
   </div>
 
   <div class="card">
-    <h1 data-i18n="schedule.calendar_title">Shared Google Calendar</h1>
-    <div id="calendar-embed"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+      <h1 data-i18n="schedule.calendar_title" style="margin:0;">Shared Google Calendar</h1>
+      <button type="button" id="calendar-toggle" class="link"></button>
+    </div>
+    <div id="calendar-embed" hidden style="margin-top:12px;"></div>
   </div>
 </main>
 
@@ -128,12 +131,34 @@
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
   initSettingsMenu();
-  window.onLangChange = () => { loadAppointments(); };
+  window.onLangChange = () => { loadAppointments(); refreshCalendarToggleLabel(); };
 
-  // Google Calendar embed — replace GOOGLE_CALENDAR_EMBED_ID in supabase-config.js
-  document.getElementById("calendar-embed").innerHTML =
-    `<iframe src="https://calendar.google.com/calendar/embed?src=${encodeURIComponent(GOOGLE_CALENDAR_EMBED_ID)}&ctz=Asia%2FHong_Kong"
-      style="border:0" width="100%" height="500" frameborder="0" scrolling="no"></iframe>`;
+  // Google Calendar embed — collapsed by default now that the "本週預約"
+  // view on the Private Students page covers the day-to-day need. The
+  // iframe is only built the first time it's expanded (a 500px Google
+  // embed is a heavy thing to load on every visit), and the open/closed
+  // choice is remembered per browser.
+  const calEmbed = document.getElementById("calendar-embed");
+  const calToggle = document.getElementById("calendar-toggle");
+  let calLoaded = false;
+  function refreshCalendarToggleLabel() {
+    calToggle.textContent = calEmbed.hidden ? t("schedule.calendar_show") : t("schedule.calendar_hide");
+  }
+  function setCalendarOpen(open) {
+    calEmbed.hidden = !open;
+    if (open && !calLoaded) {
+      calEmbed.innerHTML =
+        `<iframe src="https://calendar.google.com/calendar/embed?src=${encodeURIComponent(GOOGLE_CALENDAR_EMBED_ID)}&ctz=Asia%2FHong_Kong"
+          style="border:0" width="100%" height="500" frameborder="0" scrolling="no"></iframe>`;
+      calLoaded = true;
+    }
+    refreshCalendarToggleLabel();
+    try { localStorage.setItem("calendarOpen", open ? "1" : "0"); } catch (e) {}
+  }
+  calToggle.addEventListener("click", () => setCalendarOpen(calEmbed.hidden));
+  let calStart = false;
+  try { calStart = localStorage.getItem("calendarOpen") === "1"; } catch (e) {}
+  setCalendarOpen(calStart);
 
   const dialog = document.getElementById("appt-dialog");
   const form = document.getElementById("appt-form");
@@ -207,6 +232,17 @@
     await loadAppointments();
   });
 
+  // Who the appointment is with — resolved from the real linked record
+  // (student / lead / class) rather than the free-text notes, which is
+  // only set for WhatsApp auto-marks (and carries an "(auto-marked…)"
+  // tail). Falls back to notes when there's no linked record.
+  function apptWith(a) {
+    const resolved = a.students?.name || a.students?.contacts?.name
+      || a.leads?.contacts?.name || a.classes?.name || "";
+    if (resolved) return resolved;
+    return (a.notes ?? "").replace(/\s*\((?:auto-marked from WhatsApp)\)\s*$/i, "");
+  }
+
   function apptRowHtml(a) {
     // Show the lesson format alongside the type for consultations/lessons
     // (e.g. "諮詢 (小組班)") so Angela can tell at a glance whether a
@@ -219,7 +255,7 @@
       <tr>
         <td>${new Date(a.scheduled_start).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
         <td>${typeLabel}</td>
-        <td>${a.notes ?? ""}</td>
+        <td>${apptWith(a)}</td>
         <td><span class="status-pill status-${a.status}">${t("status." + a.status)}</span></td>
         <td><button type="button" class="icon-action-btn" data-id="${a.id}" title="${t("schedule.edit")}" aria-label="${t("schedule.edit")}">✏️</button></td>
       </tr>`;
@@ -231,7 +267,8 @@
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    let query = supabaseClient.from("appointments").select("*")
+    let query = supabaseClient.from("appointments")
+      .select("*, students(name, contacts(name)), leads!appointments_lead_id_fkey(contacts(name)), classes(name)")
       .gte("scheduled_start", startOfDay.toISOString())
       .lte("scheduled_start", endOfDay.toISOString())
       .order("scheduled_start", { ascending: true });
@@ -264,7 +301,7 @@
         const d = new Date(first.scheduled_start);
         const dayLabel = t("day." + d.getDay());
         const timeLabel = d.toLocaleTimeString(localeForDates(), { hour: "2-digit", minute: "2-digit" });
-        const summaryLabel = `${dayLabel} ${timeLabel} — ${first.notes ?? ""} (${tf("schedule.group_lessons_count", { n: group.length })})`;
+        const summaryLabel = `${dayLabel} ${timeLabel} — ${apptWith(first)} (${tf("schedule.group_lessons_count", { n: group.length })})`;
         rowsHtml.push(`
           <tr class="pkg-summary-row" data-pkg-toggle="${a.package_id}" style="cursor:pointer; background:#fafafa;">
             <td colspan="2"><span class="pkg-arrow">▶</span> ${t("type.group_class")}</td>
