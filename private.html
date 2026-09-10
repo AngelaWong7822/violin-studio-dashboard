@@ -63,7 +63,7 @@
     background: #fff; border-radius: 50%; transition: transform 0.15s ease;
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   }
-  .toggle-switch input:checked + .slider { background: #18181b; }
+  .toggle-switch input:checked + .slider { background: linear-gradient(135deg, #c4b5fd, #7c3aed); }
   .toggle-switch input:checked + .slider::before { transform: translateX(15px); }
   .row-menu-wrap { position: relative; display: inline-block; }
   .row-menu-btn {
@@ -109,6 +109,11 @@
     background: #f3e8ff; color: #7e22ce; border-radius: 999px;
     font-size: 11px; font-weight: 600; vertical-align: middle; white-space: nowrap;
   }
+  .parent-tag {
+    display: inline-block; margin-left: 8px; padding: 1px 7px;
+    background: #f4f4f5; color: #71717a; border-radius: 999px;
+    font-size: 10.5px; font-weight: 500; vertical-align: middle; white-space: nowrap;
+  }
   .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 15px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
   .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
   .week-calendar-grid { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
@@ -142,7 +147,14 @@
   .week-calendar-lesson.is-consult .week-calendar-name { color: #155e75; }
   .wc-del-btn { margin-left: auto; flex-shrink: 0; border: none; background: none; cursor: pointer; color: #d4d4d8; font-size: 11px; line-height: 1; padding: 2px 3px; border-radius: 4px; }
   .wc-del-btn:hover { color: #b91c1c; background: #fee2e2; }
+  .week-calendar-name-link { cursor: pointer; }
+  .week-calendar-name-link:hover { color: #7c3aed; text-decoration: underline; }
+  @keyframes rowFlash { 0% { background: #fef9c3; } 100% { background: transparent; } }
+  tr.student-row.row-flash > td { animation: rowFlash 1.6s ease-out; }
   .wc-hold { display: flex; align-items: center; gap: 4px; border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 7px; }
+  .wc-undated { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; padding: 8px 10px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 10px; }
+  .wc-undated-label { font-size: 11px; font-weight: 700; color: #92400e; }
+  .wc-undated-item { font-size: 11px; color: #78350f; background: #fef3c7; border-radius: 999px; padding: 2px 9px; cursor: help; }
   .free-slots-settings { display: flex; flex-direction: column; gap: 12px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
   .free-slots-settings[hidden] { display: none; }
   .fs-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #71717a; }
@@ -256,7 +268,9 @@
     </div>
     <input type="hidden" id="student-contact-id" />
     <input type="hidden" id="student-id" />
+    <input type="hidden" id="student-sibling-contact-id" />
     <div style="display:flex; flex-direction:column; gap:10px;">
+      <p id="student-parent-hint" style="margin:0; font-size:12px; color:#7c3aed; background:#f5f3ff; border-radius:8px; padding:6px 9px;" hidden></p>
       <label><span class="field-label-row"><span class="field-icon">👤</span><span data-i18n="student.name">Name</span></span><input type="text" id="student-name" required /></label>
       <label><span class="field-label-row"><span class="field-icon">💬</span><span data-i18n="student.phone">WhatsApp number</span></span><input type="text" id="student-phone" /></label>
       <label><span class="field-label-row"><span class="field-icon"></span><span data-i18n="student.gender">Gender</span></span>
@@ -365,13 +379,17 @@
   }
 
   const expandedIds = new Set();
-  let students = []; // [{ id, contacts, lessons: [{apptId, attendanceId, when, format, price, status, paid}] }]
+  let students = []; // [{ id, name, regular_weekday, regular_time, contacts, lessons: [...] }]
+
+  // A student's own name once families can have >1 child (migration 0029);
+  // older rows with a null students.name fall back to the contact's name.
+  function studentLabel(s) { return s?.name || s?.contacts?.name || ""; }
 
   async function load() {
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, contacts(name, whatsapp_number, gender, age, allowed_for_ai, social_media_name, level, regular_weekday, regular_time)")
+      .select("id, contact_id, name, regular_weekday, regular_time, contacts(name, whatsapp_number, gender, age, allowed_for_ai, social_media_name, level, regular_weekday, regular_time)")
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
@@ -438,6 +456,15 @@
       if (b.lastMessageAt) return 1;
       return 0;
     });
+
+    // Keep siblings (same parent contact) adjacent, anchored where their
+    // most-active member already sorted to. Map preserves insertion order.
+    const byContact = new Map();
+    for (const s of students) {
+      if (!byContact.has(s.contact_id)) byContact.set(s.contact_id, []);
+      byContact.get(s.contact_id).push(s);
+    }
+    students = [...byContact.values()].flat();
 
     renderWeekCalendar();
     render();
@@ -602,13 +629,21 @@
       }
     });
 
-    // WhatsApp proposals still awaiting review — "a parent's still deciding,
-    // keep it free". Shown as a dashed card, sorted into the day's timeline
-    // by its proposed time (not dumped at the bottom).
+    // WhatsApp proposals still awaiting review. Ones with a concrete
+    // proposed time become a dashed card sorted into that day's timeline;
+    // ones the AI couldn't pin to a date/time yet (e.g. "下星期一至三下午
+    // 3點左右") can't sit in a column, so they go in a small strip under
+    // the grid as a heads-up to go handle them in the "待確認" panel.
     const holdsByDateKey = new Map();
+    const undatedPending = [];
     (pending ?? []).forEach(p => {
       const pa = p.proposed_appointment || {};
-      if (!pa.requested_date || !pa.requested_time) return;
+      if (!pa.requested_date || !pa.requested_time) {
+        if (pa.intent && pa.intent !== "none" && pa.intent !== "general_inquiry") {
+          undatedPending.push({ name: p.messages?.contacts?.name ?? "?", intent: pa.intent, rationale: pa.rationale ?? "" });
+        }
+        return;
+      }
       const s = new Date(`${pa.requested_date}T${pa.requested_time}:00`);
       if (isNaN(s) || s < startOfToday || s >= rangeEnd) return;
       const durMin = pa.duration_minutes_guess || 45;
@@ -626,7 +661,7 @@
 
     // This student's own private lessons, for the "已約" part of each column.
     const allLessons = students
-      .flatMap(s => s.lessons.map(l => ({ ...l, studentName: s.contacts?.name ?? "", gender: s.contacts?.gender })));
+      .flatMap(s => s.lessons.map(l => ({ ...l, studentId: s.id, studentName: studentLabel(s), gender: s.contacts?.gender })));
 
     let totalBooked = 0;
     const daysHtml = [];
@@ -646,7 +681,7 @@
       allLessons.forEach(l => {
         const w = new Date(l.when);
         if (w >= day && w < dayEnd) {
-          items.push({ apptId: l.apptId, when: l.when, whenEnd: l.whenEnd, kind: "private", name: l.studentName, gender: l.gender });
+          items.push({ apptId: l.apptId, studentId: l.studentId, when: l.when, whenEnd: l.whenEnd, kind: "private", name: l.studentName, gender: l.gender });
         }
       });
       (apptCardsByDateKey.get(dateKey) ?? []).forEach(c => items.push(c));
@@ -684,7 +719,7 @@
               <span class="avatar gender-${genderClass}">${initial}</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
-                <span class="week-calendar-name">${it.name}</span>
+                <span class="week-calendar-name week-calendar-name-link" data-jump-student="${it.studentId}" title="${t("private.jump_to_student")}">${it.name}</span>
               </span>
               <button type="button" class="wc-del-btn" data-cal-del-lesson="${it.apptId}" title="${t("private.delete_lesson")}" aria-label="${t("private.delete_lesson")}">✕</button>
             </div>`;
@@ -713,9 +748,17 @@
         </div>`);
     }
 
+    const undatedHtml = undatedPending.length
+      ? `<div class="wc-undated">
+          <span class="wc-undated-label">🤔 ${t("private.wc_undated")}</span>
+          ${undatedPending.map(u => `<span class="wc-undated-item" title="${String(u.rationale).replace(/"/g, "&quot;")}">${u.name} · ${t("private.intent_" + u.intent)}</span>`).join("")}
+        </div>`
+      : "";
+
     el.innerHTML =
       `<p style="margin:0 0 10px; color:#71717a; font-size:12px;">${tf("private.week_bookings_count", { n: totalBooked })}</p>` +
-      `<div class="week-calendar-grid">${daysHtml.join("")}</div>`;
+      `<div class="week-calendar-grid">${daysHtml.join("")}</div>` +
+      undatedHtml;
     applyI18n();
 
     // Cancel a private lesson straight from the calendar. "Cancel, don't
@@ -751,6 +794,27 @@
         await load();
       });
     });
+
+    // Click a lesson's student name -> jump down to that student's row in
+    // the "私人學生" table, expanded (which shows their AI對話記錄), for a
+    // quick fact-check against what the booking actually was.
+    el.querySelectorAll("[data-jump-student]").forEach(nameEl => {
+      nameEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sid = nameEl.dataset.jumpStudent;
+        if (!sid) return;
+        const searchEl = document.getElementById("student-search");
+        if (searchEl && searchEl.value) searchEl.value = ""; // don't let a filter hide the target
+        expandedIds.add(sid);
+        render();
+        const row = document.querySelector(`tr.student-row[data-student-id="${sid}"]`);
+        if (row) {
+          row.scrollIntoView({ behavior: "smooth", block: "center" });
+          row.classList.add("row-flash");
+          setTimeout(() => row.classList.remove("row-flash"), 1600);
+        }
+      });
+    });
   }
 
   function render() {
@@ -761,7 +825,7 @@
     }
 
     const q = (document.getElementById("student-search")?.value ?? "").trim().toLowerCase();
-    const shown = q ? students.filter(s => (s.contacts?.name ?? "").toLowerCase().includes(q)) : students;
+    const shown = q ? students.filter(s => `${studentLabel(s)} ${s.contacts?.name ?? ""}`.toLowerCase().includes(q)) : students;
     if (!shown.length) {
       tbody.innerHTML = `<tr><td colspan="6" class="empty">${t("private.search_no_match")}</td></tr>`;
       return;
@@ -796,22 +860,27 @@
         </tr>`).join("");
 
       const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
-      const initial = (s.contacts?.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+      const label = studentLabel(s);
+      const initial = (label || "?").trim().charAt(0).toUpperCase() || "?";
+      const parentTag = (s.name && s.contacts?.name && s.name !== s.contacts.name)
+        ? `<span class="parent-tag" title="${t("private.parent_contact")}">👪 ${s.contacts.name}</span>` : "";
+      const regWeekday = s.regular_weekday, regTime = s.regular_time;
 
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${s.contacts?.name ?? ""}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${s.contacts?.regular_weekday != null && s.contacts?.regular_time ? `<span class="regular-schedule-badge" title="${t("private.regular_schedule")}">🔁 ${formatRegularSchedule(s.contacts.regular_weekday, s.contacts.regular_time)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" title="${t("private.regular_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
           <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
           <td style="white-space:nowrap;">
-            ${s.contacts?.regular_weekday != null && s.contacts?.regular_time ? `<button type="button" class="icon-action-btn" data-book-month="${s.id}" title="${t("private.book_month")}" aria-label="${t("private.book_month")}">📅</button>` : ""}
+            ${regWeekday != null && regTime ? `<button type="button" class="icon-action-btn" data-book-month="${s.id}" title="${t("private.book_month")}" aria-label="${t("private.book_month")}">📅</button>` : ""}
             <button type="button" class="icon-action-btn" data-add-lesson="${s.id}" title="${t("private.new_lesson")}" aria-label="${t("private.new_lesson")}">➕</button>
             <span class="row-menu-wrap">
               <button type="button" class="row-menu-btn" data-row-menu-toggle="${s.id}" title="${t("private.more_actions")}">⋯</button>
               <div class="row-menu" data-row-menu="${s.id}">
                 <button type="button" data-edit-student="${s.id}">${t("student.edit")}</button>
+                <button type="button" data-add-sibling="${s.contact_id}">${t("private.add_sibling")}</button>
                 <button type="button" class="danger-item" data-delete-student="${s.id}">${t("student.delete")}</button>
               </div>
             </span>
@@ -867,6 +936,9 @@
 
     tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); openEditStudent(students.find(s => s.id === btn.dataset.editStudent)); });
+    });
+    tbody.querySelectorAll("button[data-add-sibling]").forEach(btn => {
+      btn.addEventListener("click", (e) => { e.stopPropagation(); openAddSibling(btn.dataset.addSibling); });
     });
     tbody.querySelectorAll("button[data-add-lesson]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); openLessonDialog(students.find(s => s.id === btn.dataset.addLesson)); });
@@ -995,18 +1067,44 @@
   function openEditStudent(student) {
     if (!student) return;
     const c = student.contacts ?? {};
+    const label = studentLabel(student);
     document.getElementById("student-dialog-title").textContent = t("dialog.edit_student");
     document.getElementById("student-id").value = student.id;
     document.getElementById("student-contact-id").value = student.contact_id;
-    document.getElementById("student-name").value = c.name ?? "";
-    document.getElementById("student-dialog-avatar").textContent = (c.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+    document.getElementById("student-sibling-contact-id").value = "";
+    document.getElementById("student-name").value = label;
+    document.getElementById("student-dialog-avatar").textContent = (label || "?").trim().charAt(0).toUpperCase() || "?";
     document.getElementById("student-phone").value = c.whatsapp_number ?? "";
     setDialogGender(c.gender ?? "male");
     document.getElementById("student-social").value = c.social_media_name ?? "";
     document.getElementById("student-level").value = c.level ?? "";
     document.getElementById("student-age").value = c.age ?? "";
-    document.getElementById("student-regular-weekday").value = c.regular_weekday ?? "";
-    document.getElementById("student-regular-time").value = c.regular_time ?? "";
+    // regular slot is per-student now (migration 0029); fall back to the
+    // contact copy for rows not yet backfilled.
+    document.getElementById("student-regular-weekday").value = (student.regular_weekday ?? c.regular_weekday) ?? "";
+    document.getElementById("student-regular-time").value = (student.regular_time ?? c.regular_time) ?? "";
+    const hint = document.getElementById("student-parent-hint");
+    const siblings = students.filter(s => s.contact_id === student.contact_id).length;
+    if (siblings > 1 && c.name) { hint.textContent = tf("private.same_parent_as", { name: c.name }); hint.hidden = false; }
+    else hint.hidden = true;
+    studentDialog.showModal();
+  }
+  function openAddSibling(contactId) {
+    const sib = students.find(s => s.contact_id === contactId);
+    const c = sib?.contacts ?? {};
+    document.getElementById("student-form").reset();
+    document.getElementById("student-id").value = "";
+    document.getElementById("student-contact-id").value = "";
+    document.getElementById("student-sibling-contact-id").value = contactId;
+    document.getElementById("student-dialog-title").textContent = t("private.add_sibling");
+    document.getElementById("student-dialog-avatar").textContent = "?";
+    document.getElementById("student-phone").value = c.whatsapp_number ?? "";
+    setDialogGender("female");
+    document.getElementById("student-regular-weekday").value = "";
+    document.getElementById("student-regular-time").value = "";
+    const hint = document.getElementById("student-parent-hint");
+    hint.textContent = tf("private.same_parent_as", { name: c.name ?? "" });
+    hint.hidden = false;
     studentDialog.showModal();
   }
   document.getElementById("student-search").addEventListener("input", render);
@@ -1014,11 +1112,13 @@
     document.getElementById("student-form").reset();
     document.getElementById("student-id").value = "";
     document.getElementById("student-contact-id").value = "";
+    document.getElementById("student-sibling-contact-id").value = "";
     document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
     document.getElementById("student-dialog-avatar").textContent = "?";
     setDialogGender("male");
     document.getElementById("student-regular-weekday").value = "";
     document.getElementById("student-regular-time").value = "";
+    document.getElementById("student-parent-hint").hidden = true;
     studentDialog.showModal();
   });
   document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());
@@ -1027,25 +1127,53 @@
     e.preventDefault();
     const studentId = document.getElementById("student-id").value;
     const contactId = document.getElementById("student-contact-id").value;
+    const siblingContactId = document.getElementById("student-sibling-contact-id").value;
+    const nameValue = document.getElementById("student-name").value.trim();
+
+    // Per-student identity (migration 0029). Name + regular weekly slot
+    // live on the student now so one parent contact can have >1 child.
+    const studentFields = {
+      name: nameValue || null,
+      regular_weekday: document.getElementById("student-regular-weekday").value === "" ? null : parseInt(document.getElementById("student-regular-weekday").value, 10),
+      regular_time: document.getElementById("student-regular-time").value || null,
+    };
+    // Shared, contact-level fields (the parent / WhatsApp identity).
     const contactFields = {
-      name: document.getElementById("student-name").value,
       whatsapp_number: document.getElementById("student-phone").value || null,
       gender: document.getElementById("student-gender").value,
       social_media_name: document.getElementById("student-social").value || null,
       level: document.getElementById("student-level").value || null,
       age: document.getElementById("student-age").value || null,
-      regular_weekday: document.getElementById("student-regular-weekday").value === "" ? null : parseInt(document.getElementById("student-regular-weekday").value, 10),
-      regular_time: document.getElementById("student-regular-time").value || null,
     };
 
-    if (studentId && contactId) {
-      const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contactId);
+    // --- Edit an existing student ---
+    if (studentId) {
+      const { error: sErr } = await supabaseClient.from("students").update(studentFields).eq("id", studentId);
+      if (sErr) { showToast("Save failed: " + sErr.message, "error"); return; }
+      if (contactId) {
+        // Only sync the contact's own name when this is the family's only
+        // child — otherwise editing one sibling would rename the parent.
+        const soleChild = students.filter(s => s.contact_id === contactId).length <= 1;
+        const { error: cErr } = await supabaseClient.from("contacts")
+          .update(soleChild && nameValue ? { ...contactFields, name: nameValue } : contactFields).eq("id", contactId);
+        if (cErr) { showToast("Save failed: " + cErr.message, "error"); return; }
+      }
+      studentDialog.close();
+      await load();
+      return;
+    }
+
+    // --- Add another child under an existing parent contact ---
+    if (siblingContactId) {
+      const { error } = await supabaseClient.from("students")
+        .insert({ contact_id: siblingContactId, active: true, is_group: false, ...studentFields });
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
       studentDialog.close();
       await load();
       return;
     }
 
+    // --- New student (may need a new contact) ---
     // This WhatsApp number may already have a contact row — e.g. it
     // messaged in before (auto-created by whatsapp-ingest), or it's an
     // existing lead. Reuse that row instead of blind-inserting, which
@@ -1061,7 +1189,7 @@
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { data: newContact, error } = await supabaseClient
-        .from("contacts").insert({ ...contactFields, source: "existing_student" }).select().single();
+        .from("contacts").insert({ ...contactFields, name: nameValue || null, source: "existing_student" }).select().single();
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
       contact = newContact;
     }
@@ -1071,13 +1199,13 @@
     // — reactivate that row instead of creating a second one for the same
     // person.
     const { data: existingStudent } = await supabaseClient
-      .from("students").select("id").eq("contact_id", contact.id).maybeSingle();
+      .from("students").select("id").eq("contact_id", contact.id).eq("is_group", false).maybeSingle();
     if (existingStudent) {
-      const { error } = await supabaseClient.from("students").update({ active: true, is_group: false }).eq("id", existingStudent.id);
+      const { error } = await supabaseClient.from("students").update({ active: true, is_group: false, ...studentFields }).eq("id", existingStudent.id);
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { error } = await supabaseClient
-        .from("students").insert({ contact_id: contact.id, active: true, is_group: false });
+        .from("students").insert({ contact_id: contact.id, active: true, is_group: false, ...studentFields });
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
     }
 
@@ -1087,7 +1215,7 @@
 
   async function deleteStudent(student) {
     if (!student) return;
-    if (!(await showConfirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" })))) return;
+    if (!(await showConfirm(tf("student.delete_confirm", { name: studentLabel(student) })))) return;
 
     const { data: appts } = await supabaseClient.from("appointments").select("id").eq("student_id", student.id).is("class_id", null);
     const apptIds = (appts ?? []).map(a => a.id);
@@ -1105,6 +1233,13 @@
     }
     const { error: studentError } = await supabaseClient.from("students").delete().eq("id", student.id);
     if (studentError) { showToast("Delete failed: " + studentError.message, "error"); return; }
+
+    // If this parent contact still has other children (or a lead) attached,
+    // keep the contact and its WhatsApp history — only the one child was
+    // removed. Otherwise clean the contact up as before.
+    const { count: remainingStudents } = await supabaseClient
+      .from("students").select("id", { count: "exact", head: true }).eq("contact_id", student.contact_id);
+    if ((remainingStudents ?? 0) > 0) { await load(); return; }
 
     // A WhatsApp-linked contact usually has message/review history too —
     // both reference the contact (messages directly, pending_actions via
@@ -1136,7 +1271,7 @@
     if (!student) return;
     document.getElementById("lesson-form").reset();
     document.getElementById("lesson-student-id").value = student.id;
-    document.getElementById("lesson-student-name").textContent = student.contacts?.name ?? "";
+    document.getElementById("lesson-student-name").textContent = studentLabel(student);
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     document.getElementById("lesson-when").value = now.toISOString().slice(0, 16);
@@ -1230,7 +1365,12 @@
   // was set end up stuck at the old time.
   async function bookThisMonth(student) {
     if (!student) return;
-    const c = student.contacts ?? {};
+    // Per-student regular slot (migration 0029), falling back to the
+    // contact copy for rows not yet backfilled.
+    const c = {
+      regular_weekday: student.regular_weekday ?? student.contacts?.regular_weekday,
+      regular_time: student.regular_time ?? student.contacts?.regular_time,
+    };
     if (c.regular_weekday == null || !c.regular_time) return;
 
     const now = new Date();
@@ -1307,13 +1447,21 @@
     if (changed) await load();
   }
 
-  async function resolveStudentForContact(contactId) {
-    const { data: existingStudent } = await supabaseClient
-      .from("students").select("id").eq("contact_id", contactId).eq("active", true).maybeSingle();
-    if (existingStudent) return existingStudent.id;
-
+  async function resolveStudentForContact(contactId, personName) {
+    const { data: existing } = await supabaseClient
+      .from("students").select("id, name").eq("contact_id", contactId).eq("active", true).eq("is_group", false);
+    const rows = existing ?? [];
+    if (rows.length === 1) return rows[0].id;
+    if (rows.length > 1) {
+      // A family with >1 child — pick the one the AI named, else give up
+      // and let Angela do it by hand rather than guess.
+      const q = (personName ?? "").trim().toLowerCase();
+      const hit = q ? rows.filter(r => (r.name ?? "").toLowerCase().includes(q) || q.includes((r.name ?? "").toLowerCase())) : [];
+      if (hit.length === 1) return hit[0].id;
+      throw new Error(t("private.pending_pick_student"));
+    }
     const { data: newStudent, error } = await supabaseClient
-      .from("students").insert({ contact_id: contactId, is_group: false, active: true }).select().single();
+      .from("students").insert({ contact_id: contactId, is_group: false, active: true, name: personName || null }).select().single();
     if (error) throw error;
     return newStudent.id;
   }
@@ -1369,7 +1517,10 @@
         const start = new Date(`${requestedDate}T${requestedTime}:00+08:00`);
         const minutes = a.duration_minutes_guess ?? 45;
         const end = new Date(start.getTime() + minutes * 60_000);
-        const studentId = await resolveStudentForContact(a.contact_id);
+        let studentId;
+        try {
+          studentId = await resolveStudentForContact(a.contact_id, a.person_name);
+        } catch (err) { showToast(err.message, "error", 4000); return; }
 
         // A "reschedule" moves an existing booking rather than creating a
         // second one — otherwise the original appointment stays "confirmed"
