@@ -128,12 +128,38 @@
   .week-calendar-lesson-info { display: flex; flex-direction: column; min-width: 0; }
   .week-calendar-time { font-size: 10px; color: #78350f; font-weight: 700; }
   .week-calendar-name { font-size: 11px; color: #27272a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 68px; }
-  .week-calendar-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #d4d4d8; font-size: 11px; }
+  .week-calendar-empty { display: flex; align-items: center; justify-content: center; color: #d4d4d8; font-size: 11px; padding: 8px 0; }
+  .wc-slots { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e4e4e7; display: flex; flex-direction: column; gap: 4px; }
+  .wc-slots-label { font-size: 9px; font-weight: 700; letter-spacing: .06em; color: #16a34a; text-transform: uppercase; }
+  .wc-slot { background: linear-gradient(135deg, #d1fae5, #bfdbfe); color: #065f46; font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 7px; text-align: center; }
+  .wc-slot-none { font-size: 10px; color: #d4d4d8; }
+  .week-calendar-lesson.is-group { background: #ede9fe; box-shadow: none; }
+  .week-calendar-lesson.is-consult { background: #cffafe; box-shadow: none; }
+  .week-calendar-lesson .wc-group-icon { width: 20px; text-align: center; font-size: 13px; }
+  .week-calendar-lesson.is-group .week-calendar-time { color: #6d28d9; }
+  .week-calendar-lesson.is-group .week-calendar-name { color: #5b21b6; }
+  .week-calendar-lesson.is-consult .week-calendar-time { color: #0e7490; }
+  .week-calendar-lesson.is-consult .week-calendar-name { color: #155e75; }
+  .wc-del-btn { margin-left: auto; flex-shrink: 0; border: none; background: none; cursor: pointer; color: #d4d4d8; font-size: 11px; line-height: 1; padding: 2px 3px; border-radius: 4px; }
+  .wc-del-btn:hover { color: #b91c1c; background: #fee2e2; }
+  .wc-hold { display: flex; align-items: center; gap: 4px; border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 7px; }
+  .free-slots-settings { display: flex; flex-direction: column; gap: 12px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .free-slots-settings[hidden] { display: none; }
+  .fs-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #71717a; }
+  .fs-time-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .fs-weekday-toggles { display: flex; gap: 5px; flex-wrap: wrap; }
+  .fs-weekday-btn { border: 1px solid #d4d4d8; background: #fff; color: #71717a; width: 34px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .fs-weekday-btn.on { background: #7c3aed; border-color: #7c3aed; color: #fff; font-weight: 700; }
+  .slot-hold-note { margin-top: 10px; font-size: 11px; color: #92400e; background: #fffbeb; border-radius: 10px; padding: 6px 10px; }
+  .search-wrap { position: relative; width: 100%; max-width: 280px; }
+  .search-wrap .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; opacity: 0.6; }
+  #student-search { width: 100%; padding: 8px 10px 8px 30px; border-radius: 10px; border: 1px solid #d4d4d8; font: inherit; }
   .student-row { cursor: pointer; }
   .student-row:hover { background: #f4f4f5; }
   .expand-arrow { display: inline-block; width: 14px; transition: transform 0.15s; }
   .expand-arrow.open { transform: rotate(90deg); }
   .student-detail td { padding: 0 0 14px 0; }
+  .detail-summary { display: flex; gap: 8px; margin: 2px 26px 10px 26px; }
   .lesson-table-wrap { margin: 6px 26px 0 26px; }
   .detail-table { width: 100%; font-size: 13px; border-collapse: collapse; }
   .detail-table th, .detail-table td { padding: 4px 8px; text-align: left; }
@@ -177,7 +203,22 @@
 </header>
 <main>
   <div class="card">
-    <h1 style="margin:0 0 10px;" data-i18n="private.week_bookings_title">This Week's Bookings</h1>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+      <h1 style="margin:0;" data-i18n="private.week_bookings_title">This Week's Bookings</h1>
+      <button type="button" id="free-slots-settings-toggle" class="link" style="font-size:12px;">⚙️ <span data-i18n="private.free_slots_settings">Teaching hours</span></button>
+    </div>
+    <div id="free-slots-settings" class="free-slots-settings" hidden>
+      <label class="fs-field"><span data-i18n="private.fs_weekdays">Teaching days</span>
+        <span style="font-size:11px; color:#a1a1aa;" data-i18n="private.fs_weekdays_hint">Purple = teaching that day. Click to toggle.</span>
+        <div id="fs-weekday-toggles" class="fs-weekday-toggles"></div>
+      </label>
+      <div class="fs-time-row">
+        <label class="fs-field"><span data-i18n="private.fs_start">From</span><input type="time" id="fs-start" /></label>
+        <label class="fs-field"><span data-i18n="private.fs_end">To</span><input type="time" id="fs-end" /></label>
+        <label class="fs-field"><span data-i18n="private.fs_gap">Buffer (min)</span><input type="number" id="fs-gap" min="0" step="5" style="width:70px;" /></label>
+      </div>
+      <button type="button" class="primary" id="fs-save" data-i18n="dialog.save" style="align-self:flex-start;">Save</button>
+    </div>
     <div id="week-bookings-list"></div>
   </div>
   <div class="card" id="pending-reviews-card" style="display:none;">
@@ -185,9 +226,13 @@
     <div id="pending-reviews"></div>
   </div>
   <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="private.title">Private Students</h1>
       <button class="primary" id="new-student-btn" data-i18n="private.new_student">+ New student</button>
+    </div>
+    <div class="search-wrap" style="margin-bottom:10px;">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="student-search" data-i18n-placeholder="private.search_placeholder" placeholder="Search by name…" />
     </div>
     <table>
       <thead><tr>
@@ -196,11 +241,9 @@
         <th data-i18n="private.col_next_lesson" style="text-align:center;">Next lesson</th>
         <th data-i18n="private.col_whatsapp">Wts</th>
         <th data-i18n="contacts.col_allowed">Allowed (AI analyzes)</th>
-        <th data-i18n="private.col_total_lessons">Lessons logged</th>
-        <th data-i18n="private.col_total_paid">Total paid</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
@@ -332,12 +375,12 @@
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
 
     students = await Promise.all(data.map(async (s) => {
       const { data: appts } = await supabaseClient
         .from("appointments")
-        .select("id, scheduled_start, lesson_format, price, created_via, created_at")
+        .select("id, scheduled_start, scheduled_end, lesson_format, price, created_via, created_at")
         .eq("student_id", s.id).eq("type", "lesson").is("class_id", null)
         .neq("status", "cancelled")
         .order("scheduled_start", { ascending: false });
@@ -355,7 +398,7 @@
         const att = attRows.find(r => r.appointment_id === a.id);
         return {
           apptId: a.id, attendanceId: att?.id ?? null,
-          when: a.scheduled_start, format: a.lesson_format, price: a.price ?? 0,
+          when: a.scheduled_start, whenEnd: a.scheduled_end, format: a.lesson_format, price: a.price ?? 0,
           status: att?.status ?? null, paid: att?.paid ?? false, created_via: a.created_via,
           createdAt: a.created_at,
         };
@@ -396,80 +439,335 @@
       return 0;
     });
 
-    renderWeekBookings();
+    renderWeekCalendar();
     render();
   }
 
-  // Just headcount + time, per Angela's own request — no price/paid detail
-  // here, that's what the students table below is for. Pulls straight from
-  // the lessons already loaded above rather than a separate query.
-  function formatTimeOnly(d) {
-    const pad = (n) => String(n).padStart(2, "0");
-    const ampm = d.getHours() >= 12 ? "PM" : "AM";
-    const hours12 = d.getHours() % 12 || 12;
-    return `${hours12}:${pad(d.getMinutes())}${ampm}`;
+  // ---------- Week calendar (booked lessons + suggested trial slots) ----------
+  const FREE_SLOTS_MIN_LENGTH = 25;   // a trial/interview runs ~20-30 min, so a 25-min gap is already offerable
+  const FREE_SLOTS_DAYS = 7;
+  let studioSettings = null;
+
+  function parseHM(str) { const [h, m] = (str || "0:0").split(":").map(Number); return h * 60 + m; }
+  // "3:15-4:00pm" — am/pm shown once at the end, and also on the start only
+  // when the range crosses noon (e.g. "11:30am-1:00pm").
+  function fmtSlotRange(startMin, endMin) {
+    const part = (mins, withSuffix) => {
+      const h = Math.floor(mins / 60), m = mins % 60;
+      const suffix = withSuffix ? (h >= 12 ? "pm" : "am") : "";
+      return `${h % 12 || 12}:${String(m).padStart(2, "0")}${suffix}`;
+    };
+    const crossesNoon = (startMin >= 720) !== (endMin >= 720);
+    return `${part(startMin, crossesNoon)}-${part(endMin, true)}`;
   }
 
-  // A real 7-day calendar strip (today + the next 6 days), each day always
-  // shown even when empty — closer to glancing at an actual calendar than
-  // a plain list, per Angela's own request.
-  function renderWeekBookings() {
+  // Given a day's [windowStart, windowEnd] and busy intervals (minutes from
+  // midnight), return the free blocks with `minGap` kept clear around every
+  // busy interval and nothing shorter than `minSlot`.
+  function computeFreeSlots(windowStart, windowEnd, busyIntervals, minGap, minSlot) {
+    if (windowEnd <= windowStart) return [];
+    const merged = [];
+    busyIntervals
+      .map(b => ({ start: b.start - minGap, end: b.end + minGap }))
+      .sort((a, b) => a.start - b.start)
+      .forEach(iv => {
+        const last = merged[merged.length - 1];
+        if (last && iv.start <= last.end) last.end = Math.max(last.end, iv.end);
+        else merged.push({ ...iv });
+      });
+    const free = [];
+    let cursor = windowStart;
+    for (const iv of merged) {
+      if (iv.start - cursor >= minSlot) free.push({ start: cursor, end: Math.min(iv.start, windowEnd) });
+      cursor = Math.max(cursor, iv.end);
+      if (cursor >= windowEnd) break;
+    }
+    if (windowEnd - cursor >= minSlot) free.push({ start: cursor, end: windowEnd });
+    return free.filter(f => f.end - f.start >= minSlot && f.start >= windowStart && f.end <= windowEnd);
+  }
+
+  // ---------- Teaching-hours settings ----------
+  function renderFreeSlotsSettingsForm() {
+    const cfg = studioSettings || { available_weekdays: "1,2,3,4,5,6", available_start: "10:00", available_end: "20:00", min_gap_minutes: 15 };
+    const on = new Set((cfg.available_weekdays || "").split(",").map(s => Number(s.trim())));
+    document.getElementById("fs-weekday-toggles").innerHTML = [1, 2, 3, 4, 5, 6, 0]
+      .map(d => `<button type="button" class="fs-weekday-btn${on.has(d) ? " on" : ""}" data-weekday="${d}">${t("day." + d)}</button>`).join("");
+    document.getElementById("fs-weekday-toggles").querySelectorAll(".fs-weekday-btn").forEach(b => {
+      b.addEventListener("click", () => b.classList.toggle("on"));
+    });
+    document.getElementById("fs-start").value = cfg.available_start ?? "10:00";
+    document.getElementById("fs-end").value = cfg.available_end ?? "20:00";
+    document.getElementById("fs-gap").value = cfg.min_gap_minutes ?? 15;
+  }
+  document.getElementById("free-slots-settings-toggle").addEventListener("click", () => {
+    const box = document.getElementById("free-slots-settings");
+    box.hidden = !box.hidden;
+    if (!box.hidden) renderFreeSlotsSettingsForm();
+  });
+  document.getElementById("fs-save").addEventListener("click", async () => {
+    const weekdays = [...document.querySelectorAll("#fs-weekday-toggles .fs-weekday-btn.on")]
+      .map(b => b.dataset.weekday).sort((a, b) => a - b).join(",");
+    const payload = {
+      id: true,
+      available_weekdays: weekdays,
+      available_start: document.getElementById("fs-start").value || "10:00",
+      available_end: document.getElementById("fs-end").value || "20:00",
+      min_gap_minutes: parseInt(document.getElementById("fs-gap").value, 10) || 0,
+    };
+    const { error } = await supabaseClient.from("studio_settings").upsert(payload);
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
+    studioSettings = payload;
+    document.getElementById("free-slots-settings").hidden = true;
+    await renderWeekCalendar();
+  });
+
+  // "3:15-4:00pm" for a booked lesson, same style as the open-slot ranges.
+  // Falls back to just the start time if there's no end recorded.
+  function fmtLessonRange(startIso, endIso) {
+    const s = new Date(startIso);
+    const startMin = s.getHours() * 60 + s.getMinutes();
+    if (!endIso) {
+      const h = s.getHours();
+      return `${h % 12 || 12}:${String(s.getMinutes()).padStart(2, "0")}${h >= 12 ? "pm" : "am"}`;
+    }
+    const e = new Date(endIso);
+    return fmtSlotRange(startMin, e.getHours() * 60 + e.getMinutes());
+  }
+
+  // One 7-day calendar strip that shows BOTH what's booked (top of each day
+  // column) and the free windows still open for a trial ("面試") below it —
+  // "已約 + 可約" in a single glance, per Angela's request.
+  async function renderWeekCalendar() {
     const el = document.getElementById("week-bookings-list");
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const rangeEnd = new Date(startOfToday.getTime() + 7 * 86400000);
 
+    // Teaching-hours config — defaults if the row/table isn't there yet.
+    if (!studioSettings) {
+      const { data } = await supabaseClient.from("studio_settings").select("*").maybeSingle();
+      studioSettings = data ?? { available_weekdays: "1,2,3,4,5,6", available_start: "10:00", available_end: "20:00", min_gap_minutes: 15 };
+    }
+    const cfg = studioSettings;
+    let workDays = new Set((cfg.available_weekdays || "").split(",").map(s => Number(s.trim())).filter(n => !Number.isNaN(n)));
+    // A blank list would otherwise make every day read "not teaching" —
+    // treat "nothing set" as "every day" and let her narrow it in settings.
+    if (workDays.size === 0) workDays = new Set([0, 1, 2, 3, 4, 5, 6]);
+    const winStartMin = parseHM(cfg.available_start);
+    const winEndMin = parseHM(cfg.available_end);
+    const gap = Number(cfg.min_gap_minutes) || 0;
+
+    // Every confirmed appointment in the window — private lessons, group
+    // classes AND booked consultations (面試, from leads.html) — plus the
+    // WhatsApp proposals still awaiting review, which are the "a parent's
+    // still deciding, keep it free" holds that also block a suggested slot.
+    const [{ data: appts }, { data: pending }] = await Promise.all([
+      supabaseClient.from("appointments")
+        .select("id, lead_id, scheduled_start, scheduled_end, type, notes, classes(name), leads!appointments_lead_id_fkey(contacts(name))")
+        .neq("status", "cancelled")
+        .gte("scheduled_start", startOfToday.toISOString())
+        .lt("scheduled_start", rangeEnd.toISOString()),
+      supabaseClient.from("pending_actions")
+        .select("proposed_appointment, messages(contacts(name))")
+        .eq("status", "awaiting_review"),
+    ]);
+
+    const busyByDateKey = new Map();
+    const addBusy = (start, end) => {
+      const key = start.toDateString();
+      if (!busyByDateKey.has(key)) busyByDateKey.set(key, []);
+      busyByDateKey.get(key).push({
+        start: start.getHours() * 60 + start.getMinutes(),
+        end: end.getHours() * 60 + end.getMinutes(),
+      });
+    };
+    // Group classes and consultations get their own coloured cards in each
+    // day column; every appointment (incl. private lessons) feeds the busy
+    // set that the free-slot maths works off.
+    const apptCardsByDateKey = new Map();
+    (appts ?? []).forEach(a => {
+      const s = new Date(a.scheduled_start);
+      const e = a.scheduled_end ? new Date(a.scheduled_end) : new Date(s.getTime() + 45 * 60000);
+      addBusy(s, e);
+      let card = null;
+      if (a.type === "group_class") {
+        card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "group", name: a.classes?.name || t("private.wc_group") };
+      } else if (a.type === "consultation") {
+        card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "consult", name: a.leads?.contacts?.name || a.notes || t("private.wc_consult"), apptId: a.id, leadId: a.lead_id };
+      }
+      if (card) {
+        const key = s.toDateString();
+        if (!apptCardsByDateKey.has(key)) apptCardsByDateKey.set(key, []);
+        apptCardsByDateKey.get(key).push(card);
+      }
+    });
+
+    // WhatsApp proposals still awaiting review — "a parent's still deciding,
+    // keep it free". Shown as a dashed card, sorted into the day's timeline
+    // by its proposed time (not dumped at the bottom).
+    const holdsByDateKey = new Map();
+    (pending ?? []).forEach(p => {
+      const pa = p.proposed_appointment || {};
+      if (!pa.requested_date || !pa.requested_time) return;
+      const s = new Date(`${pa.requested_date}T${pa.requested_time}:00`);
+      if (isNaN(s) || s < startOfToday || s >= rangeEnd) return;
+      const durMin = pa.duration_minutes_guess || 45;
+      const e = new Date(s.getTime() + durMin * 60000);
+      addBusy(s, e);
+      const key = s.toDateString();
+      if (!holdsByDateKey.has(key)) holdsByDateKey.set(key, []);
+      holdsByDateKey.get(key).push({
+        when: s.toISOString(),
+        start: s.getHours() * 60 + s.getMinutes(),
+        end: e.getHours() * 60 + e.getMinutes(),
+        name: p.messages?.contacts?.name ?? "",
+      });
+    });
+
+    // This student's own private lessons, for the "已約" part of each column.
     const allLessons = students
       .flatMap(s => s.lessons.map(l => ({ ...l, studentName: s.contacts?.name ?? "", gender: s.contacts?.gender })));
 
-    const days = [];
-    let totalCount = 0;
+    let totalBooked = 0;
+    const daysHtml = [];
     for (let i = 0; i < 7; i++) {
-      const dayStart = new Date(startOfToday.getTime() + i * 24 * 60 * 60 * 1000);
-      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-      // Today only counts lessons still ahead (not already passed) — this
-      // is meant to double as "what's left today", not a historical log.
-      const lessons = allLessons
-        .filter(l => { const w = new Date(l.when); return w >= dayStart && w < dayEnd && w >= now; })
-        .sort((a, b) => new Date(a.when) - new Date(b.when));
-      totalCount += lessons.length;
-      days.push({ date: dayStart, lessons, isToday: i === 0 });
+      const day = new Date(startOfToday.getTime() + i * 86400000);
+      const isToday = i === 0;
+      const dayEnd = new Date(day.getTime() + 86400000);
+      const dateKey = day.toDateString();
+
+      // Private lessons + group classes + consultations + "still deciding"
+      // holds, all in one list sorted by start time so the column reads
+      // top-to-bottom in real time order. Today's column keeps lessons that
+      // have already happened earlier today — she still wants to see that
+      // e.g. an irregular student had a lesson this afternoon; only the
+      // free-slot suggestions below skip time that's already passed.
+      const items = [];
+      allLessons.forEach(l => {
+        const w = new Date(l.when);
+        if (w >= day && w < dayEnd) {
+          items.push({ apptId: l.apptId, when: l.when, whenEnd: l.whenEnd, kind: "private", name: l.studentName, gender: l.gender });
+        }
+      });
+      (apptCardsByDateKey.get(dateKey) ?? []).forEach(c => items.push(c));
+      items.sort((a, b) => new Date(a.when) - new Date(b.when));
+      totalBooked += items.length; // holds aren't booked lessons — count first
+
+      (holdsByDateKey.get(dateKey) ?? []).forEach(h => items.push({ ...h, kind: "hold" }));
+      items.sort((a, b) => new Date(a.when) - new Date(b.when));
+
+      const lessonsHtml = items.map(it => {
+        if (it.kind === "hold") {
+          return `<div class="wc-hold">📌 ${fmtSlotRange(it.start, it.end)}${it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""}</div>`;
+        }
+        if (it.kind === "group" || it.kind === "consult") {
+          const icon = it.kind === "group" ? "👥" : "🔍";
+          // Consultations can be called off from here (cancels the appointment
+          // + frees the lead's pointer). Group classes can't — that belongs
+          // in packages.html, where the enrolled students / make-ups get
+          // handled too.
+          const delBtn = it.kind === "consult"
+            ? `<button type="button" class="wc-del-btn" data-cal-del-consult="${it.apptId}" data-lead-id="${it.leadId ?? ""}" title="${t("private.cancel_consult")}" aria-label="${t("private.cancel_consult")}">✕</button>`
+            : "";
+          return `<div class="week-calendar-lesson is-${it.kind}">
+              <span class="wc-group-icon">${icon}</span>
+              <span class="week-calendar-lesson-info">
+                <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
+                <span class="week-calendar-name">${it.name}</span>
+              </span>
+              ${delBtn}
+            </div>`;
+        }
+        const genderClass = it.gender === "female" ? "female" : it.gender === "male" ? "male" : "unknown";
+        const initial = (it.name || "?").trim().charAt(0).toUpperCase() || "?";
+        return `<div class="week-calendar-lesson">
+              <span class="avatar gender-${genderClass}">${initial}</span>
+              <span class="week-calendar-lesson-info">
+                <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
+                <span class="week-calendar-name">${it.name}</span>
+              </span>
+              <button type="button" class="wc-del-btn" data-cal-del-lesson="${it.apptId}" title="${t("private.delete_lesson")}" aria-label="${t("private.delete_lesson")}">✕</button>
+            </div>`;
+      }).join("");
+
+      const isWorkDay = workDays.has(day.getDay());
+      let slotsInner;
+      if (!isWorkDay) {
+        slotsInner = `<div class="wc-slot-none">${t("private.fs_off_day")}</div>`;
+      } else {
+        const dayWinStart = isToday ? Math.max(winStartMin, now.getHours() * 60 + now.getMinutes()) : winStartMin;
+        const slots = computeFreeSlots(dayWinStart, winEndMin, busyByDateKey.get(dateKey) ?? [], gap, FREE_SLOTS_MIN_LENGTH);
+        slotsInner = `<div class="wc-slots-label">${t("private.wc_open")}</div>` + (slots.length
+          ? slots.map(s => `<div class="wc-slot">${fmtSlotRange(s.start, s.end)}</div>`).join("")
+          : `<div class="wc-slot-none">${t("private.fs_full")}</div>`);
+      }
+
+      daysHtml.push(`
+        <div class="week-calendar-day${isToday ? " is-today" : ""}">
+          <div class="week-calendar-day-header">
+            <div class="week-calendar-daynum">${day.getDate()}</div>
+            <div class="week-calendar-weekday">${t("day." + day.getDay())}</div>
+          </div>
+          <div class="week-calendar-lessons">${lessonsHtml || `<div class="week-calendar-empty">—</div>`}</div>
+          <div class="wc-slots">${slotsInner}</div>
+        </div>`);
     }
 
     el.innerHTML =
-      `<p style="margin:0 0 10px; color:#71717a; font-size:12px;">${tf("private.week_bookings_count", { n: totalCount })}</p>` +
-      `<div class="week-calendar-grid">` +
-      days.map(day => `
-        <div class="week-calendar-day${day.isToday ? " is-today" : ""}">
-          <div class="week-calendar-day-header">
-            <div class="week-calendar-daynum">${day.date.getDate()}</div>
-            <div class="week-calendar-weekday">${t("day." + day.date.getDay())}</div>
-          </div>
-          <div class="week-calendar-lessons">
-            ${day.lessons.length ? day.lessons.map(l => {
-              const genderClass = l.gender === "female" ? "female" : l.gender === "male" ? "male" : "unknown";
-              const initial = (l.studentName || "?").trim().charAt(0).toUpperCase() || "?";
-              return `
-              <div class="week-calendar-lesson">
-                <span class="avatar gender-${genderClass}">${initial}</span>
-                <span class="week-calendar-lesson-info">
-                  <span class="week-calendar-time">${formatTimeOnly(new Date(l.when))}</span>
-                  <span class="week-calendar-name">${l.studentName}</span>
-                </span>
-              </div>`;
-            }).join("") : `<div class="week-calendar-empty">—</div>`}
-          </div>
-        </div>`).join("") +
-      `</div>`;
+      `<p style="margin:0 0 10px; color:#71717a; font-size:12px;">${tf("private.week_bookings_count", { n: totalBooked })}</p>` +
+      `<div class="week-calendar-grid">${daysHtml.join("")}</div>`;
+    applyI18n();
+
+    // Cancel a private lesson straight from the calendar. "Cancel, don't
+    // hard-delete" (an UPDATE) is what keeps calendar-sync able to remove
+    // the matching Google Calendar event — same reasoning as the row-level
+    // delete. Group classes are the one thing NOT cancellable here: that
+    // belongs in packages.html, where enrolled students / make-ups get
+    // handled too.
+    el.querySelectorAll("button[data-cal-del-lesson]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!(await showConfirm(t("private.delete_lesson_confirm")))) return;
+        const { error } = await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("id", btn.dataset.calDelLesson);
+        if (error) { showToast("Delete failed: " + error.message, "error"); return; }
+        await load();
+      });
+    });
+
+    // Cancel a booked consultation: same appointment cancel, plus clear the
+    // lead's consultation_appointment_id so leads.html stops pointing at it
+    // (mirrors that page's own "cancel consultation" button).
+    el.querySelectorAll("button[data-cal-del-consult]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!(await showConfirm(t("private.cancel_consult_confirm")))) return;
+        const apptId = btn.dataset.calDelConsult;
+        const leadId = btn.dataset.leadId;
+        const { error } = await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("id", apptId);
+        if (error) { showToast("Cancel failed: " + error.message, "error"); return; }
+        if (leadId) {
+          await supabaseClient.from("leads").update({ consultation_appointment_id: null }).eq("id", leadId).eq("consultation_appointment_id", apptId);
+        }
+        await load();
+      });
+    });
   }
 
   function render() {
     const tbody = document.getElementById("student-rows");
     if (!students.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty">${t("private.empty_students")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">${t("private.empty_students")}</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = students.map((s) => {
+    const q = (document.getElementById("student-search")?.value ?? "").trim().toLowerCase();
+    const shown = q ? students.filter(s => (s.contacts?.name ?? "").toLowerCase().includes(q)) : students;
+    if (!shown.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">${t("private.search_no_match")}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = shown.map((s) => {
       const totalPaid = s.lessons.filter(l => l.paid).reduce((sum, l) => sum + (l.price ?? 0), 0);
       const isOpen = expandedIds.has(s.id);
       const rawPhone = s.contacts?.whatsapp_number ?? "";
@@ -507,8 +805,6 @@
           <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
-          <td><span class="count-pill">${s.lessons.length}</span></td>
-          <td><span class="count-pill count-pill-paid">$${totalPaid}</span></td>
           <td style="white-space:nowrap;">
             ${s.contacts?.regular_weekday != null && s.contacts?.regular_time ? `<button type="button" class="icon-action-btn" data-book-month="${s.id}" title="${t("private.book_month")}" aria-label="${t("private.book_month")}">📅</button>` : ""}
             <button type="button" class="icon-action-btn" data-add-lesson="${s.id}" title="${t("private.new_lesson")}" aria-label="${t("private.new_lesson")}">➕</button>
@@ -523,7 +819,11 @@
         </tr>
         <tr class="student-detail" data-student-detail="${s.id}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
-          <td colspan="6">
+          <td colspan="5">
+            <div class="detail-summary">
+              <span class="count-pill">${t("private.col_total_lessons")}: ${s.lessons.length}</span>
+              <span class="count-pill count-pill-paid">${t("private.col_total_paid")}: $${totalPaid}</span>
+            </div>
             <div class="lesson-table-wrap">
               ${s.lessons.length ? `
                 <table class="detail-table">
@@ -709,6 +1009,7 @@
     document.getElementById("student-regular-time").value = c.regular_time ?? "";
     studentDialog.showModal();
   }
+  document.getElementById("student-search").addEventListener("input", render);
   document.getElementById("new-student-btn").addEventListener("click", () => {
     document.getElementById("student-form").reset();
     document.getElementById("student-id").value = "";
@@ -921,9 +1222,12 @@
 
   // "This month" = today through the last day of the current calendar
   // month — already-past weeks aren't retroactively booked, and next
-  // month's occurrences wait for next month's own click. Skips any date
-  // that already has a lesson (of any time) for this student, so re-running
-  // it after partially booking a month is safe.
+  // month's occurrences wait for next month's own click. A regular-day date
+  // that already has a lesson at the regular time is left alone (so
+  // re-running mid-month is safe); one that already has a lesson at a
+  // DIFFERENT time is offered as a "fix its time" instead of silently
+  // skipped — that gap is how e.g. lessons booked before the regular slot
+  // was set end up stuck at the old time.
   async function bookThisMonth(student) {
     if (!student) return;
     const c = student.contacts ?? {};
@@ -933,22 +1237,27 @@
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const [h, m] = c.regular_time.split(":").map(Number);
 
-    const existingDateKeys = new Set(student.lessons.map(l => new Date(l.when).toDateString()));
+    const existingByDateKey = new Map(student.lessons.map(l => [new Date(l.when).toDateString(), l]));
     const candidateDates = [];
+    const mismatched = []; // { lesson, start } — same regular day, wrong time
     for (let d = new Date(now.getFullYear(), now.getMonth(), now.getDate()); d < endOfMonth; d.setDate(d.getDate() + 1)) {
       if (d.getDay() !== c.regular_weekday) continue;
       const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
       if (start < now) continue; // today's slot already passed
-      if (existingDateKeys.has(start.toDateString())) continue; // already booked that day
+      const existing = existingByDateKey.get(start.toDateString());
+      if (existing) {
+        const cur = new Date(existing.when);
+        if (cur.getHours() !== h || cur.getMinutes() !== m) mismatched.push({ lesson: existing, start });
+        continue; // right time already, or queued for a time fix
+      }
       candidateDates.push(start);
     }
 
     const weekdayLabel = t("day." + c.regular_weekday);
-    if (!candidateDates.length) {
+    if (!candidateDates.length && !mismatched.length) {
       showToast(tf("private.book_month_none", { weekday: weekdayLabel }), "default");
       return;
     }
-    if (!(await showConfirm(tf("private.book_month_confirm", { n: candidateDates.length, weekday: weekdayLabel, time: c.regular_time })))) return;
 
     // Reuse the most recently-booked lesson's price/format as the template
     // — falls back to the same defaults the "New lesson" dialog itself uses
@@ -960,21 +1269,42 @@
     const price = template?.price ?? 750;
     const durationMin = 45;
 
-    const rows = candidateDates.map(start => ({
-      type: "lesson", lesson_format: format, student_id: student.id,
-      scheduled_start: start.toISOString(),
-      scheduled_end: new Date(start.getTime() + durationMin * 60 * 1000).toISOString(),
-      status: "confirmed", created_via: "manual_dashboard", price,
-    }));
-    const { data: inserted, error } = await supabaseClient.from("appointments").insert(rows).select();
-    if (error) { showToast("Save failed: " + error.message, "error"); return; }
+    let changed = false;
 
-    const attRows = inserted.map(a => ({ appointment_id: a.id, student_id: student.id }));
-    const { error: attError } = await supabaseClient.from("attendance").insert(attRows);
-    if (attError) { showToast("Lessons saved, but couldn't create their attendance rows: " + attError.message, "error", 5000); return; }
+    if (candidateDates.length &&
+        await showConfirm(tf("private.book_month_confirm", { n: candidateDates.length, weekday: weekdayLabel, time: c.regular_time }))) {
+      const rows = candidateDates.map(start => ({
+        type: "lesson", lesson_format: format, student_id: student.id,
+        scheduled_start: start.toISOString(),
+        scheduled_end: new Date(start.getTime() + durationMin * 60 * 1000).toISOString(),
+        status: "confirmed", created_via: "manual_dashboard", price,
+      }));
+      const { data: inserted, error } = await supabaseClient.from("appointments").insert(rows).select();
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
+      const attRows = inserted.map(a => ({ appointment_id: a.id, student_id: student.id }));
+      const { error: attError } = await supabaseClient.from("attendance").insert(attRows);
+      if (attError) { showToast("Lessons saved, but couldn't create their attendance rows: " + attError.message, "error", 5000); return; }
+      showToast(tf("private.book_month_done", { n: inserted.length }));
+      changed = true;
+    }
 
-    showToast(tf("private.book_month_done", { n: inserted.length }));
-    await load();
+    if (mismatched.length) {
+      const dateList = mismatched.map(x => `${x.start.getMonth() + 1}/${x.start.getDate()}`).join("、");
+      if (await showConfirm(tf("private.book_month_fix_confirm", { dates: dateList, time: c.regular_time }))) {
+        for (const { lesson, start } of mismatched) {
+          const durMs = lesson.whenEnd ? (new Date(lesson.whenEnd) - new Date(lesson.when)) : durationMin * 60 * 1000;
+          const { error } = await supabaseClient.from("appointments").update({
+            scheduled_start: start.toISOString(),
+            scheduled_end: new Date(start.getTime() + durMs).toISOString(),
+          }).eq("id", lesson.apptId);
+          if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        }
+        showToast(tf("private.book_month_fixed", { n: mismatched.length }));
+        changed = true;
+      }
+    }
+
+    if (changed) await load();
   }
 
   async function resolveStudentForContact(contactId) {
