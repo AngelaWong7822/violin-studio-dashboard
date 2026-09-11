@@ -1008,17 +1008,6 @@
     const withdrawnRoster = [...withdrawnMap.entries()]; // [studentId, name] — formerly enrolled, kept for history
     const visitorRoster = [...visitorMap.entries()]; // [studentId, name] — one-off make-ups
 
-    // Earliest start_date per student *in this class* (across all their
-    // packages/renewals here) — the date they actually first joined, so
-    // earlier date columns can be marked "not yet joined" instead of blank.
-    const { data: allPkgsForClass } = await supabaseClient
-      .from("packages").select("student_id, start_date").eq("class_id", classId);
-    const joinDateMap = new Map();
-    (allPkgsForClass ?? []).forEach(p => {
-      const existing = joinDateMap.get(p.student_id);
-      if (!existing || p.start_date < existing) joinDateMap.set(p.student_id, p.start_date);
-    });
-
     const allGroupAppts = await getAllGroupAppointments();
 
     // Per-student, per-term-batch notes (attention/join-likelihood) — keyed
@@ -1030,7 +1019,7 @@
 
     if (mySeq !== gridLoadSeq) return; // a newer reload has since started — don't clobber it with stale data
 
-    renderGrid(classId, appts ?? [], roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap, termNotes);
+    renderGrid(classId, appts ?? [], roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, termNotes);
     renderMakeupList(attendanceRows, appts ?? [], allGroupAppts, classId);
     gridWrap.scrollLeft = savedScrollLeft;
   }
@@ -1098,7 +1087,7 @@
     return `<div style="font-size:10px; color:#b91c1c; font-weight:600; white-space:normal;">${t("makeup.unprocessed")}</div>`;
   }
 
-  function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap, termNotes) {
+  function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, termNotes) {
     const table = document.getElementById("grid-table");
     if (!appts.length) {
       table.innerHTML = `<tr><td class="empty">${t("attendance.empty_roster")}</td></tr>`;
@@ -1148,11 +1137,13 @@
     // all ✓" button — a cell is eligible for marking if it's an enrolled
     // student, or a withdrawn/visitor student who already has a row here.
     function isEligibleCell(a, studentId, isVisitor, isWithdrawn) {
+      // A roster student's package(s) always pre-create an attendance row
+      // for every lesson in their range at enrollment time (createEnrollment)
+      // — so no row at all means this date never fell inside any package
+      // they've had (not just "not yet marked"), same signal for a
+      // withdrawn/visitor column with no row of its own.
       const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
-      if ((isVisitor || isWithdrawn) && !row) return false;
-      const joinDate = joinDateMap?.get(studentId);
-      if (!isVisitor && !isWithdrawn && joinDate && new Date(a.scheduled_start) < new Date(`${joinDate}T00:00:00`)) return false;
-      return true;
+      return !!row;
     }
 
     function dateRowHtml(a) {
@@ -1164,13 +1155,14 @@
         const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
         const colCls = isWithdrawn ? "withdrawn-col " : isVisitor ? `visitor-col${visitorsWithUpcoming.has(studentId) ? " visitor-has-upcoming" : ""} ` : "";
 
-        if ((isVisitor || isWithdrawn) && !row) {
-          return `<td class="${colCls}visitor-locked">-</td>`;
-        }
-
-        const joinDate = joinDateMap?.get(studentId);
-        if (!isVisitor && !isWithdrawn && joinDate && new Date(a.scheduled_start) < new Date(`${joinDate}T00:00:00`)) {
-          return `<td style="color:#71717a;">${t("attendance.not_joined_yet")}</td>`;
+        if (!row) {
+          // No package of theirs has ever covered this date — "未加入" for
+          // a currently-enrolled student (a gap before/between their own
+          // packages, e.g. left and later rejoined), locked "-" for a
+          // make-up visitor or someone who's since withdrawn.
+          return isVisitor || isWithdrawn
+            ? `<td class="${colCls}visitor-locked">-</td>`
+            : `<td style="color:#71717a;">${t("attendance.not_joined_yet")}</td>`;
         }
         const isPending = pendingAttendanceWrites.has(`${a.id}:${studentId}`);
         return `
@@ -1275,7 +1267,7 @@
     function rerenderLocally() {
       const gridWrap = document.getElementById("grid-wrap");
       const savedScrollLeft = gridWrap.scrollLeft;
-      renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, joinDateMap, termNotes);
+      renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, termNotes);
       renderMakeupList(attendanceRows, appts, allGroupAppts, classId);
       gridWrap.scrollLeft = savedScrollLeft;
     }
