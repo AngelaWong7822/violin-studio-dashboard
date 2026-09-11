@@ -159,6 +159,9 @@
   .wc-undated { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; padding: 8px 10px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 10px; }
   .wc-undated-label { font-size: 11px; font-weight: 700; color: #92400e; }
   .wc-undated-item { font-size: 11px; color: #78350f; background: #fef3c7; border-radius: 999px; padding: 2px 9px; cursor: help; }
+  .live-status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; }
+  .live-status-badge.is-teaching { background: #ffe4e6; color: #9f1239; }
+  .live-status-badge.is-free { background: #dcfce7; color: #166534; }
   .free-slots-settings { display: flex; flex-direction: column; gap: 12px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
   .free-slots-settings[hidden] { display: none; }
   .fs-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #71717a; }
@@ -221,7 +224,10 @@
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="private.week_bookings_title">This Week's Bookings</h1>
-      <button type="button" id="free-slots-settings-toggle" class="link" style="font-size:12px;">⚙️ <span data-i18n="private.free_slots_settings">Teaching hours</span></button>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span id="week-live-status"></span>
+        <button type="button" id="free-slots-settings-toggle" class="link" style="font-size:12px;">⚙️ <span data-i18n="private.free_slots_settings">Teaching hours</span></button>
+      </div>
     </div>
     <div id="free-slots-settings" class="free-slots-settings" hidden>
       <label class="fs-field"><span data-i18n="private.fs_weekdays">Teaching days</span>
@@ -300,6 +306,7 @@
             <option value="6" data-i18n="weekday_full.6">Saturday</option>
           </select>
           <input type="time" id="student-regular-time" style="flex:1;" />
+          <input type="number" id="student-regular-duration" min="5" step="5" data-i18n-placeholder="private.duration_minutes_placeholder" placeholder="45 min" style="width:66px;" />
         </div>
       </label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
@@ -393,31 +400,57 @@
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, name, regular_weekday, regular_time, contacts(name, whatsapp_number, gender, age, allowed_for_ai, social_media_name, level, regular_weekday, regular_time)")
+      .select("id, contact_id, name, regular_weekday, regular_time, regular_duration_minutes, contacts(name, whatsapp_number, gender, age, allowed_for_ai, social_media_name, level, regular_weekday, regular_time)")
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
     if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
 
-    students = await Promise.all(data.map(async (s) => {
-      const { data: appts } = await supabaseClient
-        .from("appointments")
-        .select("id, scheduled_start, scheduled_end, lesson_format, price, created_via, created_at")
-        .eq("student_id", s.id).eq("type", "lesson").is("class_id", null)
-        .neq("status", "cancelled")
-        .order("scheduled_start", { ascending: false });
+    // One query each for appointments/attendance/messages across ALL
+    // students, instead of the old per-student loop (3 round trips × N
+    // students — 60-80+ requests for a full roster). Grouped into per-
+    // student/contact buckets below; each source query is already ordered
+    // so the grouping pass preserves the newest-first order the rest of
+    // this page relies on (e.g. bookThisMonth's `student.lessons[0]` as
+    // the "most recent lesson" template).
+    const studentIds = data.map(s => s.id);
+    const contactIds = [...new Set(data.map(s => s.contact_id))];
+    const [{ data: allAppts }, { data: allMessages }] = await Promise.all([
+      studentIds.length
+        ? supabaseClient.from("appointments")
+            .select("id, student_id, scheduled_start, scheduled_end, lesson_format, price, created_via, created_at")
+            .in("student_id", studentIds).eq("type", "lesson").is("class_id", null)
+            .neq("status", "cancelled")
+            .order("scheduled_start", { ascending: false })
+        : Promise.resolve({ data: [] }),
+      contactIds.length
+        ? supabaseClient.from("messages")
+            .select("id, contact_id, direction, body, llm_parse_result, created_at")
+            .in("contact_id", contactIds)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] }),
+    ]);
+    const apptIds = (allAppts ?? []).map(a => a.id);
+    const { data: allAttendance } = apptIds.length
+      ? await supabaseClient.from("attendance").select("id, appointment_id, status, paid").in("appointment_id", apptIds)
+      : { data: [] };
 
-      const apptIds = (appts ?? []).map(a => a.id);
-      let attRows = [];
-      if (apptIds.length) {
-        const { data: att } = await supabaseClient
-          .from("attendance").select("id, appointment_id, status, paid")
-          .eq("student_id", s.id).in("appointment_id", apptIds);
-        attRows = att ?? [];
-      }
+    const apptsByStudent = new Map();
+    for (const a of allAppts ?? []) {
+      if (!apptsByStudent.has(a.student_id)) apptsByStudent.set(a.student_id, []);
+      apptsByStudent.get(a.student_id).push(a);
+    }
+    const attendanceByAppt = new Map((allAttendance ?? []).map(r => [r.appointment_id, r]));
+    const messagesByContact = new Map();
+    for (const m of allMessages ?? []) {
+      if (!messagesByContact.has(m.contact_id)) messagesByContact.set(m.contact_id, []);
+      messagesByContact.get(m.contact_id).push(m);
+    }
 
-      const lessons = (appts ?? []).map(a => {
-        const att = attRows.find(r => r.appointment_id === a.id);
+    const now = new Date();
+    students = data.map(s => {
+      const lessons = (apptsByStudent.get(s.id) ?? []).map(a => {
+        const att = attendanceByAppt.get(a.id);
         return {
           apptId: a.id, attendanceId: att?.id ?? null,
           when: a.scheduled_start, whenEnd: a.scheduled_end, format: a.lesson_format, price: a.price ?? 0,
@@ -431,7 +464,6 @@
       // The soonest lesson that hasn't happened yet — shown as its own
       // column so Angela can see at a glance when someone's next due in,
       // without opening the row.
-      const now = new Date();
       const nextLesson = lessons
         .filter(l => new Date(l.when) >= now)
         .sort((a, b) => new Date(a.when) - new Date(b.when))[0] ?? null;
@@ -440,16 +472,11 @@
       // plus its AI intent read on each one — shown so Angela can spot-check
       // what the auto-marking actually picked up, and prune old ones that
       // are no longer worth keeping.
-      const { data: messages } = await supabaseClient
-        .from("messages")
-        .select("id, direction, body, llm_parse_result, created_at")
-        .eq("contact_id", s.contact_id)
-        .order("created_at", { ascending: false });
+      const messages = messagesByContact.get(s.contact_id) ?? [];
+      const lastMessageAt = messages[0]?.created_at ?? null;
 
-      const lastMessageAt = messages?.[0]?.created_at ?? null;
-
-      return { ...s, lessons, isAiCreated, nextLesson, lastMessageAt, messages: messages ?? [] };
-    }));
+      return { ...s, lessons, isAiCreated, nextLesson, lastMessageAt, messages };
+    });
 
     // Students with a recent WhatsApp message float to the top (newest
     // first); students with no message history yet keep their original
@@ -668,6 +695,7 @@
       .flatMap(s => s.lessons.map(l => ({ ...l, studentId: s.id, studentName: studentLabel(s), gender: s.contacts?.gender })));
 
     let totalBooked = 0;
+    let liveStatus = null; // computed for today only: currently teaching, or free (+ next lesson today)
     const daysHtml = [];
     for (let i = 0; i < 7; i++) {
       const day = new Date(startOfToday.getTime() + i * 86400000);
@@ -691,6 +719,20 @@
       (apptCardsByDateKey.get(dateKey) ?? []).forEach(c => items.push(c));
       items.sort((a, b) => new Date(a.when) - new Date(b.when));
       totalBooked += items.length; // holds aren't booked lessons — count first
+
+      // "🎻 依家上緊堂" / "☕ 依家得閒" — checked against real bookings only
+      // (not pending holds), today's column only.
+      if (isToday) {
+        const ongoing = items.find(it => {
+          const s = new Date(it.when);
+          const e = it.whenEnd ? new Date(it.whenEnd) : new Date(s.getTime() + 45 * 60000);
+          return now >= s && now < e;
+        });
+        const upcoming = items.find(it => new Date(it.when) > now);
+        liveStatus = ongoing
+          ? { teaching: true, until: ongoing.whenEnd, name: ongoing.name }
+          : { teaching: false, next: upcoming?.when ?? null, name: upcoming?.name ?? null };
+      }
 
       (holdsByDateKey.get(dateKey) ?? []).forEach(h => items.push({ ...h, kind: "hold" }));
       items.sort((a, b) => new Date(a.when) - new Date(b.when));
@@ -758,6 +800,13 @@
           ${undatedPending.map(u => `<span class="wc-undated-item" title="${String(u.rationale).replace(/"/g, "&quot;")}">${u.name} · ${t("private.intent_" + u.intent)}</span>`).join("")}
         </div>`
       : "";
+
+    // Lives next to the card title, not inside the list — a glance at the
+    // top of the page, not something to scroll to.
+    const liveHtml = !liveStatus ? "" : liveStatus.teaching
+      ? `<span class="live-status-badge is-teaching">🎻 ${t("private.live_teaching")}${liveStatus.name ? `・${liveStatus.name}` : ""}${liveStatus.until ? ` · ${tf("private.live_until", { time: fmtLessonRange(liveStatus.until, null) })}` : ""}</span>`
+      : `<span class="live-status-badge is-free">☕ ${t("private.live_free")}${liveStatus.next ? ` · ${tf("private.live_next", { time: fmtLessonRange(liveStatus.next, null) })}${liveStatus.name ? `・${liveStatus.name}` : ""}` : ""}</span>`;
+    document.getElementById("week-live-status").innerHTML = liveHtml;
 
     el.innerHTML =
       `<p style="margin:0 0 10px; color:#71717a; font-size:12px;">${tf("private.week_bookings_count", { n: totalBooked })}</p>` +
@@ -873,7 +922,7 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" role="button" tabindex="0" data-edit-schedule="${s.id}" title="${t("private.edit_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" role="button" tabindex="0" data-edit-schedule="${s.id}" title="${t("private.edit_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime, s.regular_duration_minutes)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
           <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
@@ -1094,6 +1143,7 @@
     // contact copy for rows not yet backfilled.
     document.getElementById("student-regular-weekday").value = (student.regular_weekday ?? c.regular_weekday) ?? "";
     document.getElementById("student-regular-time").value = (student.regular_time ?? c.regular_time) ?? "";
+    document.getElementById("student-regular-duration").value = student.regular_duration_minutes ?? "";
     const hint = document.getElementById("student-parent-hint");
     const siblings = students.filter(s => s.contact_id === student.contact_id).length;
     if (siblings > 1 && c.name) { hint.textContent = tf("private.same_parent_as", { name: c.name }); hint.hidden = false; }
@@ -1113,6 +1163,7 @@
     setDialogGender("female");
     document.getElementById("student-regular-weekday").value = "";
     document.getElementById("student-regular-time").value = "";
+    document.getElementById("student-regular-duration").value = "";
     const hint = document.getElementById("student-parent-hint");
     hint.textContent = tf("private.same_parent_as", { name: c.name ?? "" });
     hint.hidden = false;
@@ -1129,6 +1180,7 @@
     setDialogGender("male");
     document.getElementById("student-regular-weekday").value = "";
     document.getElementById("student-regular-time").value = "";
+    document.getElementById("student-regular-duration").value = "";
     document.getElementById("student-parent-hint").hidden = true;
     studentDialog.showModal();
   });
@@ -1147,6 +1199,7 @@
       name: nameValue || null,
       regular_weekday: document.getElementById("student-regular-weekday").value === "" ? null : parseInt(document.getElementById("student-regular-weekday").value, 10),
       regular_time: document.getElementById("student-regular-time").value || null,
+      regular_duration_minutes: document.getElementById("student-regular-duration").value === "" ? null : parseInt(document.getElementById("student-regular-duration").value, 10),
     };
     // Shared, contact-level fields (the parent / WhatsApp identity).
     const contactFields = {
@@ -1359,11 +1412,15 @@
 
   // "逢四 6:30PM" — same 12h AM/PM convention as formatNextLesson, but for
   // a recurring weekday+time (no specific date) rather than one lesson.
-  function formatRegularSchedule(weekday, timeStr) {
+  // Duration only shown when it's NOT the standard 45min — most students
+  // don't need it spelled out, but a 30min regular (e.g. Ivan) should be
+  // obvious at a glance so 📅 "book this month" isn't the only place it's visible.
+  function formatRegularSchedule(weekday, timeStr, durationMin) {
     const [h, m] = timeStr.split(":").map(Number);
     const ampm = h >= 12 ? "PM" : "AM";
     const hours12 = h % 12 || 12;
-    return `${tf("private.regular_weekly", { weekday: t("day." + weekday) })} ${hours12}:${String(m).padStart(2, "0")}${ampm}`;
+    const base = `${tf("private.regular_weekly", { weekday: t("day." + weekday) })} ${hours12}:${String(m).padStart(2, "0")}${ampm}`;
+    return durationMin && durationMin !== 45 ? `${base} (${tf("private.duration_minutes_short", { min: durationMin })})` : base;
   }
 
   // "This month" = today through the last day of the current calendar
@@ -1412,13 +1469,13 @@
 
     // Reuse the most recently-booked lesson's price/format as the template
     // — falls back to the same defaults the "New lesson" dialog itself uses
-    // for a student with no lessons yet at all. Duration isn't tracked on
-    // the loaded lesson list, so this always uses the standard 45min, same
-    // as that dialog's own default.
+    // for a student with no lessons yet at all. Duration comes from the
+    // student's own regular slot (migration 0030) — not everyone gets the
+    // standard 45min (e.g. Ivan's is 30).
     const template = student.lessons[0]; // lessons are ordered newest-first (see load())
     const format = template?.format ?? "1on1";
     const price = template?.price ?? 750;
-    const durationMin = 45;
+    const durationMin = student.regular_duration_minutes || 45;
 
     let changed = false;
 

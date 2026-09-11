@@ -807,12 +807,27 @@
     if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
     classes = data;
 
-    const rows = await Promise.all(data.map(async (cls) => {
-      const { count: lessonCount } = await supabaseClient
-        .from("appointments").select("id", { count: "exact", head: true }).eq("class_id", cls.id);
-      const { data: enrolled } = await supabaseClient
-        .from("packages").select("student_id").eq("class_id", cls.id).eq("status", "active");
-      const enrolledCount = new Set((enrolled ?? []).map(p => p.student_id)).size;
+    // Lesson count + enrolled-student count for every class, in 2 queries
+    // total instead of 2 per class (was up to ~20 round trips for a full
+    // class list). Grouped into per-class buckets below.
+    const classIds = data.map(c => c.id);
+    const [{ data: allClassAppts }, { data: allEnrolled }] = classIds.length
+      ? await Promise.all([
+          supabaseClient.from("appointments").select("id, class_id").in("class_id", classIds),
+          supabaseClient.from("packages").select("class_id, student_id").in("class_id", classIds).eq("status", "active"),
+        ])
+      : [{ data: [] }, { data: [] }];
+    const lessonCountByClass = new Map();
+    for (const a of allClassAppts ?? []) lessonCountByClass.set(a.class_id, (lessonCountByClass.get(a.class_id) ?? 0) + 1);
+    const enrolledByClass = new Map();
+    for (const p of allEnrolled ?? []) {
+      if (!enrolledByClass.has(p.class_id)) enrolledByClass.set(p.class_id, new Set());
+      enrolledByClass.get(p.class_id).add(p.student_id);
+    }
+
+    const rows = data.map((cls) => {
+      const lessonCount = lessonCountByClass.get(cls.id) ?? 0;
+      const enrolledCount = enrolledByClass.get(cls.id)?.size ?? 0;
       const start = cls.weekly_start_time.slice(0, 5);
       const end = new Date(new Date(`2000-01-01T${cls.weekly_start_time}`).getTime() + cls.duration_minutes * 60000).toTimeString().slice(0, 5);
       const timeLabel = `<span class="weekday-pill wd-${cls.weekly_day_of_week}">${t("weekday_full." + cls.weekly_day_of_week)}</span>${start} - ${end}`;
@@ -828,7 +843,7 @@
             <button type="button" class="icon-action-btn danger" data-cancel-class="${cls.id}" title="${t("class.cancel")}" aria-label="${t("class.cancel")}">🚫</button>
           </td>
         </tr>`;
-    }));
+    });
 
     renderCollapsible(tbody, "class-toggle-btn", rows, 5, t("classes.empty"), () => {
       tbody.querySelectorAll("button[data-edit-class]").forEach(btn => {
@@ -1829,26 +1844,36 @@
 
     const incomingCreditAmounts = await getIncomingCreditAmounts(pkgs.map(p => p.id));
 
+    // Lesson appointments per term are already deduped by class+start+count
+    // (apptCache — shared across packages on the same term). Attendance
+    // used to be a separate query PER PACKAGE though (one per term per
+    // student — dozens of round trips for a full roster); now it's every
+    // (student, appointment) pair involved, in one query, matched back by
+    // a "studentId|apptId" key.
     const apptCache = new Map();
-    paymentPackages = await Promise.all(pkgs.map(async (pkg) => {
+    const apptsByPkg = await Promise.all(pkgs.map(async (pkg) => {
       pkg.incomingCreditAmount = incomingCreditAmounts.get(pkg.id) ?? 0;
       const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons, apptCache);
-      const apptIds = appts.map(a => a.id);
+      return { pkg, appts: appts ?? [] };
+    }));
 
-      let attRows = [];
-      if (apptIds.length) {
-        const { data } = await supabaseClient
-          .from("attendance").select("id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, make_up_extra_fee_paid, paid")
-          .eq("student_id", pkg.student_id).in("appointment_id", apptIds);
-        attRows = data ?? [];
-      }
+    const studentIds = [...new Set(pkgs.map(p => p.student_id))];
+    const allApptIds = [...new Set(apptsByPkg.flatMap(({ appts }) => appts.map(a => a.id)))];
+    const { data: allAttendance } = (studentIds.length && allApptIds.length)
+      ? await supabaseClient
+          .from("attendance")
+          .select("id, student_id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, make_up_extra_fee_paid, paid")
+          .in("student_id", studentIds).in("appointment_id", allApptIds)
+      : { data: [] };
+    const attendanceByKey = new Map((allAttendance ?? []).map(r => [`${r.student_id}|${r.appointment_id}`, r]));
 
-      const lessons = (appts ?? []).map(a => {
-        const att = attRows.find(r => r.appointment_id === a.id);
+    paymentPackages = apptsByPkg.map(({ pkg, appts }) => {
+      const lessons = appts.map(a => {
+        const att = attendanceByKey.get(`${pkg.student_id}|${a.id}`);
         return { apptId: a.id, date: a.scheduled_start, status: att?.status ?? null, make_up_status: att?.make_up_status ?? null, made_up_appointment_id: att?.made_up_appointment_id ?? null, make_up_remark: att?.make_up_remark ?? null, make_up_date: att?.make_up_date ?? null, make_up_extra_fee: att?.make_up_extra_fee ?? null, make_up_extra_fee_paid: att?.make_up_extra_fee_paid ?? false, attendanceId: att?.id ?? null, paid: att?.paid ?? false };
       });
       return { pkg, lessons };
-    }));
+    });
 
     paymentsAllGroupAppts = await getAllGroupAppointments();
     renderPayments();
@@ -2445,17 +2470,43 @@
     if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
     students = data;
 
+    // Every package for every group student, in ONE query (was one query
+    // per student). Lesson-appointment lookups below are already shared by
+    // class+term (apptCache); attendance is now one query across every
+    // (student, appointment) pair involved instead of one per package per
+    // student — together this turns what used to be dozens-to-hundreds of
+    // round trips (a student with several renewal terms queued up that
+    // many, back-to-back) into a handful, total, for the whole roster.
+    const studentIds = data.map(s => s.id);
+    const { data: allPkgsRaw } = studentIds.length
+      ? await supabaseClient
+          .from("packages")
+          .select("id, student_id, class_id, start_date, total_lessons, price, status, cancelled_at, created_at, classes(name, weekly_day_of_week, weekly_start_time)")
+          .in("student_id", studentIds)
+      : { data: [] };
+    const pkgsByStudent = new Map();
+    for (const p of allPkgsRaw ?? []) {
+      if (!pkgsByStudent.has(p.student_id)) pkgsByStudent.set(p.student_id, []);
+      pkgsByStudent.get(p.student_id).push(p);
+    }
+    const incomingCreditAmounts = await getIncomingCreditAmounts((allPkgsRaw ?? []).map(p => p.id));
+
     const apptCache = new Map();
-    const rowsHtml = await Promise.all(data.map(async (s) => {
-      // One query for every package this student has ever had, instead of
-      // a separate "just the latest" query — "current" (most recently
-      // created) and "joined"/lifetime-totals (earliest start_date first)
-      // are just two different client-side sorts of the same rows.
-      const { data: allOwnPkgsRaw } = await supabaseClient
-        .from("packages")
-        .select("id, class_id, start_date, total_lessons, price, status, cancelled_at, created_at, classes(name, weekly_day_of_week, weekly_start_time)")
-        .eq("student_id", s.id);
-      const allOwnPkgs = [...(allOwnPkgsRaw ?? [])].sort((a, b) => a.start_date.localeCompare(b.start_date));
+    const apptsByPkgId = new Map();
+    await Promise.all((allPkgsRaw ?? []).map(async (p) => {
+      apptsByPkgId.set(p.id, await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons, apptCache));
+    }));
+    const allApptIds = [...new Set([...apptsByPkgId.values()].flatMap(appts => appts.map(a => a.id)))];
+    const { data: allAttendance } = (studentIds.length && allApptIds.length)
+      ? await supabaseClient
+          .from("attendance").select("student_id, appointment_id, status, make_up_status")
+          .in("student_id", studentIds).in("appointment_id", allApptIds)
+      : { data: [] };
+    const attendanceByKey = new Map((allAttendance ?? []).map(r => [`${r.student_id}|${r.appointment_id}`, r]));
+
+    const rowsHtml = data.map((s) => {
+      const allOwnPkgsRaw = pkgsByStudent.get(s.id) ?? [];
+      const allOwnPkgs = [...allOwnPkgsRaw].sort((a, b) => a.start_date.localeCompare(b.start_date));
       const pkg = allOwnPkgsRaw?.length
         ? [...allOwnPkgsRaw].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
         : undefined;
@@ -2482,28 +2533,19 @@
       const renewalCountCell = renewalCount % 1 === 0 ? String(renewalCount) : renewalCount.toFixed(2).replace(/0$/, "");
 
       // "已請假" and "累計已付" are both cumulative across every package this
-      // student has ever had — not just the current one — and share the same
-      // per-package attendance query, so they're computed together in one
-      // pass. Each package's own appointments+attendance lookup runs
-      // concurrently (Promise.all) instead of one package waiting on the
-      // last — a student with several renewal terms previously queued up
-      // that many round-trips back-to-back, which is what made this table
-      // slow to load.
-      const ownIncomingCreditAmounts = await getIncomingCreditAmounts((allOwnPkgs ?? []).map(p => p.id));
-      const perPackageResults = await Promise.all((allOwnPkgs ?? []).map(async (p) => {
-        const pAppts = await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons, apptCache);
-        const pApptIds = pAppts.map(a => a.id);
-        const incomingCredit = ownIncomingCreditAmounts.get(p.id) ?? 0;
-        if (!pApptIds.length) return { leaves: 0, deduction: incomingCredit };
-        const { data: pAtt } = await supabaseClient.from("attendance")
-          .select("status, make_up_status")
-          .eq("student_id", s.id).in("appointment_id", pApptIds);
-        const rows = pAtt ?? [];
+      // student has ever had — not just the current one — now computed from
+      // the already-fetched attendanceByKey/apptsByPkgId maps, no per-
+      // package query left at all.
+      const perPackageResults = allOwnPkgs.map((p) => {
+        const pAppts = apptsByPkgId.get(p.id) ?? [];
+        const incomingCredit = incomingCreditAmounts.get(p.id) ?? 0;
+        if (!pAppts.length) return { leaves: 0, deduction: incomingCredit };
+        const rows = pAppts.map(a => attendanceByKey.get(`${s.id}|${a.id}`)).filter(Boolean);
         return {
           leaves: rows.filter(r => r.status === "leave").length,
           deduction: rows.filter(isDeductible).length * (p.price / p.total_lessons) + incomingCredit,
         };
-      }));
+      });
       const totalLeavesUsed = perPackageResults.reduce((sum, r) => sum + r.leaves, 0);
       const totalDeduction = perPackageResults.reduce((sum, r) => sum + r.deduction, 0);
       const leavesCell = `${totalLeavesUsed}`;
@@ -2561,7 +2603,7 @@
           </td>
         </tr>`;
       return { isWithdrawn, name: s.contacts?.name ?? "", classId: pkg?.class_id ?? "", html };
-    }));
+    });
 
     // Withdrawn students (latest package cancelled) sink to the bottom,
     // greyed out — everyone else keeps the normal newest-first order.
