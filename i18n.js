@@ -388,6 +388,8 @@ const I18N_STRINGS = {
     "student.edit": "Edit",
     "student.delete": "Delete student",
     "student.delete_confirm": "Permanently delete {name}? This also deletes ALL their packages, lessons, and attendance records. This cannot be undone.",
+    "student.withdraw": "Withdraw",
+    "student.withdraw_confirm": "{name} is withdrawing now? Lessons already attended won't change — this only clears their still-upcoming, not-yet-marked ones.",
     "dialog.edit_student": "Edit student",
 
     "classes.title": "Existing Group Classes",
@@ -854,6 +856,8 @@ const I18N_STRINGS = {
     "student.edit": "編輯",
     "student.delete": "刪除學生",
     "student.delete_confirm": "永久刪除{name}?呢個會連埋佢所有package、堂、出席記錄一齊刪走,冇得復原。",
+    "student.withdraw": "退出",
+    "student.withdraw_confirm": "確定{name}而家退出?已經上咗嘅堂唔會郁,淨係停低仲未點名嘅未來堂。",
     "dialog.edit_student": "編輯學生",
 
     "classes.title": "現有的小組課",

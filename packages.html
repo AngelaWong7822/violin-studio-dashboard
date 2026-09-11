@@ -2403,6 +2403,24 @@
     tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
       btn.addEventListener("click", () => deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)));
     });
+    // Withdraw mid-term (not at the class's next "+8 more weeks" renewal
+    // point) — the only other path to "withdrawn" before this was
+    // unticking someone in that renewal dialog, which doesn't help if
+    // they're quitting with weeks still left on the current term. Reuses
+    // cancelPackage(), same as that dialog does: marks their current
+    // package cancelled + drops still-upcoming, not-yet-marked attendance
+    // right away instead of it sitting stale until some later cleanup.
+    tbody.querySelectorAll("button[data-withdraw-student]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const student = students.find(s => s.id === btn.dataset.withdrawStudent);
+        if (!student?.currentPkg) return;
+        if (!(await showConfirm(tf("student.withdraw_confirm", { name: student.contacts?.name ?? "" })))) return;
+        const ok = await cancelPackage(student.currentPkg);
+        if (!ok) return;
+        await loadStudents();
+        await loadClasses();
+      });
+    });
     tbody.querySelectorAll("button[data-enroll-student]").forEach(btn => {
       btn.addEventListener("click", () => openEnrollDialog(students.find(s => s.id === btn.dataset.enrollStudent)));
     });
@@ -2591,6 +2609,7 @@
           <td>${statusCell}</td>
           <td style="white-space:nowrap;">
             <button type="button" class="icon-action-btn" data-edit-student="${s.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
+            ${pkg?.status === "active" ? `<button type="button" class="icon-action-btn" data-withdraw-student="${s.id}" title="${t("student.withdraw")}" aria-label="${t("student.withdraw")}">🚪</button>` : ""}
             ${enrollActionBtn}
             <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
           </td>
