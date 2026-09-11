@@ -182,6 +182,18 @@ function showConfirm(message, { danger = true } = {}) {
 }
 
 function initSettingsMenu() {
+  // A plain "F5"-style reload button in the header — some button clicks
+  // don't re-render everything they should (a stale row, a count that
+  // didn't update), and a full reload is the simplest reliable fix
+  // without having to track down which specific handler missed a
+  // re-render. Kept as its own top-level button (not tucked in the ⚙️
+  // menu) since it's meant to be a quick, obvious "when in doubt" tap.
+  const refreshBtn = document.getElementById("refresh-btn");
+  if (refreshBtn) {
+    refreshBtn.title = t("nav.refresh");
+    refreshBtn.addEventListener("click", () => location.reload());
+  }
+
   const btn = document.getElementById("settings-btn");
   const menu = document.getElementById("settings-menu");
   if (!btn || !menu) return;
