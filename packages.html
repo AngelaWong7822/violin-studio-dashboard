@@ -81,6 +81,7 @@
     padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
   }
   .icon-delete-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #a1a1aa; padding: 2px 4px; border-radius: 4px; }
+  .last-activity-message { display: inline-block; margin-left: 8px; padding: 1px 8px; background: #e7f9ee; color: #1e6b34; border-radius: 999px; font-size: 11px; font-weight: 600; vertical-align: middle; }
   .icon-delete-btn:hover { color: #b91c1c; background: #fef2f2; }
   .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
   .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
@@ -352,6 +353,7 @@
     </div>
     <table>
       <thead><tr>
+        <th></th>
         <th data-i18n="student.name">Name</th>
         <th data-i18n="enroll.col_class">Class</th>
         <th data-i18n="student.phone">WhatsApp number</th>
@@ -359,7 +361,7 @@
         <th data-i18n="packages.col_status">Status</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
     </table>
     <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
@@ -383,9 +385,14 @@
   </div>
 
   <div class="card">
-    <h1 data-i18n="reply_templates.title">💌 Quick replies</h1>
-    <p style="color:#71717a; font-size:13px; margin:-8px 0 12px;" data-i18n="reply_templates.subtitle">Copy a reply for a parent's homework message.</p>
-    <div id="reply-templates-list" class="reply-templates-wrap"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+      <h1 style="margin:0;" data-i18n="reply_templates.title">💌 Quick replies</h1>
+      <button type="button" id="reply-templates-toggle" class="link"></button>
+    </div>
+    <div id="reply-templates-body" hidden>
+      <p style="color:#71717a; font-size:13px; margin:8px 0 12px;" data-i18n="reply_templates.subtitle">Copy a reply for a parent's homework message.</p>
+      <div id="reply-templates-list" class="reply-templates-wrap"></div>
+    </div>
   </div>
 </main>
 
@@ -543,8 +550,8 @@
   </form>
 </dialog>
 
-<dialog id="student-detail-dialog" style="border:none; border-radius:16px; padding:0; width:320px;">
-  <div class="card" style="margin:0; box-shadow:none;">
+<dialog id="student-detail-dialog" style="border:none; border-radius:16px; padding:0; width:420px; max-height:82vh;">
+  <div class="card" style="margin:0; box-shadow:none; max-height:82vh; overflow-y:auto;">
     <h1 id="student-detail-name" data-i18n="packages.col_detail">Detail</h1>
     <div style="display:flex; flex-direction:column; gap:10px; font-size:14px;">
       <div>
@@ -604,7 +611,7 @@
   applyI18n();
   initSettingsMenu();
   initReplyTemplates();
-  window.onLangChange = () => { loadClasses(); loadStudents(); window.renderReplyTemplates?.(); };
+  window.onLangChange = () => { loadClasses(); loadStudents(); window.renderReplyTemplates?.(); window.refreshReplyTemplatesToggleLabel?.(); };
 
   let students = [];
   let classes = [];
@@ -970,7 +977,7 @@
     if (apptIds.length) {
       const { data } = await supabaseClient
         .from("attendance")
-        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_time, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, homework_submitted, students(contacts(name))")
+        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_time, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, homework_submitted, students(name, contacts(name))")
         .in("appointment_id", apptIds);
       attendanceRows = data ?? [];
     }
@@ -1000,7 +1007,7 @@
     const withdrawnMap = new Map();
     const visitorMap = new Map();
     attendanceRows.forEach(r => {
-      const name = r.students?.contacts?.name ?? r.student_id;
+      const name = groupStudentLabel(r.students) || r.student_id;
       if (enrolledStudentIds.has(r.student_id)) rosterMap.set(r.student_id, name);
       else if (withdrawnStudentIds.has(r.student_id)) withdrawnMap.set(r.student_id, name);
       else visitorMap.set(r.student_id, name);
@@ -1606,7 +1613,7 @@
         </option>`).join("");
       return `
         <div class="makeup-row" data-attendance-id="${row.id}" data-student-id="${row.student_id}" data-appointment-id="${row.appointment_id}">
-          <strong>${row.students?.contacts?.name ?? ""}</strong>
+          <strong>${groupStudentLabel(row.students)}</strong>
           <span style="color:#71717a;">${dateLabel}</span>
           <select data-field="make_up_status">
             <option value="unprocessed" ${row.make_up_status === "unprocessed" || !row.make_up_status ? "selected" : ""}>${t("makeup.unprocessed")}</option>
@@ -1830,7 +1837,7 @@
     // several renewals shows as a single line, not repeated rows.
     const { data: pkgs, error } = await supabaseClient
       .from("packages")
-      .select("id, class_id, student_id, start_date, total_lessons, price, students!inner(active, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
+      .select("id, class_id, student_id, start_date, total_lessons, price, students!inner(active, name, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
       .eq("students.active", true)
       .order("start_date", { ascending: false });
     if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
@@ -1881,7 +1888,7 @@
     const map = new Map();
     for (const entry of list) {
       const sid = entry.pkg.student_id;
-      if (!map.has(sid)) map.set(sid, { studentId: sid, name: entry.pkg.students?.contacts?.name ?? "", entries: [] });
+      if (!map.has(sid)) map.set(sid, { studentId: sid, name: groupStudentLabel(entry.pkg.students), entries: [] });
       map.get(sid).entries.push(entry);
     }
     // Chronological within each student, so "Term 1, Term 2…" reads in join order.
@@ -2135,7 +2142,7 @@
 
     const { data: pkgs } = await supabaseClient
       .from("packages")
-      .select("id, student_id, students(contacts(name))")
+      .select("id, student_id, students(name, contacts(name))")
       .eq("class_id", cls.id).eq("status", "active");
     const list = document.getElementById("class-extend-student-list");
     if (!pkgs || !pkgs.length) {
@@ -2144,7 +2151,7 @@
       list.innerHTML = pkgs.map(p => `
         <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
           <input type="checkbox" checked data-pkg-id="${p.id}" />
-          <span style="flex:1;">${p.students?.contacts?.name ?? ""}</span>
+          <span style="flex:1;">${groupStudentLabel(p.students)}</span>
           <span style="font-size:12px; color:#71717a;">$</span>
           <input type="number" data-pkg-price="${p.id}" value="${STANDARD_PRICE_PER_TERM}" min="0" style="width:70px; font-size:13px; padding:3px 5px;" />
         </label>`).join("");
@@ -2400,7 +2407,12 @@
   });
 
   // ---------- Students (merged with their current enrollment) ----------
+  // A student's own name if set (migration 0029 — needed once >1 student
+  // shares one contact, e.g. siblings), falling back to the shared contact's
+  // name for older rows. Mirrors private.html's studentLabel().
+  function groupStudentLabel(s) { return s?.name || s?.contacts?.name || ""; }
   let studentRowsCache = []; // [{ isWithdrawn, name, html }] — re-filtered locally by the search box, no re-fetch needed
+  const expandedMessageIds = new Set(); // which students' inline AI對話記錄 is open, survives re-renders
   function attachStudentRowListeners(tbody) {
     tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
       btn.addEventListener("click", () => openEditStudent(students.find(s => s.id === btn.dataset.editStudent)));
@@ -2419,7 +2431,7 @@
       btn.addEventListener("click", async () => {
         const student = students.find(s => s.id === btn.dataset.withdrawStudent);
         if (!student?.currentPkg) return;
-        if (!(await showConfirm(tf("student.withdraw_confirm", { name: student.contacts?.name ?? "" })))) return;
+        if (!(await showConfirm(tf("student.withdraw_confirm", { name: groupStudentLabel(student) })))) return;
         const ok = await cancelPackage(student.currentPkg);
         if (!ok) return;
         await loadStudents();
@@ -2432,7 +2444,7 @@
     tbody.querySelectorAll("[data-view-detail]").forEach(btn => {
       btn.addEventListener("click", () => {
         const student = students.find(s => s.id === btn.dataset.viewDetail);
-        document.getElementById("student-detail-name").textContent = student?.contacts?.name ?? "";
+        document.getElementById("student-detail-name").textContent = groupStudentLabel(student);
         document.getElementById("student-detail-join-date-input").value = btn.dataset.joinDateRaw;
         document.getElementById("student-detail-join-date-save").dataset.earliestPkgId = btn.dataset.earliestPkgId;
         document.getElementById("student-detail-age").textContent = btn.dataset.age;
@@ -2450,6 +2462,59 @@
         studentDetailDialog.showModal();
       });
     });
+    // ▶ toggles that student's inline AI對話記錄 row open/closed — only
+    // present at all on students who actually have messages (see hasMessages
+    // in loadStudents()), so this never fires on a student with nothing to
+    // show. State lives in expandedMessageIds so it survives the next
+    // loadStudents() reload.
+    tbody.querySelectorAll("[data-toggle-messages]").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = el.dataset.toggleMessages;
+        const row = tbody.querySelector(`tr[data-student-detail="${id}"]`);
+        if (!row) return;
+        if (expandedMessageIds.has(id)) {
+          expandedMessageIds.delete(id);
+          row.style.display = "none";
+          el.classList.remove("open");
+        } else {
+          expandedMessageIds.add(id);
+          row.style.display = "";
+          el.classList.add("open");
+          const container = document.getElementById(`group-messages-${id}`);
+          if (container) container.scrollTop = container.scrollHeight;
+        }
+      });
+    });
+  }
+
+  function timeAgo(isoString) {
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+    if (seconds < 60) return t("private.time_just_now");
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return tf("private.time_minutes_ago", { n: minutes });
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return tf("private.time_hours_ago", { n: hours });
+    const days = Math.floor(hours / 24);
+    return tf("private.time_days_ago", { n: days });
+  }
+
+  // WhatsApp-style bubbles — received (left, grey) / sent (right, green),
+  // oldest-first — rather than private.html's table: this lives inline in
+  // a narrow table cell, where a 4-5 column table would just cram. Bubbles
+  // read at a glance without even needing a "收/發" label (side + colour
+  // already says who), and it's the format she reads every day for real.
+  // Plain read-only view on purpose — no AI-intent pill, no delete button:
+  // "我只係想睇到就得" (just want to see it, that's enough).
+  function groupMessageBubblesHtml(messages) {
+    return messages.map(m => {
+      const isOut = m.direction === "outbound";
+      return `
+      <div style="align-self:${isOut ? "flex-end" : "flex-start"}; max-width:82%;">
+        <div style="background:${isOut ? "#dcf8c6" : "#f4f4f5"}; color:#18181b; font-size:13px; line-height:1.4; padding:7px 11px; border-radius:${isOut ? "12px 12px 3px 12px" : "12px 12px 12px 3px"}; white-space:normal; word-break:break-word;">${m.body}</div>
+        <div style="font-size:10px; color:#a1a1aa; margin:2px 3px 0; ${isOut ? "text-align:right;" : ""}">${new Date(m.created_at).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</div>
+      </div>`;
+    }).join("");
   }
 
   // Actively searching or filtering by class bypasses the collapse-to-3
@@ -2466,10 +2531,10 @@
 
     if (searchText || classFilter) {
       btn.style.display = "none";
-      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="6" class="empty">${t("packages.empty_students")}</td></tr>`;
+      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="7" class="empty">${t("packages.empty_students")}</td></tr>`;
       attachStudentRowListeners(tbody);
     } else {
-      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 6, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
+      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 7, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
     }
   }
   document.getElementById("student-search").addEventListener("input", renderStudentRows);
@@ -2479,11 +2544,11 @@
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, contacts(name, whatsapp_number, gender, social_media_name, level, age, violin_status, violin_borrow_date)")
+      .select("id, contact_id, name, contacts(name, whatsapp_number, gender, social_media_name, level, age, violin_status, violin_borrow_date)")
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Error: ${error.message}</td></tr>`; return; }
     students = data;
 
     // Every package for every group student, in ONE query (was one query
@@ -2523,7 +2588,28 @@
       : [];
     const attendanceByKey = new Map(allAttendance.map(r => [`${r.student_id}|${r.appointment_id}`, r]));
 
+    // WhatsApp/AI history, batched the same way private.html's own roster
+    // load does — oldest-first per contact, so it's already in the order
+    // the inline chat bubbles read in. Most group students have none of
+    // this at all (their contact never messaged in), so the ▶ arrow only
+    // shows up for the ones who actually have something to show — nobody
+    // else gets a dead-end expand control cluttering their row.
+    const contactIds = [...new Set(data.map(s => s.contact_id))];
+    const allMessages = contactIds.length
+      ? await fetchAllRows(() => supabaseClient
+          .from("messages")
+          .select("id, contact_id, direction, body, llm_parse_result, created_at")
+          .in("contact_id", contactIds)
+          .order("created_at", { ascending: true }))
+      : [];
+    const messagesByContact = new Map();
+    for (const m of allMessages) {
+      if (!messagesByContact.has(m.contact_id)) messagesByContact.set(m.contact_id, []);
+      messagesByContact.get(m.contact_id).push(m);
+    }
+
     const rowsHtml = data.map((s) => {
+      s.messages = messagesByContact.get(s.contact_id) ?? [];
       const allOwnPkgsRaw = pkgsByStudent.get(s.id) ?? [];
       const allOwnPkgs = [...allOwnPkgsRaw].sort((a, b) => a.start_date.localeCompare(b.start_date));
       const pkg = allOwnPkgsRaw?.length
@@ -2604,12 +2690,36 @@
       const violinIcon = s.contacts?.violin_status === "buy" ? ' <span title="' + t("student.needs_violin") + '">🎻</span>'
         : s.contacts?.violin_status === "borrow" ? ' <span title="' + borrowTitle + '">🔄</span>' + borrowDaysBadge : "";
       const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
-      const initial = (s.contacts?.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+      const displayName = groupStudentLabel(s);
+      const initial = (displayName || "?").trim().charAt(0).toUpperCase() || "?";
+
+      // Only students whose contact has actually messaged in get the ▶
+      // arrow at all — nothing to show for the rest, so no dead-end
+      // control cluttering their row (per Angela: "唔係個個都要睇").
+      const hasMessages = s.messages.length > 0;
+      const isOpen = expandedMessageIds.has(s.id);
+      const arrowCell = hasMessages
+        ? `<td><span class="expand-arrow${isOpen ? " open" : ""}" role="button" tabindex="0" data-toggle-messages="${s.id}" style="cursor:pointer;">▶</span></td>`
+        : `<td></td>`;
+      // Visible without expanding — so she knows there's something to check
+      // without having to open every row. Newest message in the (oldest-
+      // first) s.messages array is the last one.
+      const lastActivityBadge = hasMessages
+        ? ` <span class="last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.messages[s.messages.length - 1].created_at)}</span>`
+        : "";
+      const detailRow = hasMessages ? `
+        <tr class="student-detail" data-student-detail="${s.id}" style="${isOpen ? "" : "display:none;"}">
+          <td></td>
+          <td colspan="6">
+            <div id="group-messages-${s.id}" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; padding:8px 4px;">${groupMessageBubblesHtml(s.messages)}</div>
+          </td>
+        </tr>` : "";
 
       const html = `
         <tr${isWithdrawn ? ' class="row-withdrawn"' : ""}>
+          ${arrowCell}
           <td class="student-name-cell" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-age="${s.contacts?.age ?? "—"}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">
-            <span class="avatar gender-${genderClass}">${initial}</span><span class="student-name-link">${s.contacts?.name ?? ""}${violinIcon}</span>
+            <span class="avatar gender-${genderClass}">${initial}</span><span class="student-name-link">${displayName}${violinIcon}</span>${lastActivityBadge}
           </td>
           <td>${classCell}</td>
           <td>${whatsappCell}</td>
@@ -2621,8 +2731,8 @@
             ${enrollActionBtn}
             <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
           </td>
-        </tr>`;
-      return { isWithdrawn, name: s.contacts?.name ?? "", classId: pkg?.class_id ?? "", html };
+        </tr>${detailRow}`;
+      return { isWithdrawn, name: displayName, classId: pkg?.class_id ?? "", html };
     });
 
     // Withdrawn students (latest package cancelled) sink to the bottom,
@@ -2637,7 +2747,7 @@
 
   async function deleteStudent(student) {
     if (!student) return;
-    if (!(await showConfirm(tf("student.delete_confirm", { name: student.contacts?.name ?? "" })))) return;
+    if (!(await showConfirm(tf("student.delete_confirm", { name: groupStudentLabel(student) })))) return;
 
     const { data: pkgs } = await supabaseClient.from("packages").select("id").eq("student_id", student.id);
     const pkgIds = (pkgs ?? []).map(p => p.id);
@@ -2697,7 +2807,7 @@
     document.getElementById("student-dialog-title").textContent = t("dialog.edit_student");
     document.getElementById("student-id").value = student.id;
     document.getElementById("student-contact-id").value = student.contact_id;
-    document.getElementById("student-name").value = c.name ?? "";
+    document.getElementById("student-name").value = groupStudentLabel(student);
     document.getElementById("student-phone").value = c.whatsapp_number ?? "";
     document.getElementById("student-gender").value = c.gender ?? "male";
     document.getElementById("student-social").value = c.social_media_name ?? "";
@@ -2756,8 +2866,12 @@
     e.preventDefault();
     const studentId = document.getElementById("student-id").value;
     const contactId = document.getElementById("student-contact-id").value;
+    const nameValue = document.getElementById("student-name").value.trim();
+    // Per-student identity (migration 0029) — lives on the student now so
+    // one parent contact can have >1 child (e.g. siblings sharing a phone).
+    const studentFields = { name: nameValue || null };
+    // Shared, contact-level fields (the parent / WhatsApp identity).
     const contactFields = {
-      name: document.getElementById("student-name").value,
       whatsapp_number: document.getElementById("student-phone").value || null,
       gender: document.getElementById("student-gender").value,
       social_media_name: document.getElementById("student-social").value || null,
@@ -2773,7 +2887,14 @@
     };
 
     if (studentId && contactId) {
-      const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contactId);
+      const { error: sErr } = await supabaseClient.from("students").update(studentFields).eq("id", studentId);
+      if (sErr) { showToast("Save failed: " + sErr.message, "error"); return; }
+      // Only sync the contact's own name when this is the family's only
+      // child sharing this contact — otherwise editing one sibling would
+      // rename the parent (and every other sibling's displayed "family" name).
+      const soleChild = students.filter(s => s.contact_id === contactId).length <= 1;
+      const { error } = await supabaseClient.from("contacts")
+        .update(soleChild && nameValue ? { ...contactFields, name: nameValue } : contactFields).eq("id", contactId);
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
 
       const classField = document.getElementById("student-edit-class-field");
@@ -2825,7 +2946,7 @@
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { data: newContact, error } = await supabaseClient
-        .from("contacts").insert({ ...contactFields, source: "existing_student" }).select().single();
+        .from("contacts").insert({ ...contactFields, name: nameValue || null, source: "existing_student" }).select().single();
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
       contact = newContact;
     }
@@ -2837,12 +2958,12 @@
     let student;
     if (existingStudent) {
       const { data: updatedStudent, error } = await supabaseClient
-        .from("students").update({ active: true, is_group: true }).eq("id", existingStudent.id).select().single();
+        .from("students").update({ active: true, is_group: true, ...studentFields }).eq("id", existingStudent.id).select().single();
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
       student = updatedStudent;
     } else {
       const { data: newStudent, error } = await supabaseClient
-        .from("students").insert({ contact_id: contact.id, active: true, is_group: true }).select().single();
+        .from("students").insert({ contact_id: contact.id, active: true, is_group: true, ...studentFields }).select().single();
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
       student = newStudent;
     }
@@ -2851,7 +2972,7 @@
     await loadStudents();
     // Since every student added here is going to join a class, go straight
     // into enrolling them rather than making Angela come back for a second step.
-    openEnrollDialog({ id: student.id, contacts: { name: contactFields.name } });
+    openEnrollDialog({ id: student.id, name: nameValue });
   });
 
   // ---------- Enrollment (always for one specific student) ----------
@@ -2863,7 +2984,7 @@
       .eq("status", "active")
       .neq("class_id", classId);
     if (!others || !others.length) return true;
-    const studentName = students.find(s => s.id === studentId)?.contacts?.name ?? "";
+    const studentName = groupStudentLabel(students.find(s => s.id === studentId));
     const classNames = others.map(o => o.classes?.name).filter(Boolean).join(", ");
     return showConfirm(tf("enroll.other_class_warning", { name: studentName, classes: classNames }), { danger: false });
   }
@@ -2992,7 +3113,7 @@
     if (!classes.length) { showToast(t("classes.empty"), "error"); return; }
     document.getElementById("enroll-form").reset();
     document.getElementById("enroll-student-id").value = student.id;
-    document.getElementById("enroll-student-name").textContent = student.contacts?.name ?? "";
+    document.getElementById("enroll-student-name").textContent = groupStudentLabel(student);
     document.getElementById("enroll-start-date").value = new Date().toISOString().slice(0, 10);
     await updateEnrollLessonsAndPrice();
     enrollDialog.showModal();
@@ -3173,6 +3294,25 @@ async function initReplyTemplates() {
 
   window.renderReplyTemplates = render; // re-run on language toggle to relabel buttons
   await load();
+
+  // Collapsed by default — this card sits at the very bottom of an already
+  // long page and isn't needed every visit; open/closed choice remembered
+  // per browser, same pattern as the Schedule page's Google Calendar embed.
+  const body = document.getElementById("reply-templates-body");
+  const toggle = document.getElementById("reply-templates-toggle");
+  function refreshToggleLabel() {
+    toggle.textContent = body.hidden ? t("reply_templates.show") : t("reply_templates.hide");
+  }
+  function setOpen(open) {
+    body.hidden = !open;
+    refreshToggleLabel();
+    try { localStorage.setItem("replyTemplatesOpen", open ? "1" : "0"); } catch (e) {}
+  }
+  toggle.addEventListener("click", () => setOpen(body.hidden));
+  let startOpen = false;
+  try { startOpen = localStorage.getItem("replyTemplatesOpen") === "1"; } catch (e) {}
+  setOpen(startOpen);
+  window.refreshReplyTemplatesToggleLabel = refreshToggleLabel; // re-run on language toggle
 }
 </script>
 </body>

@@ -922,7 +922,12 @@
       const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
       const label = studentLabel(s);
       const initial = (label || "?").trim().charAt(0).toUpperCase() || "?";
-      const parentTag = (s.name && s.contacts?.name && s.name !== s.contacts.name)
+      // Only a real multi-child signal when there's actually >1 private
+      // student under this contact — a student whose own name just happens
+      // to differ from the contact's (e.g. "Theo - YenFu" booked under mom
+      // "Yen Fu"'s WhatsApp, no sibling involved) isn't one.
+      const siblingCount = students.filter(x => x.contact_id === s.contact_id).length;
+      const parentTag = (siblingCount > 1 && s.name && s.contacts?.name && s.name !== s.contacts.name)
         ? `<span class="parent-tag" title="${t("private.parent_contact")}">👪 ${s.contacts.name}</span>` : "";
       const regWeekday = s.regular_weekday, regTime = s.regular_time;
 
