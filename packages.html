@@ -812,12 +812,12 @@
     // total instead of 2 per class (was up to ~20 round trips for a full
     // class list). Grouped into per-class buckets below.
     const classIds = data.map(c => c.id);
-    const [{ data: allClassAppts }, { data: allEnrolled }] = classIds.length
+    const [allClassAppts, allEnrolled] = classIds.length
       ? await Promise.all([
-          supabaseClient.from("appointments").select("id, class_id").in("class_id", classIds),
-          supabaseClient.from("packages").select("class_id, student_id").in("class_id", classIds).eq("status", "active"),
+          fetchAllRows(() => supabaseClient.from("appointments").select("id, class_id").in("class_id", classIds)),
+          fetchAllRows(() => supabaseClient.from("packages").select("class_id, student_id").in("class_id", classIds).eq("status", "active")),
         ])
-      : [{ data: [] }, { data: [] }];
+      : [[], []];
     const lessonCountByClass = new Map();
     for (const a of allClassAppts ?? []) lessonCountByClass.set(a.class_id, (lessonCountByClass.get(a.class_id) ?? 0) + 1);
     const enrolledByClass = new Map();
@@ -1852,13 +1852,18 @@
 
     const studentIds = [...new Set(pkgs.map(p => p.student_id))];
     const allApptIds = [...new Set(apptsByPkg.flatMap(({ appts }) => appts.map(a => a.id)))];
-    const { data: allAttendance } = (studentIds.length && allApptIds.length)
-      ? await supabaseClient
+    // fetchAllRows, not a single request — this table alone has passed
+    // 1000 rows, and a single .in()/.in() request silently truncates at
+    // Supabase's per-request cap instead of erroring (a real bug this
+    // exact query hit: 1019 rows in, exactly 1000 back, so whichever ~19
+    // landed past the cutoff quietly showed as unmarked/unpaid).
+    const allAttendance = (studentIds.length && allApptIds.length)
+      ? await fetchAllRows(() => supabaseClient
           .from("attendance")
           .select("id, student_id, appointment_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_extra_fee, make_up_extra_fee_paid, paid")
-          .in("student_id", studentIds).in("appointment_id", allApptIds)
-      : { data: [] };
-    const attendanceByKey = new Map((allAttendance ?? []).map(r => [`${r.student_id}|${r.appointment_id}`, r]));
+          .in("student_id", studentIds).in("appointment_id", allApptIds))
+      : [];
+    const attendanceByKey = new Map(allAttendance.map(r => [`${r.student_id}|${r.appointment_id}`, r]));
 
     paymentPackages = apptsByPkg.map(({ pkg, appts }) => {
       const lessons = appts.map(a => {
@@ -2489,31 +2494,34 @@
     // round trips (a student with several renewal terms queued up that
     // many, back-to-back) into a handful, total, for the whole roster.
     const studentIds = data.map(s => s.id);
-    const { data: allPkgsRaw } = studentIds.length
-      ? await supabaseClient
+    const allPkgsRaw = studentIds.length
+      ? await fetchAllRows(() => supabaseClient
           .from("packages")
           .select("id, student_id, class_id, start_date, total_lessons, price, status, cancelled_at, created_at, classes(name, weekly_day_of_week, weekly_start_time)")
-          .in("student_id", studentIds)
-      : { data: [] };
+          .in("student_id", studentIds))
+      : [];
     const pkgsByStudent = new Map();
-    for (const p of allPkgsRaw ?? []) {
+    for (const p of allPkgsRaw) {
       if (!pkgsByStudent.has(p.student_id)) pkgsByStudent.set(p.student_id, []);
       pkgsByStudent.get(p.student_id).push(p);
     }
-    const incomingCreditAmounts = await getIncomingCreditAmounts((allPkgsRaw ?? []).map(p => p.id));
+    const incomingCreditAmounts = await getIncomingCreditAmounts(allPkgsRaw.map(p => p.id));
 
     const apptCache = new Map();
     const apptsByPkgId = new Map();
-    await Promise.all((allPkgsRaw ?? []).map(async (p) => {
+    await Promise.all(allPkgsRaw.map(async (p) => {
       apptsByPkgId.set(p.id, await getPackageLessonAppointments(p.class_id, p.start_date, p.total_lessons, apptCache));
     }));
     const allApptIds = [...new Set([...apptsByPkgId.values()].flatMap(appts => appts.map(a => a.id)))];
-    const { data: allAttendance } = (studentIds.length && allApptIds.length)
-      ? await supabaseClient
+    // fetchAllRows — same 1000-row cap risk as loadPayments()'s attendance
+    // query (see its comment); this one's just as exposed since it spans
+    // every group student's every package.
+    const allAttendance = (studentIds.length && allApptIds.length)
+      ? await fetchAllRows(() => supabaseClient
           .from("attendance").select("student_id, appointment_id, status, make_up_status")
-          .in("student_id", studentIds).in("appointment_id", allApptIds)
-      : { data: [] };
-    const attendanceByKey = new Map((allAttendance ?? []).map(r => [`${r.student_id}|${r.appointment_id}`, r]));
+          .in("student_id", studentIds).in("appointment_id", allApptIds))
+      : [];
+    const attendanceByKey = new Map(allAttendance.map(r => [`${r.student_id}|${r.appointment_id}`, r]));
 
     const rowsHtml = data.map((s) => {
       const allOwnPkgsRaw = pkgsByStudent.get(s.id) ?? [];

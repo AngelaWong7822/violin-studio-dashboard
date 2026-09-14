@@ -416,34 +416,40 @@
     // the "most recent lesson" template).
     const studentIds = data.map(s => s.id);
     const contactIds = [...new Set(data.map(s => s.contact_id))];
-    const [{ data: allAppts }, { data: allMessages }] = await Promise.all([
+    // fetchAllRows (from settings.js) rather than a plain query — Supabase's
+    // REST API caps a single response at 1000 rows, and this page's own
+    // group-class sibling query hit exactly that (see loadPayments()'s
+    // comment in packages.html): a handful of rows past the cutoff quietly
+    // vanished instead of erroring. Cheap insurance here even though this
+    // roster is smaller today.
+    const [allAppts, allMessages] = await Promise.all([
       studentIds.length
-        ? supabaseClient.from("appointments")
+        ? fetchAllRows(() => supabaseClient.from("appointments")
             .select("id, student_id, scheduled_start, scheduled_end, lesson_format, price, created_via, created_at")
             .in("student_id", studentIds).eq("type", "lesson").is("class_id", null)
             .neq("status", "cancelled")
-            .order("scheduled_start", { ascending: false })
-        : Promise.resolve({ data: [] }),
+            .order("scheduled_start", { ascending: false }))
+        : [],
       contactIds.length
-        ? supabaseClient.from("messages")
+        ? fetchAllRows(() => supabaseClient.from("messages")
             .select("id, contact_id, direction, body, llm_parse_result, created_at")
             .in("contact_id", contactIds)
-            .order("created_at", { ascending: false })
-        : Promise.resolve({ data: [] }),
+            .order("created_at", { ascending: false }))
+        : [],
     ]);
-    const apptIds = (allAppts ?? []).map(a => a.id);
-    const { data: allAttendance } = apptIds.length
-      ? await supabaseClient.from("attendance").select("id, appointment_id, status, paid").in("appointment_id", apptIds)
-      : { data: [] };
+    const apptIds = allAppts.map(a => a.id);
+    const allAttendance = apptIds.length
+      ? await fetchAllRows(() => supabaseClient.from("attendance").select("id, appointment_id, status, paid").in("appointment_id", apptIds))
+      : [];
 
     const apptsByStudent = new Map();
-    for (const a of allAppts ?? []) {
+    for (const a of allAppts) {
       if (!apptsByStudent.has(a.student_id)) apptsByStudent.set(a.student_id, []);
       apptsByStudent.get(a.student_id).push(a);
     }
-    const attendanceByAppt = new Map((allAttendance ?? []).map(r => [r.appointment_id, r]));
+    const attendanceByAppt = new Map(allAttendance.map(r => [r.appointment_id, r]));
     const messagesByContact = new Map();
-    for (const m of allMessages ?? []) {
+    for (const m of allMessages) {
       if (!messagesByContact.has(m.contact_id)) messagesByContact.set(m.contact_id, []);
       messagesByContact.get(m.contact_id).push(m);
     }

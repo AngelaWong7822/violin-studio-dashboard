@@ -2,6 +2,27 @@
 // language toggle and the Excel export, so both live in one place instead
 // of being duplicated per page.
 
+// Supabase's REST API caps a single response at 1000 rows — any query
+// that could plausibly return more (the attendance table, appointments
+// across many classes/months, etc.) must page through in full or risk
+// silently dropping rows past the cutoff. This is a global (settings.js
+// loads on every page as a plain script), reusable version of the paging
+// loop the Excel export already used — a real bug this same gap caused:
+// packages.html's batched payments/attendance queries returned exactly
+// 1000 of 1019 rows, making a handful of already-paid lessons for
+// students whose rows landed past the cutoff look unpaid at random.
+async function fetchAllRows(buildQuery) {
+  const PAGE_SIZE = 1000;
+  const rows = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 // ---------- Export: Attendance + Payment sheets (group classes only) ----------
 // Two report-style sheets that read like the app's own Attendance/Payments
 // tabs (one block per class), rather than a raw per-table dump — per
@@ -224,20 +245,8 @@ function initSettingsMenu() {
       exportBtn.textContent = t("settings.exporting");
 
       try {
-        // Paged through in full rather than a single select("*") — Supabase's
-        // REST API caps a single request at 1000 rows, which would otherwise
-        // silently truncate a large table instead of erroring.
-        const PAGE_SIZE = 1000;
-        async function fetchAllRows(buildQuery) {
-          const rows = [];
-          for (let from = 0; ; from += PAGE_SIZE) {
-            const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
-            if (error) throw new Error(error.message);
-            rows.push(...(data ?? []));
-            if (!data || data.length < PAGE_SIZE) break;
-          }
-          return rows;
-        }
+        // fetchAllRows (paged through in full, since Supabase's REST API
+        // caps a single request at 1000 rows) is defined once, above.
 
         // Group classes only, per Angela's request — students/contacts get
         // filtered down to just the ones actually enrolled in a group
