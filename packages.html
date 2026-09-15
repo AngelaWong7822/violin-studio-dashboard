@@ -356,12 +356,11 @@
         <th></th>
         <th data-i18n="student.name">Name</th>
         <th data-i18n="enroll.col_class">Class</th>
-        <th data-i18n="student.phone">WhatsApp number</th>
         <th data-i18n="packages.col_renewal_count">Terms</th>
         <th data-i18n="packages.col_status">Status</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
     <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
@@ -2531,10 +2530,10 @@
 
     if (searchText || classFilter) {
       btn.style.display = "none";
-      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="7" class="empty">${t("packages.empty_students")}</td></tr>`;
+      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="6" class="empty">${t("packages.empty_students")}</td></tr>`;
       attachStudentRowListeners(tbody);
     } else {
-      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 7, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
+      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 6, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
     }
   }
   document.getElementById("student-search").addEventListener("input", renderStudentRows);
@@ -2548,7 +2547,7 @@
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
     students = data;
 
     // Every package for every group student, in ONE query (was one query
@@ -2667,11 +2666,6 @@
         enrollActionBtn = `<button class="link" data-enroll-student="${s.id}">${t("enroll.new")}</button>`;
       }
 
-      const rawPhone = s.contacts?.whatsapp_number ?? "";
-      const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
-      const whatsappCell = rawPhone && digitsOnly
-        ? `<a class="whatsapp-link" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
-        : "—";
       const borrowTitle = s.contacts?.violin_borrow_date
         ? tf("student.violin_borrow_since", { date: new Date(`${s.contacts.violin_borrow_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) })
         : t("student.violin_borrow");
@@ -2710,8 +2704,8 @@
       const detailRow = hasMessages ? `
         <tr class="student-detail" data-student-detail="${s.id}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
-          <td colspan="6">
-            <div id="group-messages-${s.id}" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; padding:8px 4px;">${groupMessageBubblesHtml(s.messages)}</div>
+          <td colspan="5">
+            <div id="group-messages-${s.id}" style="display:flex; flex-direction:column; gap:8px; max-width:480px; margin-left:auto; max-height:280px; overflow-y:auto; padding:8px 4px;">${groupMessageBubblesHtml(s.messages)}</div>
           </td>
         </tr>` : "";
 
@@ -2722,7 +2716,6 @@
             <span class="avatar gender-${genderClass}">${initial}</span><span class="student-name-link">${displayName}${violinIcon}</span>${lastActivityBadge}
           </td>
           <td>${classCell}</td>
-          <td>${whatsappCell}</td>
           <td>${renewalCountCell}</td>
           <td>${statusCell}</td>
           <td style="white-space:nowrap;">
@@ -2732,12 +2725,22 @@
             <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
           </td>
         </tr>${detailRow}`;
-      return { isWithdrawn, name: displayName, classId: pkg?.class_id ?? "", html };
+      const lastMessageAt = hasMessages ? s.messages[s.messages.length - 1].created_at : null;
+      return { isWithdrawn, name: displayName, classId: pkg?.class_id ?? "", lastMessageAt, html };
     });
 
     // Withdrawn students (latest package cancelled) sink to the bottom,
-    // greyed out — everyone else keeps the normal newest-first order.
-    rowsHtml.sort((a, b) => (a.isWithdrawn === b.isWithdrawn) ? 0 : a.isWithdrawn ? 1 : -1);
+    // greyed out. Everyone else ranks by their most recent WhatsApp message
+    // first — so a parent who just messaged in surfaces at the top instead
+    // of getting buried under the newest-enrolled-student default order;
+    // students with no messages at all fall in after those who do.
+    rowsHtml.sort((a, b) => {
+      if (a.isWithdrawn !== b.isWithdrawn) return a.isWithdrawn ? 1 : -1;
+      if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+      if (!a.lastMessageAt) return 1;
+      if (!b.lastMessageAt) return -1;
+      return b.lastMessageAt.localeCompare(a.lastMessageAt);
+    });
     studentRowsCache = rowsHtml;
     renderStudentRows();
 

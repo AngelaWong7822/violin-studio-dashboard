@@ -180,7 +180,11 @@
   .student-detail td { padding: 0 0 14px 0; }
   .detail-summary { display: flex; gap: 8px; margin: 2px 26px 10px 26px; }
   .lesson-table-wrap { margin: 6px 26px 0 26px; }
-  .detail-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  /* Overrides shared.css's table{min-width:max-content} — that floor is
+     what stops long free-text (AI對話記錄 message bodies) from ever
+     wrapping, since it forces the table to stay as wide as its longest
+     unwrapped line no matter what container width is asked for. */
+  .detail-table { width: 100%; min-width: 0; font-size: 13px; border-collapse: collapse; }
   .detail-table th, .detail-table td { padding: 4px 8px; text-align: left; }
   .detail-table th { color: #71717a; font-weight: 500; }
   .detail-table tr:nth-child(even) { background: #fafafa; }
@@ -391,6 +395,15 @@
   }
 
   const expandedIds = new Set();
+  // Which students' full lesson history is expanded — defaults to
+  // collapsed (first 3 only) so a long-running student's detail row
+  // doesn't dump dozens of past lessons every time it's opened.
+  const expandedLessonIds = new Set();
+  const LESSON_COLLAPSE_LIMIT = 3;
+  // Same idea for the AI對話記錄 table — a student with a long WhatsApp
+  // history shouldn't dump the whole thing every time the row opens.
+  const expandedMessageIds = new Set();
+  const MESSAGE_COLLAPSE_LIMIT = 5;
   let students = []; // [{ id, name, regular_weekday, regular_time, contacts, lessons: [...] }]
 
   // A student's own name once families can have >1 child (migration 0029);
@@ -900,7 +913,9 @@
         ? `<a class="whatsapp-chip" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener" title="${rawPhone}">💬</a>`
         : "—";
 
-      const lessonRows = s.lessons.map(l => `
+      const lessonsOpen = expandedLessonIds.has(s.id);
+      const visibleLessons = lessonsOpen ? s.lessons : s.lessons.slice(0, LESSON_COLLAPSE_LIMIT);
+      const lessonRows = visibleLessons.map(l => `
         <tr>
           <td>${new Date(l.when).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
           <td>${t("format." + l.format)}</td>
@@ -909,8 +924,13 @@
           <td><input type="checkbox" data-paid-attendance-id="${l.attendanceId ?? ""}" data-paid-appt-id="${l.apptId}" data-paid-student-id="${s.id}" ${l.paid ? "checked" : ""} /></td>
           <td><button type="button" class="link" data-delete-lesson="${l.apptId}" style="color:#b91c1c;">${t("private.delete_lesson")}</button></td>
         </tr>`).join("");
+      const lessonToggleHtml = s.lessons.length > LESSON_COLLAPSE_LIMIT
+        ? `<button type="button" class="link" data-toggle-lessons="${s.id}" style="margin-top:6px;">${lessonsOpen ? t("common.collapse") : tf("common.show_all", { n: s.lessons.length })}</button>`
+        : "";
 
-      const messageRows = s.messages.map(m => `
+      const messagesOpen = expandedMessageIds.has(s.id);
+      const visibleMessages = messagesOpen ? s.messages : s.messages.slice(0, MESSAGE_COLLAPSE_LIMIT);
+      const messageRows = visibleMessages.map(m => `
         <tr>
           <td>${new Date(m.created_at).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
           <td>${t(m.direction === "outbound" ? "private.msg_outbound" : "private.msg_inbound")}</td>
@@ -918,6 +938,9 @@
           <td><span class="status-pill status-confirmed">${intentLabel(m.llm_parse_result)}</span></td>
           <td><button type="button" class="link" data-delete-message="${m.id}" style="color:#b91c1c;">${t("private.delete_message")}</button></td>
         </tr>`).join("");
+      const messageToggleHtml = s.messages.length > MESSAGE_COLLAPSE_LIMIT
+        ? `<button type="button" class="link" data-toggle-ai-messages="${s.id}" style="margin-top:6px;">${messagesOpen ? t("common.collapse") : tf("common.show_all", { n: s.messages.length })}</button>`
+        : "";
 
       const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
       const label = studentLabel(s);
@@ -970,9 +993,9 @@
                     <th></th>
                   </tr></thead>
                   <tbody>${lessonRows}</tbody>
-                </table>` : `<p class="empty">${t("private.empty_lessons")}</p>`}
+                </table>${lessonToggleHtml}` : `<p class="empty">${t("private.empty_lessons")}</p>`}
             </div>
-            <div class="lesson-table-wrap" style="margin-top:14px;">
+            <div class="lesson-table-wrap" style="margin-top:14px; width:100%; max-width:760px;">
               <h3 style="margin:0 0 6px; font-size:13px; color:#71717a;">${t("private.ai_messages_title")}</h3>
               ${s.messages.length ? `
                 <table class="detail-table">
@@ -984,7 +1007,7 @@
                     <th></th>
                   </tr></thead>
                   <tbody>${messageRows}</tbody>
-                </table>` : `<p class="empty">${t("private.ai_messages_empty")}</p>`}
+                </table>${messageToggleHtml}` : `<p class="empty">${t("private.ai_messages_empty")}</p>`}
             </div>
           </td>
         </tr>`;
@@ -999,6 +1022,22 @@
       });
     });
 
+    tbody.querySelectorAll("button[data-toggle-lessons]").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.toggleLessons;
+        if (expandedLessonIds.has(id)) expandedLessonIds.delete(id); else expandedLessonIds.add(id);
+        render();
+      });
+    });
+    tbody.querySelectorAll("button[data-toggle-ai-messages]").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.toggleAiMessages;
+        if (expandedMessageIds.has(id)) expandedMessageIds.delete(id); else expandedMessageIds.add(id);
+        render();
+      });
+    });
     tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
       btn.addEventListener("click", (e) => { e.stopPropagation(); openEditStudent(students.find(s => s.id === btn.dataset.editStudent)); });
     });
