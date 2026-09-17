@@ -497,13 +497,18 @@
   const packageSelect = document.getElementById("receipt-package-select");
   let studentsCache = [];
 
+  // A group student's own name if set (migration 0029 — needed once >1
+  // student shares one contact, e.g. siblings), falling back to the shared
+  // contact's name for older rows. Mirrors packages.html's groupStudentLabel.
+  function groupStudentLabel(s) { return s?.name || s?.contacts?.name || ""; }
+
   function renderStudentOptions() {
     const searchText = studentSearch.value.trim().toLowerCase();
     const filtered = searchText
-      ? studentsCache.filter(s => (s.contacts?.name ?? "").toLowerCase().includes(searchText))
+      ? studentsCache.filter(s => groupStudentLabel(s).toLowerCase().includes(searchText))
       : studentsCache;
     studentOptionsEl.innerHTML = filtered.length
-      ? filtered.map(s => `<div class="combo-option" data-id="${s.id}">${s.contacts?.name ?? ""}</div>`).join("")
+      ? filtered.map(s => `<div class="combo-option" data-id="${s.id}">${groupStudentLabel(s)}</div>`).join("")
       : `<div class="combo-empty">${t("receipt.no_students_found")}</div>`;
     studentOptionsEl.querySelectorAll(".combo-option").forEach(opt => {
       opt.addEventListener("click", () => selectStudent(opt.dataset.id));
@@ -530,8 +535,9 @@
   async function loadStudents() {
     const { data } = await supabaseClient
       .from("students")
-      .select("id, contacts(name, violin_status)")
+      .select("id, name, contacts(name, violin_status)")
       .eq("active", true)
+      .eq("is_group", true)
       .order("created_at", { ascending: false });
 
     // A student's "current" status is their most recently created package —
@@ -545,18 +551,19 @@
       const isWithdrawn = pkgs?.[0]?.status === "cancelled";
       return { student: s, isWithdrawn };
     }));
-    studentsCache = withActive.filter(r => !r.isWithdrawn).map(r => r.student);
+    studentsCache = withActive.filter(r => !r.isWithdrawn).map(r => r.student)
+      .sort((a, b) => groupStudentLabel(a).localeCompare(groupStudentLabel(b), "zh-Hant"));
   }
 
   async function selectStudent(studentId) {
     studentSelect.value = studentId;
     const student = studentsCache.find(s => s.id === studentId);
-    studentDisplay.value = student?.contacts?.name ?? "";
+    studentDisplay.value = groupStudentLabel(student);
     closeStudentPanel();
 
     packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`;
     packageSelect.disabled = true;
-    document.getElementById("receipt-issued-to").value = student?.contacts?.name ?? "";
+    document.getElementById("receipt-issued-to").value = groupStudentLabel(student);
     currentViolinStatus = student?.contacts?.violin_status ?? "not_needed";
     document.getElementById("add-violin-item-btn").style.display = currentViolinStatus === "not_needed" ? "none" : "";
     // Reset here rather than deciding it from currentViolinStatus alone —

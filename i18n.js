@@ -161,6 +161,20 @@ const I18N_STRINGS = {
     "lead.social_media_name": "Social media name",
     "lead.level": "Level",
     "lead.level_placeholder": "e.g. Beginner / Grade 3",
+    "level.group_beginner": "Beginner (Preparatory)",
+    "level.beginner": "Beginner",
+    "level.group_elementary": "Grade 1–3 (Elementary)",
+    "level.grade1": "Grade 1",
+    "level.grade2": "Grade 2",
+    "level.grade3": "Grade 3",
+    "level.group_intermediate": "Grade 4–5 (Intermediate)",
+    "level.grade4": "Grade 4",
+    "level.grade5": "Grade 5",
+    "level.group_advanced": "Grade 6–8 (Advanced)",
+    "level.grade6": "Grade 6",
+    "level.grade7": "Grade 7",
+    "level.grade8": "Grade 8",
+    "level.diploma_plus": "Diploma level and above",
     "lead.age": "Age",
     "lead.age_placeholder": "e.g. 6, or 4.5 (K2)",
     "lead.lost_reason": "Reason lost",
@@ -172,6 +186,11 @@ const I18N_STRINGS = {
     "lead.delete": "Delete customer",
     "lead.delete_confirm": "Permanently remove {name} from the leads pipeline? This cannot be undone.",
     "lead.preferred_times_placeholder": "e.g. Sat morning, Fri after 5pm",
+    "lead.lock_fields": "Lock fields",
+    "lead.unlock_fields": "Unlock fields to edit",
+    "lead.period_morning": "Morning",
+    "lead.period_afternoon": "Afternoon",
+    "lead.period_evening": "Evening",
     "lead.notes_placeholder": "Notes",
 
     "attendance.title": "Attendance",
@@ -215,6 +234,7 @@ const I18N_STRINGS = {
     "attendance.visitor_delete_confirm": "Remove this make-up record? This just removes the extra attendance row — nothing else is affected.",
     "common.show_all": "Show all ({n})",
     "common.collapse": "Collapse",
+    "common.today": "Today",
     "attendance.empty_classes": "No classes yet — create one on the Packages tab.",
 
     "attstatus.attended": "Attended",
@@ -281,6 +301,7 @@ const I18N_STRINGS = {
     "private.live_free": "Free right now",
     "private.live_next": "next at {time}",
     "private.wc_hold_by": "{name} deciding",
+    "private.wc_makeup_label": "1:1 make-up",
     "private.search_placeholder": "Search by name…",
     "private.search_no_match": "No matching students.",
     "private.fs_off_day": "not teaching",
@@ -631,6 +652,20 @@ const I18N_STRINGS = {
     "lead.social_media_name": "社交媒體名稱",
     "lead.level": "程度",
     "lead.level_placeholder": "例如:初學 / Grade 3",
+    "level.group_beginner": "初學（預備級）",
+    "level.beginner": "初學",
+    "level.group_elementary": "Grade 1 至 Grade 3（初級）",
+    "level.grade1": "Grade 1",
+    "level.grade2": "Grade 2",
+    "level.grade3": "Grade 3",
+    "level.group_intermediate": "Grade 4 至 Grade 5（中級）",
+    "level.grade4": "Grade 4",
+    "level.grade5": "Grade 5",
+    "level.group_advanced": "Grade 6 至 Grade 8（高級）",
+    "level.grade6": "Grade 6",
+    "level.grade7": "Grade 7",
+    "level.grade8": "Grade 8",
+    "level.diploma_plus": "演奏以上",
     "lead.age": "年齡",
     "lead.age_placeholder": "例如:6,或者 4.5(K2)",
     "lead.lost_reason": "流失原因",
@@ -642,6 +677,11 @@ const I18N_STRINGS = {
     "lead.delete": "刪除客戶",
     "lead.delete_confirm": "確定要永久刪除{name}呢個客戶記錄嗎?呢個動作冇得返轉頭。",
     "lead.preferred_times_placeholder": "例如:星期六朝早、星期五5點後",
+    "lead.lock_fields": "鎖返呢幾個位",
+    "lead.unlock_fields": "解鎖先可以編輯",
+    "lead.period_morning": "上午",
+    "lead.period_afternoon": "下午",
+    "lead.period_evening": "晚上",
     "lead.notes_placeholder": "備註",
 
     "attendance.title": "出席",
@@ -685,6 +725,7 @@ const I18N_STRINGS = {
     "attendance.visitor_delete_confirm": "刪走呢個補堂記錄?淨係刪走呢一條額外出席記錄,唔會影響其他嘢。",
     "common.show_all": "顯示全部({n})",
     "common.collapse": "收埋",
+    "common.today": "今日",
     "attendance.empty_classes": "仲未有班 —— 去「小組課」頁開一個。",
 
     "attstatus.attended": "出席",
@@ -751,6 +792,7 @@ const I18N_STRINGS = {
     "private.live_free": "依家得閒",
     "private.live_next": "下一堂 {time}",
     "private.wc_hold_by": "{name}傾緊",
+    "private.wc_makeup_label": "1:1補堂",
     "private.search_placeholder": "打學生名搜尋…",
     "private.search_no_match": "冇符合嘅學生。",
     "private.fs_off_day": "唔教",
@@ -974,6 +1016,11 @@ function applyI18n() {
   });
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
+  });
+  // <optgroup> shows its "label" attribute, not textContent, so it needs
+  // its own hook alongside data-i18n / data-i18n-placeholder above.
+  document.querySelectorAll("[data-i18n-label]").forEach((el) => {
+    el.label = t(el.getAttribute("data-i18n-label"));
   });
   document.querySelectorAll("[data-lang-toggle]").forEach((btn) => {
     btn.textContent = lang === "zh-Hant" ? "EN" : "中文";

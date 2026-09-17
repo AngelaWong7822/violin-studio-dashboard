@@ -412,7 +412,29 @@
         <label><span data-i18n="student.phone">WhatsApp number</span> <input type="text" id="student-phone" /></label>
         <label><span data-i18n="student.age">Age</span> <input type="number" id="student-age" min="0" step="1" /></label>
         <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="student-social" /></label>
-        <label><span data-i18n="lead.level">Level</span> <input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+        <label><span data-i18n="lead.level">Level</span>
+          <select id="student-level">
+            <option value=""></option>
+            <optgroup data-i18n-label="level.group_beginner" label="Beginner (Preparatory)">
+              <option value="beginner" data-i18n="level.beginner">Beginner</option>
+            </optgroup>
+            <optgroup data-i18n-label="level.group_elementary" label="Grade 1–3 (Elementary)">
+              <option value="grade1" data-i18n="level.grade1">Grade 1</option>
+              <option value="grade2" data-i18n="level.grade2">Grade 2</option>
+              <option value="grade3" data-i18n="level.grade3">Grade 3</option>
+            </optgroup>
+            <optgroup data-i18n-label="level.group_intermediate" label="Grade 4–5 (Intermediate)">
+              <option value="grade4" data-i18n="level.grade4">Grade 4</option>
+              <option value="grade5" data-i18n="level.grade5">Grade 5</option>
+            </optgroup>
+            <optgroup data-i18n-label="level.group_advanced" label="Grade 6–8 (Advanced)">
+              <option value="grade6" data-i18n="level.grade6">Grade 6</option>
+              <option value="grade7" data-i18n="level.grade7">Grade 7</option>
+              <option value="grade8" data-i18n="level.grade8">Grade 8</option>
+            </optgroup>
+            <option value="diploma_plus" data-i18n="level.diploma_plus">Diploma level and above</option>
+          </select>
+        </label>
       </div>
       <label class="full-width"><span data-i18n="student.needs_violin">Needs to buy a violin?</span>
         <div class="toggle-btn-group" id="student-needs-violin-group">

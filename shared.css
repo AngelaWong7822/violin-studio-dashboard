@@ -105,7 +105,7 @@ tbody tr td:first-child::before {
   transform: scaleY(0); transform-origin: center; transition: transform 0.15s ease;
 }
 tbody tr:hover td:first-child::before { transform: scaleY(1); }
-button, input, select {
+button, input, select, textarea {
   font: inherit;
   padding: 8px 10px;
   border-radius: 10px;

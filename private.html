@@ -297,7 +297,29 @@
       </label>
       <label><span class="field-label-row"><span class="field-icon">🎂</span><span data-i18n="student.age">Age</span></span><input type="number" id="student-age" min="0" step="1" /></label>
       <label><span class="field-label-row"><span class="field-icon">📱</span><span data-i18n="lead.social_media_name">Social media name</span></span><input type="text" id="student-social" /></label>
-      <label><span class="field-label-row"><span class="field-icon">🎻</span><span data-i18n="lead.level">Level</span></span><input type="text" id="student-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span class="field-label-row"><span class="field-icon">🎻</span><span data-i18n="lead.level">Level</span></span>
+        <select id="student-level">
+          <option value=""></option>
+          <optgroup data-i18n-label="level.group_beginner" label="Beginner (Preparatory)">
+            <option value="beginner" data-i18n="level.beginner">Beginner</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_elementary" label="Grade 1–3 (Elementary)">
+            <option value="grade1" data-i18n="level.grade1">Grade 1</option>
+            <option value="grade2" data-i18n="level.grade2">Grade 2</option>
+            <option value="grade3" data-i18n="level.grade3">Grade 3</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_intermediate" label="Grade 4–5 (Intermediate)">
+            <option value="grade4" data-i18n="level.grade4">Grade 4</option>
+            <option value="grade5" data-i18n="level.grade5">Grade 5</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_advanced" label="Grade 6–8 (Advanced)">
+            <option value="grade6" data-i18n="level.grade6">Grade 6</option>
+            <option value="grade7" data-i18n="level.grade7">Grade 7</option>
+            <option value="grade8" data-i18n="level.grade8">Grade 8</option>
+          </optgroup>
+          <option value="diploma_plus" data-i18n="level.diploma_plus">Diploma level and above</option>
+        </select>
+      </label>
       <label><span class="field-label-row"><span class="field-icon">🔁</span><span data-i18n="private.regular_schedule">Regular weekly time</span></span>
         <div style="display:flex; gap:8px;">
           <select id="student-regular-weekday" style="flex:1;">
@@ -639,7 +661,13 @@
     // classes AND booked consultations (面試, from leads.html) — plus the
     // WhatsApp proposals still awaiting review, which are the "a parent's
     // still deciding, keep it free" holds that also block a suggested slot.
-    const [{ data: appts }, { data: pending }] = await Promise.all([
+    // YYYY-MM-DD in LOCAL calendar terms — make_up_date is a plain date
+    // column (no timezone), and startOfToday/rangeEnd are local midnights,
+    // so toISOString() here would shift by HKT's +8h and can roll onto the
+    // wrong calendar day.
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    const [{ data: appts }, { data: pending }, { data: combinedMakeups }] = await Promise.all([
       supabaseClient.from("appointments")
         .select("id, lead_id, scheduled_start, scheduled_end, type, notes, classes(name), leads!appointments_lead_id_fkey(contacts(name))")
         .neq("status", "cancelled")
@@ -648,6 +676,16 @@
       supabaseClient.from("pending_actions")
         .select("proposed_appointment, messages(contacts(name))")
         .eq("status", "awaiting_review"),
+      // Group-class students' "疊埋上私人堂" make-ups (packages.html) — these
+      // don't get their own appointment row (they piggyback on an existing
+      // private slot, or an informal arrangement outside the booking system
+      // entirely), so without this they're invisible here even though
+      // they're a real commitment on that date.
+      supabaseClient.from("attendance")
+        .select("id, make_up_date, make_up_time, make_up_remark, make_up_extra_fee, students(name, contacts(name))")
+        .eq("make_up_status", "combined_with_private")
+        .gte("make_up_date", ymd(startOfToday))
+        .lt("make_up_date", ymd(rangeEnd)),
     ]);
 
     const busyByDateKey = new Map();
@@ -710,6 +748,34 @@
       });
     });
 
+    // Doesn't feed addBusy() — it isn't a new slot on the calendar, it's
+    // piggybacking on an existing private lesson (or an arrangement made
+    // entirely outside the booking system), so it shouldn't distort the
+    // free-slot suggestions below.
+    const makeupsByDateKey = new Map();
+    (combinedMakeups ?? []).forEach(mu => {
+      if (!mu.make_up_date) return;
+      const d = new Date(`${mu.make_up_date}T00:00:00`);
+      const key = d.toDateString();
+      if (!makeupsByDateKey.has(key)) makeupsByDateKey.set(key, []);
+      // No real time on plenty of these (an informal "私人堂" note with no
+      // slot picked yet) — falls back to noon just to give it a stable
+      // sort position in the day; the label itself only shows a clock
+      // range when make_up_time is actually set. No stored duration either
+      // (make_up_time is a single point, not a slot) — assumes a standard
+      // 45-minute lesson, same fallback used everywhere else in this file
+      // an appointment's own end time isn't known.
+      const start = mu.make_up_time ? `${mu.make_up_date}T${mu.make_up_time}` : `${mu.make_up_date}T12:00:00`;
+      makeupsByDateKey.get(key).push({
+        when: start,
+        whenEnd: new Date(new Date(start).getTime() + 45 * 60000).toISOString(),
+        hasTime: !!mu.make_up_time,
+        name: mu.students?.name || mu.students?.contacts?.name || "",
+        remark: mu.make_up_remark || "",
+        fee: mu.make_up_extra_fee,
+      });
+    });
+
     // This student's own private lessons, for the "已約" part of each column.
     const allLessons = students
       .flatMap(s => s.lessons.map(l => ({ ...l, studentId: s.id, studentName: studentLabel(s), gender: s.contacts?.gender })));
@@ -755,11 +821,26 @@
       }
 
       (holdsByDateKey.get(dateKey) ?? []).forEach(h => items.push({ ...h, kind: "hold" }));
+      (makeupsByDateKey.get(dateKey) ?? []).forEach(m => items.push({ ...m, kind: "makeup" }));
       items.sort((a, b) => new Date(a.when) - new Date(b.when));
 
       const lessonsHtml = items.map(it => {
         if (it.kind === "hold") {
           return `<div class="wc-hold">📌 ${fmtSlotRange(it.start, it.end)}${it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""}</div>`;
+        }
+        if (it.kind === "makeup") {
+          // Read-only here on purpose — editing/undoing this decision
+          // belongs in packages.html's makeup list, where the underlying
+          // attendance row and its fee live.
+          const timeLabel = it.hasTime ? fmtLessonRange(it.when, it.whenEnd) + " · " : "";
+          const feeLabel = it.fee ? ` +$${it.fee}` : "";
+          return `<div class="week-calendar-lesson is-group">
+              <span class="wc-group-icon">🎻</span>
+              <span class="week-calendar-lesson-info">
+                <span class="week-calendar-time">${timeLabel}${t("private.wc_makeup_label")}</span>
+                <span class="week-calendar-name">${it.name}${it.remark ? " · " + it.remark : ""}${feeLabel}</span>
+              </span>
+            </div>`;
         }
         if (it.kind === "group" || it.kind === "consult") {
           const icon = it.kind === "group" ? "👥" : "🔍";
@@ -917,7 +998,7 @@
       const visibleLessons = lessonsOpen ? s.lessons : s.lessons.slice(0, LESSON_COLLAPSE_LIMIT);
       const lessonRows = visibleLessons.map(l => `
         <tr>
-          <td>${new Date(l.when).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
+          <td>${fmtDateTimeWithWeekday(l.when, { withToday: true })}</td>
           <td>${t("format." + l.format)}</td>
           <td><input type="number" min="0" data-price-appt="${l.apptId}" value="${l.price}" /></td>
           <td><button type="button" class="att-toggle att-${l.status || "unset"}" data-appt-id="${l.apptId}" data-student-id="${s.id}" data-attendance-id="${l.attendanceId ?? ""}" data-status="${l.status || ""}">${attendanceSymbol(l.status)}</button></td>
@@ -932,7 +1013,7 @@
       const visibleMessages = messagesOpen ? s.messages : s.messages.slice(0, MESSAGE_COLLAPSE_LIMIT);
       const messageRows = visibleMessages.map(m => `
         <tr>
-          <td>${new Date(m.created_at).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</td>
+          <td>${fmtDateTimeWithWeekday(m.created_at)}</td>
           <td>${t(m.direction === "outbound" ? "private.msg_outbound" : "private.msg_inbound")}</td>
           <td style="white-space:normal; word-break:break-word;">${m.body}</td>
           <td><span class="status-pill status-confirmed">${intentLabel(m.llm_parse_result)}</span></td>
@@ -952,12 +1033,16 @@
       const siblingCount = students.filter(x => x.contact_id === s.contact_id).length;
       const parentTag = (siblingCount > 1 && s.name && s.contacts?.name && s.name !== s.contacts.name)
         ? `<span class="parent-tag" title="${t("private.parent_contact")}">👪 ${s.contacts.name}</span>` : "";
+      // At-a-glance flag for advanced students (Grade 6+) — per Angela: 想
+      // 高級學生有D icon可以分別到.
+      const levelBadge = ADVANCED_LEVELS.has(s.contacts?.level)
+        ? `<span title="${levelLabel(s.contacts.level)}">🌟</span> ` : "";
       const regWeekday = s.regular_weekday, regTime = s.regular_time;
 
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" role="button" tabindex="0" data-edit-schedule="${s.id}" title="${t("private.edit_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime, s.regular_duration_minutes)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${initial}</span>${levelBadge}${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" role="button" tabindex="0" data-edit-schedule="${s.id}" title="${t("private.edit_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime, s.regular_duration_minutes)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
           <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
@@ -1175,6 +1260,20 @@
   document.querySelectorAll(".gender-toggle-btn").forEach(btn => {
     btn.addEventListener("click", () => setDialogGender(btn.dataset.genderOption));
   });
+
+  // Advanced students (Grade 6+) generally book 1-hour lessons here, not the
+  // usual 45 — suggest that the moment the level is picked, but only into an
+  // empty duration field, so it never silently overwrites a duration she's
+  // already set for someone (e.g. a slower-than-usual advanced student).
+  const ADVANCED_LEVELS = new Set(["grade6", "grade7", "grade8", "diploma_plus"]);
+  function maybeDefaultDuration() {
+    const durationEl = document.getElementById("student-regular-duration");
+    if (ADVANCED_LEVELS.has(document.getElementById("student-level").value) && !durationEl.value) {
+      durationEl.value = 60;
+    }
+  }
+  document.getElementById("student-level").addEventListener("change", maybeDefaultDuration);
+
   function openEditStudent(student) {
     if (!student) return;
     const c = student.contacts ?? {};
@@ -1195,6 +1294,7 @@
     document.getElementById("student-regular-weekday").value = (student.regular_weekday ?? c.regular_weekday) ?? "";
     document.getElementById("student-regular-time").value = (student.regular_time ?? c.regular_time) ?? "";
     document.getElementById("student-regular-duration").value = student.regular_duration_minutes ?? "";
+    maybeDefaultDuration();
     const hint = document.getElementById("student-parent-hint");
     const siblings = students.filter(s => s.contact_id === student.contact_id).length;
     if (siblings > 1 && c.name) { hint.textContent = tf("private.same_parent_as", { name: c.name }); hint.hidden = false; }
@@ -1433,6 +1533,30 @@
   // (the same actions the review email's links trigger) so these can also
   // be handled here without having to go find the email.
   let pendingReviews = [];
+
+  // "2026年9月6日(日) 下午6:59" — matches the "(weekday)" convention already
+  // used everywhere else in this app (calendar cards, make-up dates, etc.).
+  // withToday also flags a same-calendar-day date with a "今日" pill —
+  // compares local Y/M/D, not a 24h window, so it still reads "今日" for a
+  // lesson at 9am even if it's already past 9am right now.
+  function fmtDateTimeWithWeekday(isoString, { withToday = false } = {}) {
+    const d = new Date(isoString);
+    const now = new Date();
+    const isToday = withToday && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    const dateLabel = d.toLocaleDateString(localeForDates(), { dateStyle: "medium" });
+    const timeLabel = d.toLocaleTimeString(localeForDates(), { timeStyle: "short" });
+    const todayTag = isToday ? ` <span class="status-pill status-confirmed">${t("common.today")}</span>` : "";
+    return `${dateLabel}(${t("day." + d.getDay())})${todayTag} ${timeLabel}`;
+  }
+
+  // level is a fixed code (see the "程度" dropdown, e.g. "grade7") — falls
+  // back to the raw value for anyone whose level predates that dropdown.
+  function levelLabel(code) {
+    if (!code) return "";
+    const key = "level." + code;
+    const label = t(key);
+    return label === key ? code : label;
+  }
 
   function timeAgo(isoString) {
     const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));

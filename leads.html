@@ -29,7 +29,13 @@
   .lead-card .stage-age { color: #a1a1aa; font-size: 11px; }
   .lead-card .name { font-weight: 600; }
   .lead-card .meta { color: #71717a; font-size: 12px; margin-top: 2px; }
-  .lead-card select, .lead-card input { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
+  .lead-card select, .lead-card input, .lead-card textarea { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
+  .lead-card textarea { resize: none; overflow: hidden; display: block; }
+  .lead-card textarea:read-only, .lead-card input:read-only { background: #f4f4f5; color: #71717a; cursor: default; }
+  .pref-time-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .pref-time-btn { padding: 3px 8px; font-size: 11px; border: 1px solid #d4d4d8; border-radius: 999px; background: #fff; color: #71717a; cursor: pointer; }
+  .pref-time-btn.active { background: #18181b; border-color: #18181b; color: #fff; font-weight: 600; }
+  .pref-time-btn:disabled { cursor: default; opacity: 0.5; }
   .consultation-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .consult-time-label { font-size: 11px; white-space: nowrap; }
   .consultation-row input.consult-time-input { width: auto; flex: 1 1 auto; min-width: 150px; margin-top: 0; font-size: 11px; padding: 3px 4px; }
@@ -131,7 +137,29 @@
       <label><span data-i18n="lead.name">Name</span> <input type="text" id="lead-name" required /></label>
       <label><span data-i18n="lead.phone">WhatsApp number</span> <input type="text" id="lead-phone" data-i18n-placeholder="lead.phone_placeholder" placeholder="+852 9123 4567" /></label>
       <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="lead-social" /></label>
-      <label><span data-i18n="lead.level">Level</span> <input type="text" id="lead-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span data-i18n="lead.level">Level</span>
+        <select id="lead-level">
+          <option value=""></option>
+          <optgroup data-i18n-label="level.group_beginner" label="Beginner (Preparatory)">
+            <option value="beginner" data-i18n="level.beginner">Beginner</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_elementary" label="Grade 1–3 (Elementary)">
+            <option value="grade1" data-i18n="level.grade1">Grade 1</option>
+            <option value="grade2" data-i18n="level.grade2">Grade 2</option>
+            <option value="grade3" data-i18n="level.grade3">Grade 3</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_intermediate" label="Grade 4–5 (Intermediate)">
+            <option value="grade4" data-i18n="level.grade4">Grade 4</option>
+            <option value="grade5" data-i18n="level.grade5">Grade 5</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_advanced" label="Grade 6–8 (Advanced)">
+            <option value="grade6" data-i18n="level.grade6">Grade 6</option>
+            <option value="grade7" data-i18n="level.grade7">Grade 7</option>
+            <option value="grade8" data-i18n="level.grade8">Grade 8</option>
+          </optgroup>
+          <option value="diploma_plus" data-i18n="level.diploma_plus">Diploma level and above</option>
+        </select>
+      </label>
       <label><span data-i18n="lead.age">Age</span> <input type="text" id="lead-age" data-i18n-placeholder="lead.age_placeholder" placeholder="e.g. 6, or 4.5 (K2)" /></label>
       <label><span data-i18n="lead.source">Source</span>
         <select id="lead-source">
@@ -161,7 +189,29 @@
       <label><span data-i18n="lead.name">Name</span> <input type="text" id="lead-edit-name" required /></label>
       <label><span data-i18n="lead.phone">WhatsApp number</span> <input type="text" id="lead-edit-phone" data-i18n-placeholder="lead.phone_placeholder" placeholder="+852 9123 4567" /></label>
       <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="lead-edit-social" /></label>
-      <label><span data-i18n="lead.level">Level</span> <input type="text" id="lead-edit-level" data-i18n-placeholder="lead.level_placeholder" placeholder="e.g. Beginner / Grade 3" /></label>
+      <label><span data-i18n="lead.level">Level</span>
+        <select id="lead-edit-level">
+          <option value=""></option>
+          <optgroup data-i18n-label="level.group_beginner" label="Beginner (Preparatory)">
+            <option value="beginner" data-i18n="level.beginner">Beginner</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_elementary" label="Grade 1–3 (Elementary)">
+            <option value="grade1" data-i18n="level.grade1">Grade 1</option>
+            <option value="grade2" data-i18n="level.grade2">Grade 2</option>
+            <option value="grade3" data-i18n="level.grade3">Grade 3</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_intermediate" label="Grade 4–5 (Intermediate)">
+            <option value="grade4" data-i18n="level.grade4">Grade 4</option>
+            <option value="grade5" data-i18n="level.grade5">Grade 5</option>
+          </optgroup>
+          <optgroup data-i18n-label="level.group_advanced" label="Grade 6–8 (Advanced)">
+            <option value="grade6" data-i18n="level.grade6">Grade 6</option>
+            <option value="grade7" data-i18n="level.grade7">Grade 7</option>
+            <option value="grade8" data-i18n="level.grade8">Grade 8</option>
+          </optgroup>
+          <option value="diploma_plus" data-i18n="level.diploma_plus">Diploma level and above</option>
+        </select>
+      </label>
       <label><span data-i18n="lead.age">Age</span> <input type="text" id="lead-edit-age" data-i18n-placeholder="lead.age_placeholder" placeholder="e.g. 6, or 4.5 (K2)" /></label>
       <label><span data-i18n="lead.source">Source</span>
         <select id="lead-edit-source">
@@ -195,6 +245,12 @@
   window.onLangChange = () => { loadFollowUps(); loadBoard(); };
 
   const STATUSES = ["consultation_booked", "attended", "converted", "lost"];
+  // Once a lead is attended/converted (or lost) its remark fields are done
+  // being actively worked — lock them read-only by default so a stray tap
+  // can't quietly edit settled history; the ✏️ edit button unlocks them
+  // again for a deliberate correction.
+  const LOCK_FROM_INDEX = STATUSES.indexOf("attended");
+  function isLockedStatus(status) { return STATUSES.indexOf(status) >= LOCK_FROM_INDEX; }
   const showLostToggle = document.getElementById("show-lost-toggle");
   showLostToggle.addEventListener("change", loadBoard);
 
@@ -227,6 +283,27 @@
   const OVERDUE_DAYS = 7;
   function daysSince(isoString) {
     return Math.floor((Date.now() - new Date(isoString).getTime()) / 86_400_000);
+  }
+
+  // level is now a fixed code (see the "程度" dropdown, e.g. "grade3") —
+  // translate it for display, but fall back to the raw value for any
+  // lead/student created before this dropdown existed (a free-text level
+  // like "初學" or a typo won't match a "level.*" key, and t() otherwise
+  // just echoes the key back unhelpfully).
+  function levelLabel(code) {
+    if (!code) return "";
+    const key = "level." + code;
+    const label = t(key);
+    return label === key ? code : label;
+  }
+
+  // Grows a free-text textarea to fit its content instead of scrolling
+  // inside a fixed one-line box — the remark/notes fields sometimes get a
+  // full sentence typed in. Called on input AND once up front so an
+  // already-long saved value shows fully expanded, not clipped, on load.
+  function autoGrowTextarea(el) {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
   }
 
   async function loadFollowUps() {
@@ -304,7 +381,7 @@
       leadsInCol.forEach(lead => {
         const c = lead.contacts;
         const metaParts = [];
-        if (c?.level) metaParts.push(c.level);
+        if (c?.level) metaParts.push(levelLabel(c.level));
         if (c?.age) metaParts.push(c.age);
         if (c?.social_media_name) metaParts.push(c.social_media_name);
 
@@ -419,27 +496,104 @@
         });
         card.appendChild(select);
 
-        const preferredTimesInput = document.createElement("input");
-        preferredTimesInput.type = "text";
+        // A dedicated lock button (not the ✏️ edit button — that one only
+        // opens the edit-lead dialog, nothing else) controls this. Starts
+        // locked whenever isLockedStatus(status) says so; toggling only
+        // ever affects this one card's own view, resets back to locked on
+        // the next board reload.
+        let fieldsUnlocked = false;
+        function fieldsLocked() { return isLockedStatus(status) && !fieldsUnlocked; }
+
+        const preferredTimesInput = document.createElement("textarea");
+        preferredTimesInput.rows = 1;
         preferredTimesInput.placeholder = t("lead.preferred_times_placeholder");
         preferredTimesInput.value = lead.preferred_times ?? "";
-        preferredTimesInput.addEventListener("change", async () => {
+        preferredTimesInput.addEventListener("input", () => autoGrowTextarea(preferredTimesInput));
+        async function savePreferredTimes() {
           const { error } = await supabaseClient
             .from("leads")
             .update({ preferred_times: preferredTimesInput.value || null })
             .eq("id", lead.id);
           if (error) showToast("Update failed: " + error.message, "error");
-        });
+        }
+        preferredTimesInput.addEventListener("change", savePreferredTimes);
         card.appendChild(preferredTimesInput);
+        // Deferred: this card (and the column it's in) isn't attached to
+        // the live document yet at this point in the loop, so scrollHeight
+        // would just read 0 (or an unsettled, wrong value if measured mid-
+        // layout) — double-rAF waits for a full paint to actually land
+        // before measuring, which a single rAF isn't reliably guaranteed to do.
+        requestAnimationFrame(() => requestAnimationFrame(() => autoGrowTextarea(preferredTimesInput)));
+
+        // Quick-tick weekday/time-of-day picker — most consultation
+        // comments are exactly "which day/time does the parent prefer",
+        // so this saves retyping it out every time. Ticking never wipes
+        // whatever's already in the box: it strips only the phrase THIS
+        // picker last inserted (if that's still there untouched) and
+        // appends the freshly-ticked one, so a manually-typed remark like
+        // "應該係小學學生" survives sitting alongside it.
+        const pickerState = { days: new Set(), periods: new Set(), lastChunk: "" };
+        function buildPickerSummary() {
+          const dayLabels = [...pickerState.days].sort((a, b) => a - b).map(d => t("day." + d));
+          const periodLabels = [...pickerState.periods].map(p => t("lead.period_" + p));
+          return [...dayLabels, ...periodLabels].join("、");
+        }
+        function applyPickerSummary() {
+          const summary = buildPickerSummary();
+          // lastChunk is exactly what the PREVIOUS tick appended (separator
+          // included) — stripping via endsWith (not a mid-string replace)
+          // only ever touches what the picker itself put at the end, so a
+          // manually-typed remark before it is never touched. If she's typed
+          // something new after the picker's chunk since the last tick, the
+          // endsWith check just fails and this appends fresh instead of
+          // guessing what to remove.
+          let current = preferredTimesInput.value;
+          if (pickerState.lastChunk && current.endsWith(pickerState.lastChunk)) {
+            current = current.slice(0, current.length - pickerState.lastChunk.length);
+          }
+          const chunk = (current && summary ? " · " : "") + summary;
+          preferredTimesInput.value = current + chunk;
+          pickerState.lastChunk = summary ? chunk : "";
+          autoGrowTextarea(preferredTimesInput);
+          savePreferredTimes();
+        }
+        const picker = document.createElement("div");
+        picker.className = "pref-time-picker";
+        for (let d = 0; d < 7; d++) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "pref-time-btn";
+          btn.textContent = t("day." + d);
+          btn.addEventListener("click", () => {
+            if (pickerState.days.has(d)) pickerState.days.delete(d); else pickerState.days.add(d);
+            btn.classList.toggle("active");
+            applyPickerSummary();
+          });
+          picker.appendChild(btn);
+        }
+        ["morning", "afternoon", "evening"].forEach(period => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "pref-time-btn";
+          btn.textContent = t("lead.period_" + period);
+          btn.addEventListener("click", () => {
+            if (pickerState.periods.has(period)) pickerState.periods.delete(period); else pickerState.periods.add(period);
+            btn.classList.toggle("active");
+            applyPickerSummary();
+          });
+          picker.appendChild(btn);
+        });
+        card.appendChild(picker);
 
         // A separate free-text field from "preferred times" — that one's
         // specifically for scheduling preferences; general remarks (family
         // background, how the trial went, etc.) belong on the contact's own
         // notes column instead of overloading the times field with them.
-        const notesInput = document.createElement("input");
-        notesInput.type = "text";
+        const notesInput = document.createElement("textarea");
+        notesInput.rows = 1;
         notesInput.placeholder = t("lead.notes_placeholder");
         notesInput.value = c?.notes ?? "";
+        notesInput.addEventListener("input", () => autoGrowTextarea(notesInput));
         notesInput.addEventListener("change", async () => {
           const { error } = await supabaseClient
             .from("contacts")
@@ -448,9 +602,11 @@
           if (error) showToast("Update failed: " + error.message, "error");
         });
         card.appendChild(notesInput);
+        requestAnimationFrame(() => requestAnimationFrame(() => autoGrowTextarea(notesInput)));
 
+        let lostReasonInput = null;
         if (status === "lost") {
-          const lostReasonInput = document.createElement("input");
+          lostReasonInput = document.createElement("input");
           lostReasonInput.type = "text";
           lostReasonInput.placeholder = t("lead.lost_reason_placeholder");
           lostReasonInput.value = lead.lost_reason ?? "";
@@ -488,6 +644,35 @@
           });
           actionsRow.appendChild(followUpBtn);
         }
+
+        // A dedicated lock toggle — separate from ✏️ edit, which only opens
+        // the edit-lead dialog and does nothing to these fields. Only shown
+        // where locking can ever apply (isLockedStatus(status)); "已約諮詢"
+        // cards are always editable and don't need one.
+        let lockBtn = null;
+        if (isLockedStatus(status)) {
+          lockBtn = document.createElement("button");
+          lockBtn.type = "button";
+          lockBtn.className = "icon-action-btn";
+          lockBtn.addEventListener("click", () => {
+            fieldsUnlocked = !fieldsUnlocked;
+            applyFieldLock();
+          });
+          actionsRow.appendChild(lockBtn);
+        }
+
+        function applyFieldLock() {
+          const isLocked = fieldsLocked();
+          preferredTimesInput.readOnly = isLocked;
+          notesInput.readOnly = isLocked;
+          if (lostReasonInput) lostReasonInput.readOnly = isLocked;
+          picker.querySelectorAll(".pref-time-btn").forEach(btn => { btn.disabled = isLocked; });
+          if (lockBtn) {
+            lockBtn.textContent = isLocked ? "🔒" : "🔓";
+            lockBtn.title = t(isLocked ? "lead.unlock_fields" : "lead.lock_fields");
+          }
+        }
+        applyFieldLock();
 
         const editBtn = document.createElement("button");
         editBtn.type = "button";
