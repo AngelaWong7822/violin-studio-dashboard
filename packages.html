@@ -1926,15 +1926,22 @@
       // separate on purpose), but a student shouldn't silently drop off this
       // filtered list just because their 8/8 regular lessons are settled
       // while a combined-with-private extra fee is still owed.
-      visible = visible.filter(s => s.entries.some(({ lessons }) =>
-        lessons.some(l => !l.paid) || extraFeeLessons(lessons).some(l => !l.make_up_extra_fee_paid)));
+      visible = visible.filter(s => s.entries.some(({ pkg, lessons }) =>
+        (Number(pkg.price) > 0 && lessons.some(l => !l.paid)) || extraFeeLessons(lessons).some(l => !l.make_up_extra_fee_paid)));
     }
     if (!visible.length) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">${t("payments.empty")}</td></tr>`; return; }
 
     paymentRowsEl.innerHTML = visible.map((student) => {
       const totalAmount = student.entries.reduce((sum, { pkg, lessons }) => sum + effectivePrice(pkg, lessons), 0);
       const totalExtraFee = student.entries.reduce((sum, { lessons }) => sum + extraFeeTotal(lessons), 0);
-      const allLessons = student.entries.flatMap(({ lessons }) => lessons);
+      // A package manually zeroed out (e.g. cancelled before it ever
+      // started — see cancelPackage()'s comment: price itself is never
+      // touched by a plain withdraw, so this is a deliberate "nothing owed"
+      // marker) has nothing left to collect, so none of its lesson slots
+      // belong in the "already paid" ratio — otherwise a cancelled term's
+      // untouched, never-billed "—" rows just read as outstanding unpaid
+      // lessons forever.
+      const allLessons = student.entries.filter(({ pkg }) => Number(pkg.price) > 0).flatMap(({ lessons }) => lessons);
       const paidCount = allLessons.filter(l => l.paid).length;
       const isOpen = paymentExpandedIds.has(student.studentId);
 
@@ -2833,7 +2840,7 @@
     document.getElementById("student-id").value = student.id;
     document.getElementById("student-contact-id").value = student.contact_id;
     document.getElementById("student-name").value = groupStudentLabel(student);
-    document.getElementById("student-phone").value = c.whatsapp_number ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number || "852";
     document.getElementById("student-gender").value = c.gender ?? "male";
     document.getElementById("student-social").value = c.social_media_name ?? "";
     document.getElementById("student-level").value = c.level ?? "";
@@ -2861,6 +2868,11 @@
     document.getElementById("student-contact-id").value = "";
     document.getElementById("student-edit-class-field").style.display = "none";
     document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
+    // Defaults to the "852" prefix so she only has to type the 8 digits —
+    // a hand-typed number missing this (or with a "+"/spaces) doesn't match
+    // whatsapp-ingest's stored format and silently creates a duplicate
+    // "shadow" contact instead of linking to the real WhatsApp conversation.
+    document.getElementById("student-phone").value = "852";
     setNeedsViolinToggle("not_needed");
     studentDialog.showModal();
   });

@@ -1284,7 +1284,7 @@
     document.getElementById("student-sibling-contact-id").value = "";
     document.getElementById("student-name").value = label;
     document.getElementById("student-dialog-avatar").textContent = (label || "?").trim().charAt(0).toUpperCase() || "?";
-    document.getElementById("student-phone").value = c.whatsapp_number ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number || "852";
     setDialogGender(c.gender ?? "male");
     document.getElementById("student-social").value = c.social_media_name ?? "";
     document.getElementById("student-level").value = c.level ?? "";
@@ -1310,7 +1310,7 @@
     document.getElementById("student-sibling-contact-id").value = contactId;
     document.getElementById("student-dialog-title").textContent = t("private.add_sibling");
     document.getElementById("student-dialog-avatar").textContent = "?";
-    document.getElementById("student-phone").value = c.whatsapp_number ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number || "852";
     setDialogGender("female");
     document.getElementById("student-regular-weekday").value = "";
     document.getElementById("student-regular-time").value = "";
@@ -1328,6 +1328,11 @@
     document.getElementById("student-sibling-contact-id").value = "";
     document.getElementById("student-dialog-title").textContent = t("dialog.new_student");
     document.getElementById("student-dialog-avatar").textContent = "?";
+    // Defaults to the "852" prefix so she only has to type the 8 digits —
+    // a hand-typed number missing this (or with a "+"/spaces) doesn't match
+    // whatsapp-ingest's stored format and silently creates a duplicate
+    // "shadow" contact instead of linking to the real WhatsApp conversation.
+    document.getElementById("student-phone").value = "852";
     setDialogGender("male");
     document.getElementById("student-regular-weekday").value = "";
     document.getElementById("student-regular-time").value = "";

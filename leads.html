@@ -724,6 +724,11 @@
   const dialog = document.getElementById("lead-dialog");
   document.getElementById("new-lead-btn").addEventListener("click", () => {
     document.getElementById("lead-form").reset();
+    // Defaults to the "852" prefix so she only has to type the 8 digits —
+    // a hand-typed number missing this (or with a "+"/spaces) doesn't match
+    // whatsapp-ingest's stored format and silently creates a duplicate
+    // "shadow" contact instead of linking to the real WhatsApp conversation.
+    document.getElementById("lead-phone").value = "852";
     dialog.showModal();
   });
   document.getElementById("lead-cancel-btn").addEventListener("click", () => dialog.close());
@@ -818,7 +823,7 @@
     const c = lead.contacts;
     document.getElementById("lead-edit-contact-id").value = lead.contact_id;
     document.getElementById("lead-edit-name").value = c?.name ?? "";
-    document.getElementById("lead-edit-phone").value = c?.whatsapp_number ?? "";
+    document.getElementById("lead-edit-phone").value = c?.whatsapp_number || "852";
     document.getElementById("lead-edit-social").value = c?.social_media_name ?? "";
     document.getElementById("lead-edit-level").value = c?.level ?? "";
     document.getElementById("lead-edit-age").value = c?.age ?? "";
