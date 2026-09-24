@@ -85,6 +85,10 @@
   .icon-delete-btn:hover { color: #b91c1c; background: #fef2f2; }
   .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
   .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
+  .icon-action-btn.tutoring-off { filter: grayscale(1); opacity: 0.45; }
+  .icon-action-btn.tutoring-off:hover { filter: none; opacity: 1; }
+  .tutoring-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f1; font-size: 13px; }
+  .tutoring-row input { flex: 1; min-width: 160px; font-size: 13px; padding: 4px 8px; }
   .icon-action-btn.danger { color: #b91c1c; }
   .icon-action-btn.danger:hover { background: #fef2f2; }
 
@@ -285,6 +289,11 @@
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
+  <div class="card">
+    <h1 style="margin:0 0 8px;" data-i18n="tutoring.title">Students needing extra help</h1>
+    <div id="tutoring-list"><p class="empty" data-i18n="tutoring.empty">Nobody flagged.</p></div>
+  </div>
+
   <div class="card" id="attendance-card" style="display:none;">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
       <h1 data-i18n="attendance.title" style="margin:0;">Attendance</h1>
@@ -2448,6 +2457,19 @@
     tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
       btn.addEventListener("click", () => deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)));
     });
+    tbody.querySelectorAll("button[data-toggle-tutoring]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const student = students.find(s => s.id === btn.dataset.toggleTutoring);
+        if (!student) return;
+        const { error } = await supabaseClient.from("students")
+          .update({ needs_tutoring: !student.needs_tutoring }).eq("id", student.id);
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        // Full reload rather than patching the button in place — the rows
+        // are re-drawn from cached HTML (search/collapse), so a local-only
+        // tweak would flip back the next time the list re-renders.
+        await loadStudents();
+      });
+    });
     // Withdraw mid-term (not at the class's next "+8 more weeks" renewal
     // point) — the only other path to "withdrawn" before this was
     // unticking someone in that renewal dialog, which doesn't help if
@@ -2568,11 +2590,54 @@
   document.getElementById("student-search").addEventListener("input", renderStudentRows);
   document.getElementById("student-class-filter").addEventListener("change", renderStudentRows);
 
+  // One full list of every flagged (📚) student across all classes — no
+  // class selection needed. A withdrawn student is left off: there's no
+  // ongoing tuition to top up for someone who's quit.
+  function renderTutoringList() {
+    const listEl = document.getElementById("tutoring-list");
+    const flagged = students
+      .filter(s => s.needs_tutoring && s.currentPkg?.status !== "cancelled")
+      .sort((a, b) => groupStudentLabel(a).localeCompare(groupStudentLabel(b), "zh-Hant"));
+    if (!flagged.length) {
+      listEl.innerHTML = `<p class="empty">${t("tutoring.empty")}</p>`;
+      return;
+    }
+    const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    listEl.innerHTML = flagged.map(s => {
+      const cls = s.currentPkg?.classes;
+      const classLabel = cls ? `${cls.name} (${t("day." + cls.weekly_day_of_week)} ${cls.weekly_start_time.slice(0, 5)})` : "";
+      return `
+        <div class="tutoring-row">
+          <strong>${esc(groupStudentLabel(s))}</strong>
+          <span style="color:#71717a;">${esc(classLabel)}</span>
+          <input type="text" data-tutoring-note="${s.id}" value="${esc(s.tutoring_note)}" placeholder="${esc(t("tutoring.note_placeholder"))}" />
+          <button type="button" class="icon-action-btn danger" data-tutoring-remove="${s.id}" title="${esc(t("tutoring.toggle_on"))}" aria-label="${esc(t("tutoring.toggle_on"))}">✕</button>
+        </div>`;
+    }).join("");
+
+    listEl.querySelectorAll("input[data-tutoring-note]").forEach(input => {
+      input.addEventListener("change", async () => {
+        const student = students.find(s => s.id === input.dataset.tutoringNote);
+        const note = input.value.trim() || null;
+        const { error } = await supabaseClient.from("students").update({ tutoring_note: note }).eq("id", input.dataset.tutoringNote);
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        if (student) student.tutoring_note = note;
+      });
+    });
+    listEl.querySelectorAll("button[data-tutoring-remove]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const { error } = await supabaseClient.from("students").update({ needs_tutoring: false }).eq("id", btn.dataset.tutoringRemove);
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        await loadStudents();
+      });
+    });
+  }
+
   async function loadStudents() {
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
-      .select("id, contact_id, name, contacts(name, whatsapp_number, gender, social_media_name, level, age, violin_status, violin_borrow_date)")
+      .select("id, contact_id, name, needs_tutoring, tutoring_note, contacts(name, whatsapp_number, gender, social_media_name, level, age, violin_status, violin_borrow_date)")
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
@@ -2749,6 +2814,7 @@
           <td>${statusCell}</td>
           <td style="white-space:nowrap;">
             <button type="button" class="icon-action-btn" data-edit-student="${s.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
+            <button type="button" class="icon-action-btn${s.needs_tutoring ? "" : " tutoring-off"}" data-toggle-tutoring="${s.id}" title="${t(s.needs_tutoring ? "tutoring.toggle_on" : "tutoring.toggle_off")}" aria-label="${t("tutoring.toggle_off")}">📚</button>
             ${pkg?.status === "active" ? `<button type="button" class="icon-action-btn" data-withdraw-student="${s.id}" title="${t("student.withdraw")}" aria-label="${t("student.withdraw")}">🚪</button>` : ""}
             ${enrollActionBtn}
             <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
@@ -2772,6 +2838,7 @@
     });
     studentRowsCache = rowsHtml;
     renderStudentRows();
+    renderTutoringList();
 
     await refreshAttendanceSection();
     await loadPayments();
