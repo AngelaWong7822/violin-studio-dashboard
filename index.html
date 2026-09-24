@@ -12,7 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 14px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
-  .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
+  .icon-action-btn:hover { color: #9a3412; background: #ffedd5; }
 </style>
 </head>
 <body>
@@ -304,7 +304,7 @@
         const timeLabel = d.toLocaleTimeString(localeForDates(), { hour: "2-digit", minute: "2-digit" });
         const summaryLabel = `${dayLabel} ${timeLabel} — ${apptWith(first)} (${tf("schedule.group_lessons_count", { n: group.length })})`;
         rowsHtml.push(`
-          <tr class="pkg-summary-row" data-pkg-toggle="${a.package_id}" style="cursor:pointer; background:#fafafa;">
+          <tr class="pkg-summary-row" data-pkg-toggle="${a.package_id}" style="cursor:pointer; background:#fff7ed;">
             <td colspan="2"><span class="pkg-arrow">▶</span> ${t("type.group_class")}</td>
             <td colspan="4">${summaryLabel}</td>
           </tr>

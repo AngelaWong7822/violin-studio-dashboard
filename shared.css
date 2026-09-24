@@ -1,6 +1,8 @@
+@import url("https://fonts.googleapis.com/css2?family=Huninn&display=swap");
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow-x: hidden; }
 body {
-  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: "Huninn", "jf-openhuninn-2.0", -apple-system, "Segoe UI", "Microsoft JhengHei", Helvetica, Arial, sans-serif;
   margin: 0;
   background: #f7f7f8;
   color: #18181b;
@@ -22,6 +24,7 @@ header.topnav {
 header.topnav .brand { font-weight: 600; margin-right: 20px; display: inline-flex; align-items: center; gap: 8px; color: #18181b; }
 header.topnav .brand-logo { height: 28px; width: auto; display: block; }
 header.topnav a {
+  line-height: 1.4;
   color: #52525b;
   text-decoration: none;
   padding: 8px 16px;
@@ -32,6 +35,8 @@ header.topnav a {
 header.topnav a.active, header.topnav a:hover { background: #f4f4f5; color: #18181b; }
 header.topnav .spacer { flex: 1; }
 header.topnav button {
+  font-size: 14px;
+  line-height: 1.4;
   background: transparent;
   border: 1px solid #d4d4d8;
   color: #52525b;
@@ -328,3 +333,65 @@ dialog::backdrop {
   border-radius: 10px;
 }
 .reply-template-add button { align-self: flex-end; }
+
+/* ==== Warm cute tone — one theme for every page (peach / yellow / orange) ==== */
+body { background: #fffaf3; color: #431407; }
+header.topnav { background: rgba(255, 237, 213, 0.92); border-bottom: 1.5px solid #fdba74; }
+header.topnav .brand { color: #9a3412; }
+header.topnav a { color: #9a3412; }
+header.topnav a.active { background: #fed7aa; color: #7c2d12; font-weight: 700; }
+header.topnav a:hover { background: #ffedd5; color: #7c2d12; }
+header.topnav button { border-color: #fdba74; color: #c2410c; background: #fff; }
+header.topnav button:hover { background: #ffedd5; border-color: #fb923c; color: #7c2d12; }
+.settings-menu { background: #fffaf3; border: 1.5px solid #fdba74; border-radius: 16px; }
+.settings-menu button { border-color: #fed7aa; color: #9a3412; border-radius: 999px; }
+.settings-menu button:hover { background: #ffedd5; }
+#settings-lang-toggle { background: #ea580c; border-color: #ea580c; color: #fff; }
+#settings-lang-toggle:hover { background: #c2410c; border-color: #c2410c; }
+h1 { color: #9a3412; }
+.card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); border: 1.5px solid #fdba74; border-radius: 20px; box-shadow: 0 2px 8px rgba(194, 65, 12, 0.08); }
+.card table { border-collapse: separate; border-spacing: 0; }
+.card thead th { background: #fed7aa; color: #9a3412; font-weight: 700; border-bottom: none; }
+.card thead th:first-child { border-top-left-radius: 12px; }
+.card thead th:last-child { border-top-right-radius: 12px; }
+.card tbody tr { background: #fff; }
+.card tbody tr:hover { background: #fff7ed; }
+.card tbody td { border-bottom: 1px dashed #fed7aa; }
+tbody tr td:first-child::before { background: #fb923c; }
+.empty { color: #c2410c; }
+button, input, select, textarea { border-color: #fdba74; }
+input:focus, select:focus, textarea:focus { border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12); }
+button.primary { background: #ea580c; border-radius: 999px; box-shadow: 0 1px 3px rgba(194, 65, 12, 0.3); }
+button.primary:hover { background: #c2410c; box-shadow: 0 2px 8px rgba(194, 65, 12, 0.35); }
+button.link { color: #c2410c; }
+.toast { background: #7c2d12; border-radius: 14px; }
+.toast.toast-success { background: #15803d; }
+.toast.toast-error { background: #be123c; }
+.confirm-dialog { border: 1.5px solid #fdba74; border-radius: 20px; background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); color: #431407; }
+dialog { border: 1.5px solid #fdba74; }
+dialog::backdrop { background: rgba(124, 45, 18, 0.30); }
+.reply-template-add { border-color: #fdba74; background: #fff7ed; }
+
+/* ==== Violin flavour ==== */
+body {
+  background-color: #fffaf3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cg fill='%23fdba74' fill-opacity='0.22' font-family='serif'%3E%3Ctext x='14' y='40' font-size='26' transform='rotate(-12 14 40)'%3E%E2%99%AA%3C/text%3E%3Ctext x='102' y='84' font-size='30' transform='rotate(10 102 84)'%3E%E2%99%AB%3C/text%3E%3Ctext x='40' y='140' font-size='24' transform='rotate(8 40 140)'%3E%F0%9D%84%9E%3C/text%3E%3C/g%3E%3C/svg%3E");
+}
+header.topnav {
+  border-bottom: none;
+  box-shadow: 0 1.5px 0 #fdba74, 0 4px 0 #fff7ed, 0 5.5px 0 #fed7aa;
+}
+header.topnav .brand::after { content: "🎻"; margin-left: 2px; }
+h1::after { content: " ♪"; color: #fb923c; font-weight: 400; }
+
+/* ==== Settings menu — little speech bubble ==== */
+.settings-menu { top: 140%; min-width: 210px; padding: 14px 12px 12px; gap: 8px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border: 2px dashed #fdba74; border-radius: 22px; box-shadow: 0 8px 22px rgba(194, 65, 12, 0.18); }
+.settings-menu::before { content: "♪ ⚙️ ♫"; display: block; text-align: center; font-size: 13px; font-weight: 700; color: #c2410c; padding-bottom: 8px; border-bottom: 1.5px dotted #fdba74; margin-bottom: 2px; }
+.settings-menu::after { content: ""; position: absolute; top: -8px; right: 16px; width: 14px; height: 14px; background: #fff7ed; border-left: 2px dashed #fdba74; border-top: 2px dashed #fdba74; transform: rotate(45deg); }
+.settings-menu button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 14px; font-weight: 700; border-radius: 999px; box-shadow: 0 2px 0 rgba(194, 65, 12, 0.15); transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease; }
+.settings-menu button:hover { transform: translateY(-1px); box-shadow: 0 3px 0 rgba(194, 65, 12, 0.2); }
+#settings-lang-toggle { background: #fde68a; border: 1.5px solid #fbbf24; color: #78350f; }
+#settings-lang-toggle:hover { background: #fcd34d; border-color: #f59e0b; color: #78350f; }
+#settings-lang-toggle::before { content: "🌐"; }
+#settings-export-btn { background: #dcfce7; border: 1.5px solid #86efac; color: #166534; }
+#settings-export-btn:hover { background: #bbf7d0; }

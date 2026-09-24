@@ -202,6 +202,106 @@
   .pending-review-row .link.approve { color: #1e6b34; }
   .pending-review-row .link.reject { color: #b91c1c; }
   .pending-review-row .pending-date, .pending-review-row .pending-time { font-size: 13px; padding: 2px 4px; }
+
+  /* ---- warm cute tone (same as packages.html) ---- */
+  .card.cute-card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); border: 1.5px solid #fdba74; }
+  .cute-card h1 { color: #9a3412; }
+  .cute-review h1::before { content: "📨 "; }
+  .cute-private h1::before { content: "🧸 "; }
+  .cute-card table { border-collapse: separate; border-spacing: 0; }
+  .cute-card thead th { background: #fed7aa; color: #9a3412; font-weight: 700; border-bottom: none; }
+  .cute-card thead th:first-child { border-top-left-radius: 12px; }
+  .cute-card thead th:last-child { border-top-right-radius: 12px; }
+  .cute-card tbody tr { background: #fff; }
+  .cute-card tbody tr:hover, .cute-card .student-row:hover { background: #fff7ed; }
+  .cute-card tbody td { border-bottom: 1px dashed #fed7aa; }
+  .cute-card tbody tr td:first-child::before { background: #fb923c; }
+  .cute-card tr.student-detail, .cute-card tr.student-detail:hover { background: #fffaf3; }
+  .cute-card .empty { color: #c2410c; }
+  .cute-card #student-search { border-color: #fdba74; border-radius: 999px; background: #fff; }
+  .cute-card .count-pill { background: #ffedd5; color: #9a3412; }
+  .cute-card .count-pill-paid { background: #fed7aa; color: #9a3412; }
+  .cute-card .next-lesson-badge { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+  .cute-card .regular-schedule-badge { background: #ffedd5; color: #c2410c; }
+  .cute-card .regular-schedule-badge[data-edit-schedule]:hover { background: #fed7aa; }
+  .cute-card .parent-tag { background: #fff7ed; color: #9a3412; }
+  .cute-card .detail-table th { color: #c2410c; font-weight: 600; }
+  .cute-card .detail-table tr:nth-child(even) { background: #fff7ed; }
+  .cute-card .att-toggle { background: #e7e5e4; color: #78716c; }
+  .cute-card .att-toggle.att-attended { background: #86efac; color: #14532d; }
+  .cute-card .att-toggle.att-leave { background: #fbbf24; color: #78350f; }
+  .cute-card .att-toggle.att-no_show { background: #fda4af; color: #9f1239; }
+  .cute-card .toggle-switch input:checked + .slider { background: linear-gradient(135deg, #fdba74, #ea580c); }
+  .cute-card .row-menu-btn:hover, .cute-card .icon-action-btn:hover { background: #ffedd5; }
+  .cute-card .week-calendar-name-link:hover { color: #c2410c; }
+  /* week calendar */
+  .cute-week .week-calendar-day { background: #fff; border: 1px solid #fed7aa; }
+  .cute-week .week-calendar-day.is-today { background: #fffbeb; border: 1.5px solid #f59e0b; }
+  .cute-week .week-calendar-daynum { color: #9a3412; }
+  .cute-week .week-calendar-day-header { border-bottom: 1px dashed #fed7aa; }
+  .cute-week .wc-slots { border-top-color: #fed7aa; }
+  .cute-week .wc-slot { background: linear-gradient(135deg, #bbf7d0, #d1fae5); color: #065f46; }
+  .cute-week .free-slots-settings { background: #fff7ed; border-color: #fed7aa; }
+  /* teaching days: soft pill chips (on = peach + deep-orange text, off = white dashed) instead of loud solid blocks */
+  .cute-week .fs-weekday-toggles { gap: 8px; }
+  .cute-week .fs-weekday-btn { width: 40px; height: 34px; border-radius: 999px; border: 1.5px dashed #fdba74; background: #fff; color: #c2410c; font-weight: 600; transition: background-color .12s ease, transform .1s ease; }
+  .cute-week .fs-weekday-btn:hover { background: #fff7ed; transform: translateY(-1px); }
+  .cute-week .fs-weekday-btn.on { background: #fed7aa; border: 1.5px solid #fb923c; color: #9a3412; font-weight: 800; box-shadow: 0 1px 3px rgba(194, 65, 12, .18); }
+  .cute-week .free-slots-settings input { border-color: #fdba74; border-radius: 999px; background: #fff; padding-left: 14px; font-weight: 400; color: #27272a; }
+  .cute-week .free-slots-settings .fs-field { color: #9a3412; font-weight: 700; font-size: 13px; }
+  .cute-week .free-slots-settings .fs-field > span[style] { color: #c2410c !important; font-weight: 500; font-size: 11.5px; }
+  .cute-week .free-slots-settings { border-style: dashed; border-radius: 18px; padding: 16px 18px; gap: 14px; }
+  .cute-week .free-slots-settings #fs-save { background: #ea580c; border-color: #ea580c; color: #fff; border-radius: 999px; padding: 8px 22px; }
+  .cute-week .free-slots-settings #fs-save:hover { background: #c2410c; }
+  /* pending WhatsApp reviews */
+  .cute-review .pending-review-row { background: #fff; border: 1px solid #fed7aa; border-bottom: 1px solid #fed7aa; border-radius: 16px; padding: 10px 14px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(194, 65, 12, .10); }
+  .cute-review .pending-review-row:last-child { border-bottom: 1px solid #fed7aa; }
+
+  /* ---- calendar: one warm family, each lesson type still tells apart ---- */
+  .cute-week .week-calendar-day { background: #fffaf3; }
+  .cute-week .week-calendar-day.is-today { background: #fef3c7; }
+  .cute-week .week-calendar-lesson { border: 1px solid #fed7aa; box-shadow: 0 1px 3px rgba(194, 65, 12, .08); }
+  .cute-week .week-calendar-lesson.is-group { background: #ffedd5; border-color: #fdba74; box-shadow: none; }
+  .cute-week .week-calendar-lesson.is-group .week-calendar-time { color: #c2410c; }
+  .cute-week .week-calendar-lesson.is-group .week-calendar-name { color: #9a3412; }
+  .cute-week .week-calendar-lesson.is-consult { background: #ffe4e6; border-color: #fda4af; box-shadow: none; }
+  .cute-week .week-calendar-lesson.is-consult .week-calendar-time { color: #be123c; }
+  .cute-week .week-calendar-lesson.is-consult .week-calendar-name { color: #9f1239; }
+  .cute-week .week-calendar-lesson.is-group.is-makeup { background: #ecfccb; border-color: #bef264; }
+  .cute-week .week-calendar-lesson.is-group.is-makeup .week-calendar-time { color: #4d7c0f; }
+  .cute-week .week-calendar-lesson.is-group.is-makeup .week-calendar-name { color: #3f6212; }
+  .cute-week .wc-hold { background: #fff7ed; border-color: #fb923c; color: #9a3412; }
+  .cute-week .wc-undated { background: #fff7ed; }
+  .cute-week .wc-slots-label { color: #15803d; }
+
+  /* ---- dialogs ---- */
+  #student-dialog, #lesson-dialog { border: 1.5px solid #fdba74 !important; border-radius: 16px !important; }
+  #student-dialog .card, #lesson-dialog .card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); }
+  #student-dialog h1, #lesson-dialog h1 { color: #9a3412; }
+  #student-dialog input, #student-dialog select, #lesson-dialog input, #lesson-dialog select, #lesson-dialog textarea { border-color: #fdba74; background: #fff; border-radius: 12px; }
+  #student-dialog input:focus, #student-dialog select:focus, #lesson-dialog input:focus, #lesson-dialog select:focus { border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, .12); }
+  #student-dialog .field-label-row, #lesson-dialog label { color: #7c2d12; }
+  #student-parent-hint { color: #9a3412 !important; background: #fff7ed !important; border: 1px solid #fed7aa; }
+
+  /* ---- student dialog: wide 2-column layout so it fits without scrolling ---- */
+  #student-dialog { width: 580px !important; max-width: 94vw; }
+  #student-dialog .card { padding: 16px 22px 18px; }
+  #student-form > div[style*="flex-direction:column"] { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px 16px !important; }
+  #student-form > div[style*="flex-direction:column"] > p,
+  #student-form > div[style*="flex-direction:column"] > label:has(#student-regular-weekday),
+  #student-form > div[style*="flex-direction:column"] > div { grid-column: 1 / -1; }
+  #student-form label { gap: 3px; font-size: 13px; font-weight: 700; color: #9a3412; }
+  #student-form .field-label-row { font-weight: 700; }
+  #student-form label input, #student-form label select { font-weight: 400; color: #27272a; padding: 6px 12px; font-size: 14px; border-radius: 999px; }
+  #student-form .gender-toggle-group { margin-top: 0; }
+  #student-form .gender-toggle-btn { padding: 6px; border-radius: 999px; border-color: #fdba74; font-size: 13px; }
+  #student-form .gender-toggle-btn.active.gender-male { background: #7dd3fc; border-color: #38bdf8; color: #0c4a6e; }
+  #student-form .gender-toggle-btn.active.gender-female { background: #f9a8d4; border-color: #f472b6; color: #831843; }
+  #student-form button.primary { border-radius: 999px; padding: 8px 24px; }
+  #student-form #student-regular-duration { width: 92px !important; }
+  @media (max-width: 600px) {
+    #student-form > div[style*="flex-direction:column"] { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -226,7 +326,7 @@
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
-  <div class="card">
+  <div class="card cute-card cute-week">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="private.week_bookings_title">This Week's Bookings</h1>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -248,11 +348,11 @@
     </div>
     <div id="week-bookings-list"></div>
   </div>
-  <div class="card" id="pending-reviews-card" style="display:none;">
+  <div class="card cute-card cute-review" id="pending-reviews-card" style="display:none;">
     <h1 style="margin:0 0 10px;" data-i18n="private.pending_reviews_title">WhatsApp bookings needing review</h1>
     <div id="pending-reviews"></div>
   </div>
-  <div class="card">
+  <div class="card cute-card cute-private">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="private.title">Private Students</h1>
       <button class="primary" id="new-student-btn" data-i18n="private.new_student">+ New student</button>
@@ -834,7 +934,7 @@
           // attendance row and its fee live.
           const timeLabel = it.hasTime ? fmtLessonRange(it.when, it.whenEnd) + " · " : "";
           const feeLabel = it.fee ? ` +$${it.fee}` : "";
-          return `<div class="week-calendar-lesson is-group">
+          return `<div class="week-calendar-lesson is-group is-makeup">
               <span class="wc-group-icon">🎻</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${timeLabel}${t("private.wc_makeup_label")}</span>

@@ -78,6 +78,49 @@
   }
   .toggle-switch input:checked + .slider { background: #18181b; }
   .toggle-switch input:checked + .slider::before { transform: translateX(15px); }
+
+  /* ---- warm cute tone (same as packages.html / private.html) ---- */
+  .card.cute-card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); border: 1.5px solid #fdba74; }
+  .cute-card h1 { color: #9a3412; }
+  .cute-card table { border-collapse: separate; border-spacing: 0; }
+  .cute-card thead th { background: #fed7aa; color: #9a3412; font-weight: 700; border-bottom: none; }
+  .cute-card thead th:first-child { border-top-left-radius: 12px; }
+  .cute-card thead th:last-child { border-top-right-radius: 12px; }
+  .cute-card tbody tr { background: #fff; }
+  .cute-card tbody tr:hover { background: #fff7ed; }
+  .cute-card tbody td { border-bottom: 1px dashed #fed7aa; }
+  .cute-card tbody tr td:first-child::before { background: #fb923c; }
+  .cute-card .empty { color: #c2410c; }
+  .cute-card .icon-action-btn:hover { background: #ffedd5; color: #9a3412; }
+  .cute-card .toggle-switch input:checked + .slider { background: linear-gradient(135deg, #fdba74, #ea580c); }
+
+  .cute-followup h1::before { content: "📞 "; }
+  .cute-pipeline h1::before { content: "🌱 "; }
+  /* kanban */
+  #board > div { background: rgba(255, 255, 255, .55); border: 1px dashed #fdba74; border-radius: 18px; padding: 10px; }
+  .col-head { color: #9a3412; font-weight: 700; }
+  .lead-card { border-radius: 16px; border-top: 1px solid #fed7aa; border-right: 1px solid #fed7aa; border-bottom: 1px solid #fed7aa; border-left-width: 5px; box-shadow: 0 1px 4px rgba(194, 65, 12, .10); }
+  .lead-card.needs-follow-up { background: #fff7ed; border-top-color: #fdba74; border-right-color: #fdba74; border-bottom-color: #fdba74; }
+  .lead-card .meta { color: #92400e; opacity: .75; }
+  .lead-card select, .lead-card input, .lead-card textarea { border-color: #fdba74; border-radius: 12px; background: #fff; }
+  .lead-card textarea:read-only, .lead-card input:read-only { background: #fff7ed; color: #78716c; }
+  .pref-time-btn { border: 1.5px dashed #fdba74; color: #c2410c; background: #fff; }
+  .pref-time-btn.active { background: #fed7aa; border: 1.5px solid #fb923c; color: #9a3412; font-weight: 700; }
+  .toggle-switch input:checked + .slider { background: linear-gradient(135deg, #fdba74, #ea580c); }
+  .icon-action-btn:hover { background: #ffedd5; color: #9a3412; }
+  /* dialogs: wide two-column, no scrolling */
+  #lead-dialog, #lead-edit-dialog { border: 1.5px solid #fdba74 !important; border-radius: 16px !important; width: 580px !important; max-width: 94vw; }
+  #lead-dialog .card, #lead-edit-dialog .card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); padding: 16px 22px 18px; }
+  #lead-dialog h1, #lead-edit-dialog h1 { color: #9a3412; margin-top: 0; }
+  #lead-form > div[style*="flex-direction:column"], #lead-edit-form > div[style*="flex-direction:column"] { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px 16px !important; }
+  #lead-form > div[style*="flex-direction:column"] > div, #lead-edit-form > div[style*="flex-direction:column"] > div { grid-column: 1 / -1; }
+  #lead-dialog label, #lead-edit-dialog label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 700; color: #9a3412; }
+  #lead-dialog label input, #lead-dialog label select, #lead-edit-dialog label input, #lead-edit-dialog label select { width: 100%; font-weight: 400; color: #27272a; padding: 6px 12px; font-size: 14px; border-radius: 999px; border-color: #fdba74; background: #fff; }
+  #lead-dialog input:focus, #lead-dialog select:focus, #lead-edit-dialog input:focus, #lead-edit-dialog select:focus { border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, .12); }
+  #lead-dialog button.primary, #lead-edit-dialog button.primary { border-radius: 999px; padding: 8px 24px; }
+  @media (max-width: 600px) {
+    #lead-form > div[style*="flex-direction:column"], #lead-edit-form > div[style*="flex-direction:column"] { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -102,7 +145,7 @@
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main style="max-width:1200px;">
-  <div class="card">
+  <div class="card cute-card cute-followup">
     <h1 style="margin:0 0 10px;" data-i18n="schedule.followup_title">Needs Follow-up</h1>
     <table>
       <thead><tr>
@@ -115,7 +158,7 @@
     </table>
   </div>
 
-  <div class="card">
+  <div class="card cute-card cute-pipeline">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap;">
       <h1 style="margin:0;" data-i18n="leads.title">Leads pipeline</h1>
       <div style="display:flex; align-items:center; gap:16px;">

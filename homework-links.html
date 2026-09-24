@@ -35,6 +35,38 @@
     transition: background-color 0.15s ease, color 0.15s ease;
   }
   #new-link-btn:hover { background: #f4f4f5; color: #18181b; }
+
+  /* ---- warm cute tone (same as packages.html / private.html) ---- */
+  .card.cute-card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); border: 1.5px solid #fdba74; }
+  .cute-card h1 { color: #9a3412; }
+  .cute-card table { border-collapse: separate; border-spacing: 0; }
+  .cute-card thead th { background: #fed7aa; color: #9a3412; font-weight: 700; border-bottom: none; }
+  .cute-card thead th:first-child { border-top-left-radius: 12px; }
+  .cute-card thead th:last-child { border-top-right-radius: 12px; }
+  .cute-card tbody tr { background: #fff; }
+  .cute-card tbody tr:hover { background: #fff7ed; }
+  .cute-card tbody td { border-bottom: 1px dashed #fed7aa; }
+  .cute-card tbody tr td:first-child::before { background: #fb923c; }
+  .cute-card .empty { color: #c2410c; }
+  .cute-card .icon-action-btn:hover { background: #ffedd5; color: #9a3412; }
+  .cute-card .toggle-switch input:checked + .slider { background: linear-gradient(135deg, #fdba74, #ea580c); }
+
+  .cute-hw h1::before { content: "📝 "; }
+  .cute-card #hwlink-search { border-color: #fdba74; border-radius: 999px; background: #fff; }
+  #new-link-btn { background: #ea580c !important; color: #fff !important; border-color: #ea580c !important; }
+  #new-link-btn:hover { background: #c2410c !important; }
+  .hwlink-open.type-youtube { background: #ffe4e6; color: #be123c; }
+  .hwlink-open.type-pdf { background: #fef3c7; color: #92400e; }
+  .hwlink-tag { background: #ffedd5; color: #9a3412; }
+  .toggle-btn { border-color: #fdba74; border-radius: 999px; background: #fff; color: #c2410c; }
+  .toggle-btn.active { background: #fed7aa; border-color: #fb923c; color: #9a3412; font-weight: 700; }
+  #link-dialog { border: 1.5px solid #fdba74 !important; border-radius: 16px !important; }
+  #link-dialog .card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); }
+  #link-dialog h1 { color: #9a3412; }
+  #link-dialog label { display: flex; flex-direction: column; gap: 3px; font-weight: 700; color: #9a3412; font-size: 13px; }
+  #link-dialog label input:not([type=file]):not([type=checkbox]), #link-dialog label select, #link-dialog label textarea { width: 100%; box-sizing: border-box; padding: 6px 12px; font-size: 14px; }
+  #link-dialog input:not([type=file]):not([type=checkbox]), #link-dialog select, #link-dialog textarea { border-color: #fdba74; border-radius: 12px; background: #fff; font-weight: 400; color: #27272a; }
+  #link-dialog button.primary { border-radius: 999px; padding: 8px 24px; }
 </style>
 </head>
 <body>
@@ -59,7 +91,7 @@
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
-  <div class="card">
+  <div class="card cute-card cute-hw">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap;">
       <h1 style="margin:0;" data-i18n="hwlink.title_page">Homework Links</h1>
       <button id="new-link-btn" style="width:32px; height:32px; padding:0; border-radius:50%; font-size:16px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" aria-label="New link">📎</button>
