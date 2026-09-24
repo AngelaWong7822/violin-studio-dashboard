@@ -171,10 +171,39 @@ function showToast(message, type = "default", duration = 2500) {
   toast.textContent = message;
   container.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add("toast-show"));
+  if (type === "success") celebrateNotes();
   setTimeout(() => {
     toast.classList.remove("toast-show");
     toast.addEventListener("transitionend", () => toast.remove(), { once: true });
   }, duration);
+}
+
+// Small burst of music notes floating up from the toast area on success.
+function celebrateNotes() {
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const glyphs = ["♪", "♫", "♩", "🎵"];
+  for (let i = 0; i < 7; i++) {
+    const n = document.createElement("span");
+    n.className = "float-note";
+    n.textContent = glyphs[i % glyphs.length];
+    n.style.right = 20 + Math.random() * 200 + "px";
+    n.style.top = 56 + Math.random() * 16 + "px";
+    n.style.animationDelay = i * 0.08 + "s";
+    n.style.fontSize = 16 + Math.random() * 12 + "px";
+    document.body.appendChild(n);
+    n.addEventListener("animationend", () => n.remove(), { once: true });
+  }
+}
+
+// Lesson progress drawn as music: one measure (bar) per term, one note per
+// lesson — filled = paid, hollow = still to pay.
+function notesProgress(measures) {
+  const bars = measures.filter((m) => m.total > 0).map((m) => {
+    let notes = "";
+    for (let i = 0; i < m.total; i++) notes += i < m.done ? '<b class="np-on">♪</b>' : '<b class="np-off">♪</b>';
+    return '<span class="np-measure">' + notes + "</span>";
+  });
+  return '<span class="notes-progress">' + bars.join('<span class="np-bar"></span>') + "</span>";
 }
 
 // Yes/No confirm — replaces confirm() for destructive actions.

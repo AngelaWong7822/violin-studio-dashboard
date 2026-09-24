@@ -94,7 +94,7 @@
   <div class="card cute-card cute-hw">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap;">
       <h1 style="margin:0;" data-i18n="hwlink.title_page">Homework Links</h1>
-      <button id="new-link-btn" style="width:32px; height:32px; padding:0; border-radius:50%; font-size:16px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" aria-label="New link">📎</button>
+      <button id="new-link-btn" class="primary" data-i18n="hwlink.new" aria-label="New link" style="padding:8px 18px; border-radius:999px; font-size:14px; font-weight:700; cursor:pointer;">+ New link</button>
     </div>
     <div class="search-wrap" style="margin-bottom:14px;">
       <span class="search-icon">🔍</span>
@@ -108,7 +108,7 @@
         <th></th>
         <th></th>
       </tr></thead>
-      <tbody id="link-rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      <tbody id="link-rows"><tr><td colspan="5" class="empty"><span class="loading-notes"><i>♪</i><i>♫</i><i>♪</i></span> Loading…</td></tr></tbody>
     </table>
   </div>
 </main>
