@@ -87,8 +87,48 @@
   .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
   .icon-action-btn.tutoring-off { filter: grayscale(1); opacity: 0.45; }
   .icon-action-btn.tutoring-off:hover { filter: none; opacity: 1; }
-  .tutoring-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f1; font-size: 13px; }
-  .tutoring-row input { flex: 1; min-width: 160px; font-size: 13px; padding: 4px 8px; }
+  /* Tutoring + attendance cards share one peach-yellow tone (deep-orange headings/borders on white content cards for clear contrast). */
+  .card.tutoring-card, #attendance-card, .card.cute-card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); border: 1.5px solid #fdba74; }
+  .tutoring-card h1, #attendance-card > div:first-child h1, .cute-card h1 { color: #9a3412; }
+  .tutoring-card h1 { display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0 0 10px; }
+  .tutoring-card h1 { cursor: pointer; user-select: none; }
+  .tutoring-card h1.collapsed-h { margin-bottom: 0; }
+  .tutoring-arrow { display: inline-block; font-size: 11px; color: #c2410c; transition: transform 0.15s; }
+  .tutoring-card.open .tutoring-arrow { transform: rotate(90deg); }
+  .tutoring-count { background: #c2410c; color: #fff; border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 700; }
+  .tutoring-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; margin-bottom: 8px; background: #fff; border: 1px solid #fed7aa; border-radius: 16px; box-shadow: 0 1px 4px rgba(194, 65, 12, .10); font-size: 13px; }
+  .tutoring-row .avatar { margin-right: 0; }
+  .tutoring-class { background: #fed7aa; color: #9a3412; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; }
+  .tutoring-row input { flex: 1 1 120px; min-width: 0; font-size: 12px; padding: 4px 12px; border-radius: 999px; border-color: #fdba74; background: #fff; }
+  .tutoring-empty { text-align: center; color: #c2410c; font-size: 13px; padding: 6px 0 2px; margin: 0; }
+  /* ---- same cute tone for Classes / Students / Payments / Quick replies ---- */
+  .cute-classes h1::before { content: "🏫 "; }
+  .cute-students h1::before { content: "🧒 "; }
+  .cute-payments h1::before { content: "💰 "; }
+  .cute-card table { border-collapse: separate; border-spacing: 0; }
+  .cute-card thead th { background: #fed7aa; color: #9a3412; font-weight: 700; border-bottom: none; }
+  .cute-card thead th:first-child { border-top-left-radius: 12px; }
+  .cute-card thead th:last-child { border-top-right-radius: 12px; }
+  .cute-card tbody tr { background: #fff; }
+  .cute-card tbody tr:hover { background: #fff7ed; }
+  .cute-card tbody td { border-bottom: 1px dashed #fed7aa; }
+  .cute-card tbody tr td:first-child::before { background: #fb923c; }
+  .cute-card tr.student-detail, .cute-card tr.student-detail:hover { background: #fffaf3; }
+  .cute-card .empty { color: #c2410c; }
+  .cute-card #student-search, .cute-card #student-class-filter { border-color: #fdba74; border-radius: 999px; background: #fff; }
+  .cute-card .count-pill { background: #ffedd5; color: #9a3412; }
+  .cute-card .count-pill-paid { background: #fed7aa; color: #9a3412; }
+  .cute-card .term-card { background: #fff; border: 1px solid #fed7aa; box-shadow: 0 1px 4px rgba(194, 65, 12, .08); }
+  .cute-card .term-card.term-card-collapsed { background: #fff7ed; }
+  .cute-card .term-card-header { border-bottom-color: #fed7aa; }
+  .cute-card .term-card-header .term-label { color: #c2410c; }
+  .cute-card .detail-table th { color: #c2410c; font-weight: 600; }
+  .cute-card .detail-table tr:nth-child(even) { background: #fff7ed; }
+  .cute-card .reply-template-card { background: #fff; border-color: #fed7aa; }
+  .cute-card .reply-template-card .rt-copy-btn { background: #fed7aa; color: #9a3412; }
+  .cute-card .reply-template-card .rt-copy-btn:hover { background: #fdba74; }
+  .cute-card .reply-template-card .rt-copy-btn.rt-copied { background: #bbf7d0; color: #14532d; }
+  .cute-card .reply-template-add { border-color: #fdba74; }
   .icon-action-btn.danger { color: #b91c1c; }
   .icon-action-btn.danger:hover { background: #fef2f2; }
 
@@ -170,51 +210,6 @@
   .hw-remark-wrap.has-content .hw-remark-input { color: #78350f; font-weight: 500; }
   .hw-remark-input::placeholder { color: #d4d4d8; }
   .hw-remark-input:focus { outline: none; }
-  /* The two per-term-batch student notes (attention/join-likelihood) — bare
-     icons by default so they don't take up a permanent pill's worth of
-     space; the remark text itself surfaces as a native tooltip on hover
-     instead of sitting visibly in an always-open input. */
-  .term-note-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 3px 0; }
-  .term-note-pair { position: relative; display: inline-flex; align-items: center; }
-  .term-note-icon-btn {
-    position: relative;
-    border: none; background: none; cursor: pointer; font-size: 13px; flex-shrink: 0;
-    opacity: 0.35; padding: 2px 3px; line-height: 1; border-radius: 999px;
-    transition: opacity 0.15s ease, background-color 0.15s ease;
-  }
-  .term-note-icon-btn.has-content { opacity: 1; }
-  .term-note-icon-btn.attention.has-content { background: #fef2f2; }
-  /* A nudge, not a flag — 2+ still-outstanding leaves this term puts a red
-     dot on the (otherwise still-muted) icon, without lighting it up as if
-     Angela had actually flagged it herself. */
-  .term-note-icon-btn.attention-suggested { opacity: 1; }
-  .term-note-icon-btn.attention-suggested::after {
-    content: ""; position: absolute; top: 0; right: 0;
-    width: 6px; height: 6px; border-radius: 50%; background: #dc2626;
-    border: 1.5px solid #fff;
-  }
-  /* 🤝 is a warm-toned emoji that barely dims with opacity alone (unlike
-     👀, which is naturally monochrome) — greyscale it while inactive so
-     "off" reads as clearly muted, then drop the filter and light it up in
-     full color once flagged/remarked, matching 👀's light/dark contrast. */
-  .term-note-icon-btn.join { filter: grayscale(1); }
-  .term-note-icon-btn.join.has-content { filter: none; background: #eff6ff; }
-  /* Hidden until the pair is actually hovered/focused, so the grid stays
-     icon-only at a glance — this is purely the trigger to reveal the popup
-     input below, not the note content itself. */
-  .term-note-edit-btn {
-    border: none; background: none; cursor: pointer; color: #a1a1aa; font-size: 9px; flex-shrink: 0;
-    padding: 0; width: 0; opacity: 0; overflow: hidden; line-height: 1;
-    transition: opacity 0.15s ease, width 0.15s ease;
-  }
-  .term-note-pair:hover .term-note-edit-btn, .term-note-pair:focus-within .term-note-edit-btn {
-    opacity: 1; width: 11px; margin-left: 2px;
-  }
-  .term-note-popup-input {
-    border: 1px solid #d4d4d8; border-radius: 6px; background: #fff; margin-left: 4px;
-    padding: 2px 6px; font-size: 10px; color: #27272a; width: 90px;
-  }
-  .term-note-popup-input:focus { outline: none; border-color: #a1a1aa; }
   /* Touch devices only (not just narrow screens — a "coarse" pointer means
      a finger, not a mouse) get a bit more padding on these grid buttons.
      They're packed tight enough on desktop that a bigger jump risks two
@@ -232,6 +227,28 @@
   #grid-table tr.term-divider-clickable td { cursor: pointer; color: #a1a1aa; font-weight: 500; }
   #grid-table tr.term-divider-row .expand-arrow { display: inline-block; width: 10px; font-size: 11px; transition: transform 0.15s; }
   #grid-table tr.term-divider-row .expand-arrow.open { transform: rotate(90deg); }
+
+  /* ---- cute pass: pastel attendance card ---- */
+  #attendance-card > div:first-child h1::before { content: "🎻 "; }
+  #attendance-class-select { border-radius: 999px; border-color: #fdba74; background: #fff; padding-left: 14px; }
+  #grid-wrap { background: #fff; border-radius: 18px; box-shadow: 0 2px 10px rgba(194, 65, 12, .14); border: 1.5px solid #fdba74; }
+  #grid-table { border-collapse: separate; border-spacing: 0; }
+  #grid-table th, #grid-table td { border: none; border-bottom: 1px dashed #fed7aa; border-right: 1px dashed #ffedd5; }
+  #grid-table th { background: #fed7aa; color: #9a3412; font-weight: 700; padding: 10px 8px; }
+  #grid-table th.date-col, #grid-table td.date-col { color: #c2410c; }
+  #grid-table tr.term-divider-row td { background: #ffedd5; color: #9a3412; }
+  #grid-table tr.term-divider-clickable td { background: #fff7ed; color: #ea580c; }
+  #grid-table tr.next-upcoming-row td { background: #e0f2fe; }
+  #grid-table tr.next-upcoming-row td.date-col::after { content: " ⭐"; }
+  #grid-table td.visitor-locked { background: #fafafa; }
+  .att-toggle { background: #e7e5e4; color: #78716c; box-shadow: none; padding: 3px 10px; }
+  .att-toggle.att-attended { background: #86efac; color: #14532d; }
+  .att-toggle.att-leave { background: #fbbf24; color: #78350f; }
+  .att-toggle.att-leave-madeup { background: #99f6e4; color: #115e59; }
+  .att-toggle.att-no_show { background: #fda4af; color: #9f1239; }
+  #grid-section h1::before { content: "🧡 "; }
+  #makeup-list .makeup-row { background: #fff; border: 1px solid #fed7aa; border-radius: 16px; padding: 8px 14px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(194, 65, 12, .10); }
+  .makeup-row select { border-radius: 999px; border-color: #fdba74; }
   .makeup-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f1; font-size: 13px; }
   .makeup-row select { font-size: 13px; padding: 4px 6px; }
   #grid-table.hide-withdrawn .withdrawn-col { display: none; }
@@ -289,9 +306,9 @@
   <button id="logout-btn" data-i18n="nav.logout">Log out</button>
 </header>
 <main>
-  <div class="card">
-    <h1 style="margin:0 0 8px;" data-i18n="tutoring.title">Students needing extra help</h1>
-    <div id="tutoring-list"><p class="empty" data-i18n="tutoring.empty">Nobody flagged.</p></div>
+  <div class="card tutoring-card">
+    <h1 id="tutoring-toggle" role="button" tabindex="0"><span class="tutoring-arrow">▶</span><span>📚</span><span data-i18n="tutoring.title">Students needing extra help</span><span class="tutoring-count" id="tutoring-count" style="display:none;"></span></h1>
+    <div id="tutoring-list" style="display:none;"><p class="tutoring-empty" data-i18n="tutoring.empty">Nobody flagged.</p></div>
   </div>
 
   <div class="card" id="attendance-card" style="display:none;">
@@ -330,7 +347,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card cute-card cute-classes">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="classes.title">Classes</h1>
       <button class="primary" id="new-class-btn" data-i18n="classes.new">+ New class</button>
@@ -348,7 +365,7 @@
     <button class="link" id="class-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
 
-  <div class="card">
+  <div class="card cute-card cute-students">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="packages.students_title">Students</h1>
       <button class="primary" id="new-student-btn" data-i18n="packages.new_student">+ New student</button>
@@ -374,7 +391,7 @@
     <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
 
-  <div class="card">
+  <div class="card cute-card cute-payments">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h1 style="margin:0;" data-i18n="payments.title">Payments</h1>
       <label style="font-size:13px; display:inline-flex; align-items:center; gap:6px;"><span class="toggle-switch"><input type="checkbox" id="unpaid-only" checked /><span class="slider"></span></span> <span data-i18n="payments.unpaid_only">Show unpaid only</span></label>
@@ -392,7 +409,7 @@
     </table>
   </div>
 
-  <div class="card">
+  <div class="card cute-card">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
       <h1 style="margin:0;" data-i18n="reply_templates.title">💌 Quick replies</h1>
       <button type="button" id="reply-templates-toggle" class="link"></button>
@@ -835,7 +852,11 @@
     });
   }
 
-  async function loadClasses() {
+  // skipDependents: the page-open path runs the attendance grid, payments
+  // and students loads itself, side by side — without this flag each of
+  // loadClasses/loadStudents ended by re-running the SAME attendance +
+  // payments pass, so opening the page did it all twice, back to back.
+  async function loadClasses({ skipDependents = false } = {}) {
     const tbody = document.getElementById("class-rows");
     const { data, error } = await supabaseClient
       .from("classes")
@@ -895,8 +916,8 @@
       });
     });
     populateClassSelect();
-    await refreshAttendanceSection();
-    await loadPayments();
+    if (skipDependents) return;
+    await Promise.all([refreshAttendanceSection(), loadPayments()]);
   }
 
   // Groups classes by weekday (Mon→Sun) so a <select> can present them under
@@ -996,40 +1017,42 @@
     const savedScrollLeft = gridWrap.scrollLeft;
     const mySeq = ++gridLoadSeq;
 
-    const { data: appts } = await supabaseClient
-      .from("appointments")
-      .select("id, scheduled_start, rescheduled_from, reschedule_reason, homework_remark")
-      .eq("class_id", classId)
-      .order("scheduled_start", { ascending: true });
-
-    const apptIds = (appts ?? []).map(a => a.id);
-    let attendanceRows = [];
-    if (apptIds.length) {
-      const { data } = await supabaseClient
+    // These four don't depend on each other, so they go out together
+    // instead of one after another (each is a full network round trip, and
+    // this grid reloads on every tick of an attendance cell). Attendance is
+    // filtered through its appointment's class_id directly — no need to
+    // wait for the appointment ids first — and pages past Supabase's
+    // 1000-row response cap via fetchAllRows (a long-running class's rows
+    // are the ones that'll eventually cross it).
+    // Distinguish three kinds of column: formally-enrolled students, students
+    // who *were* enrolled here but withdrew (kept for their attendance
+    // history, locked going forward, badged "(退出)"), and one-off make-up
+    // visitors who never had a package here at all (locked outside their one
+    // make-up date, badged "(補堂)") — pkgsForRosterCheck feeds that split.
+    const [{ data: appts }, attendanceRows, { data: pkgsForRosterCheck }, allGroupAppts] = await Promise.all([
+      supabaseClient
+        .from("appointments")
+        .select("id, scheduled_start, rescheduled_from, reschedule_reason, homework_remark")
+        .eq("class_id", classId)
+        .order("scheduled_start", { ascending: true }),
+      fetchAllRows(() => supabaseClient
         .from("attendance")
-        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_time, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, homework_submitted, students(name, contacts(name))")
-        .in("appointment_id", apptIds);
-      attendanceRows = data ?? [];
-    }
+        .select("id, appointment_id, student_id, status, make_up_status, made_up_appointment_id, make_up_remark, make_up_date, make_up_time, make_up_extra_fee, deferred_credit_used_in_package_id, deferred_credit_amount, homework_submitted, students(name, contacts(name)), appointments!attendance_appointment_id_fkey!inner(class_id)")
+        .eq("appointments.class_id", classId)
+        .order("id")),
+      supabaseClient.from("packages").select("student_id, status").eq("class_id", classId),
+      getAllGroupAppointments(),
+    ]);
 
     // Self-heal: any leave already marked "deferred to next package" that
     // never actually got linked to a package (e.g. set before this credit
     // mechanism existed, or before a next package was created) gets linked
     // here on every load — so fixing it never depends on catching a
-    // specific dropdown change event.
-    for (const row of attendanceRows) {
-      if (row.status === "leave" && row.make_up_status === "deferred_to_next_package" && !row.deferred_credit_used_in_package_id) {
-        await applyDeferredCreditToExistingNextPackage(row.id, row.student_id, classId, row.appointment_id);
-      }
-    }
+    // specific dropdown change event. Independent per row, so concurrent.
+    await Promise.all(attendanceRows
+      .filter(row => row.status === "leave" && row.make_up_status === "deferred_to_next_package" && !row.deferred_credit_used_in_package_id)
+      .map(row => applyDeferredCreditToExistingNextPackage(row.id, row.student_id, classId, row.appointment_id)));
 
-    // Distinguish three kinds of column: formally-enrolled students, students
-    // who *were* enrolled here but withdrew (kept for their attendance
-    // history, locked going forward, badged "(退出)"), and one-off make-up
-    // visitors who never had a package here at all (locked outside their one
-    // make-up date, badged "(補堂)").
-    const { data: pkgsForRosterCheck } = await supabaseClient
-      .from("packages").select("student_id, status").eq("class_id", classId);
     const enrolledStudentIds = new Set((pkgsForRosterCheck ?? []).filter(p => p.status === "active").map(p => p.student_id));
     const withdrawnStudentIds = new Set((pkgsForRosterCheck ?? []).filter(p => p.status === "cancelled").map(p => p.student_id));
 
@@ -1046,18 +1069,9 @@
     const withdrawnRoster = [...withdrawnMap.entries()]; // [studentId, name] — formerly enrolled, kept for history
     const visitorRoster = [...visitorMap.entries()]; // [studentId, name] — one-off make-ups
 
-    const allGroupAppts = await getAllGroupAppointments();
-
-    // Per-student, per-term-batch notes (attention/join-likelihood) — keyed
-    // "batchIndex:studentId" so the grid cell can look its pair up in O(1).
-    const { data: termNotesRaw } = await supabaseClient
-      .from("term_batch_notes").select("batch_index, student_id, attention_remark, join_remark, attention_flag, join_flag")
-      .eq("class_id", classId);
-    const termNotes = new Map((termNotesRaw ?? []).map(n => [`${n.batch_index}:${n.student_id}`, n]));
-
     if (mySeq !== gridLoadSeq) return; // a newer reload has since started — don't clobber it with stale data
 
-    renderGrid(classId, appts ?? [], roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, termNotes);
+    renderGrid(classId, appts ?? [], roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts);
     renderMakeupList(attendanceRows, appts ?? [], allGroupAppts, classId);
     gridWrap.scrollLeft = savedScrollLeft;
   }
@@ -1089,21 +1103,6 @@
     return parts.length ? `, ${parts.join(", ")}` : "";
   }
 
-  // True exactly when makeupNoteHtml below would render the red
-  // "請假(未處理)" fallback label — i.e. a leave with no decision made yet
-  // at all (not deferred, not marked pending, not made up, not combined
-  // with a private lesson). Kept as its own function so the term-batch
-  // attention-suggestion dot below counts precisely this state, not any
-  // "still outstanding in some way" leave.
-  function isUnprocessedLeave(row) {
-    if (!row || row.status !== "leave") return false;
-    if (row.make_up_status === "made_up" && row.made_up_appointment_id) return false;
-    if (row.make_up_status === "deferred_to_next_package") return false;
-    if (row.make_up_status === "pending") return false;
-    if (row.make_up_status === "combined_with_private" && row.make_up_remark) return false;
-    return true;
-  }
-
   function makeupNoteHtml(row, allGroupAppts) {
     if (!row || row.status !== "leave") return "";
     if (row.make_up_status === "made_up" && row.made_up_appointment_id) {
@@ -1125,7 +1124,7 @@
     return `<div style="font-size:10px; color:#b91c1c; font-weight:600; white-space:normal;">${t("makeup.unprocessed")}</div>`;
   }
 
-  function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, termNotes) {
+  function renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts) {
     const table = document.getElementById("grid-table");
     if (!appts.length) {
       table.innerHTML = `<tr><td class="empty">${t("attendance.empty_roster")}</td></tr>`;
@@ -1234,59 +1233,7 @@
             ${isLatest ? "" : `<span class="expand-arrow ${isOpen ? "open" : ""}">▶</span>`}
             ${tf("attendance.term_divider", { n: batchIndex + 1, count: batch.length })}
           </td>
-          ${columns.map(({ studentId, isVisitor, isWithdrawn }) => {
-            if (!isOpen) return `<td${colClass(isWithdrawn, isVisitor, studentId)}></td>`;
-            const eligible = batch.some(a => isEligibleCell(a, studentId, isVisitor, isWithdrawn));
-            if (!eligible) return `<td${colClass(isWithdrawn, isVisitor, studentId)}></td>`;
-            const note = termNotes.get(`${batchIndex}:${studentId}`);
-            // Each wrapped in its own block-level div so they stack onto
-            // separate lines in this narrow column instead of competing for
-            // width side by side (the wraps themselves stay inline-flex so
-            // the icon+input pair inside each one stays on one line). The
-            // icon is its own clickable button — a plain flag toggle, no
-            // typing required — and lights up the same badge as the
-            // optional text remark, so either alone (or both) works.
-            const attentionOn = note?.attention_flag || note?.attention_remark;
-            const joinOn = note?.join_flag || note?.join_remark;
-            // A small nudge, not an auto-flag: 2+ leaves still sitting as
-            // "請假(未處理)" (no make-up decision made at all — see
-            // isUnprocessedLeave) in this term batch puts a dot on the 👀
-            // icon so it isn't missed — but never sets attention_flag/
-            // attention_remark on its own, since Angela may already know
-            // the reason and not want it logged. Suppressed once she's
-            // actually flagged it herself; the nudge has done its job by
-            // then. Leaves already pending/deferred/made-up/combined don't
-            // count — those already have a decision attached.
-            const batchApptIds = new Set(batch.map(a => a.id));
-            const outstandingLeaveCount = attendanceRows.filter(r =>
-              r.student_id === studentId && batchApptIds.has(r.appointment_id) && isUnprocessedLeave(r)
-            ).length;
-            const suggestAttention = !attentionOn && outstandingLeaveCount >= 2;
-            // Bare icon by default — no permanently-visible pill/input taking
-            // up space. Hovering the icon shows the remark text itself (via
-            // the native tooltip) when there is one; the ✎ only appears on
-            // hover of its pair and reveals a small inline input to type or
-            // change the remark. Clicking the icon itself still just toggles
-            // the flag instantly, same as before.
-            const attentionTitle = suggestAttention
-              ? tf("attendance.attention_suggested_title", { n: outstandingLeaveCount })
-              : (note?.attention_remark || t("attendance.attention_note_title"));
-            const joinTitle = note?.join_remark || t("attendance.join_note_title");
-            return `<td${colClass(isWithdrawn, isVisitor, studentId)}>
-              <div class="term-note-row">
-                <span class="term-note-pair">
-                  <button type="button" class="term-note-icon-btn attention${attentionOn ? " has-content" : ""}${suggestAttention ? " attention-suggested" : ""}" data-term-flag-field="attention_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${attentionTitle}">👀</button>
-                  <button type="button" class="term-note-edit-btn" data-term-edit-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.edit_note_title")}">✎</button>
-                  <input type="text" class="term-note-popup-input" data-term-note-field="attention_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.attention_remark ?? ""}" style="display:none;" />
-                </span>
-                <span class="term-note-pair">
-                  <button type="button" class="term-note-icon-btn join${joinOn ? " has-content" : ""}" data-term-flag-field="join_flag" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${joinTitle}">🤝</button>
-                  <button type="button" class="term-note-edit-btn" data-term-edit-field="join_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" title="${t("attendance.edit_note_title")}">✎</button>
-                  <input type="text" class="term-note-popup-input" data-term-note-field="join_remark" data-batch-index="${batchIndex}" data-student-id="${studentId}" value="${note?.join_remark ?? ""}" style="display:none;" />
-                </span>
-              </div>
-            </td>`;
-          }).join("")}
+          ${columns.map(({ studentId, isVisitor, isWithdrawn }) => `<td${colClass(isWithdrawn, isVisitor, studentId)}></td>`).join("")}
         </tr>`;
       return isOpen ? dividerRow + batch.map(dateRowHtml).join("") : dividerRow;
     });
@@ -1305,7 +1252,7 @@
     function rerenderLocally() {
       const gridWrap = document.getElementById("grid-wrap");
       const savedScrollLeft = gridWrap.scrollLeft;
-      renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts, termNotes);
+      renderGrid(classId, appts, roster, withdrawnRoster, visitorRoster, attendanceRows, allGroupAppts);
       renderMakeupList(attendanceRows, appts, allGroupAppts, classId);
       gridWrap.scrollLeft = savedScrollLeft;
     }
@@ -1503,74 +1450,6 @@
 
     table.querySelectorAll("button[data-reschedule-appt]").forEach(btn => {
       btn.addEventListener("click", () => openRescheduleDialog(btn.dataset.rescheduleAppt, btn.dataset.currentStart));
-    });
-
-    // The two per-term-batch student notes (attention/join-likelihood).
-    // Two ways to light up the same badge: click the icon as a plain flag
-    // (no typing needed — "just a reminder"), or type an optional detail
-    // via the ✎ popup. Either one alone is enough; the field pairing below
-    // maps each note field to its matching flag field so both handlers can
-    // check/update the other half correctly.
-    const TERM_NOTE_FLAG_FOR_FIELD = { attention_remark: "attention_flag", join_remark: "join_flag" };
-    const TERM_NOTE_TITLE_KEY = { attention_remark: "attendance.attention_note_title", join_remark: "attendance.join_note_title" };
-
-    function saveTermNoteField(field, batchIndex, studentId, value) {
-      const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
-      return supabaseClient
-        .from("term_batch_notes")
-        .upsert({ class_id: classId, batch_index: batchIndex, student_id: studentId, ...note, [field]: value }, { onConflict: "class_id,batch_index,student_id" })
-        .then(({ error }) => ({ error, updated: { ...note, [field]: value } }));
-    }
-
-    table.querySelectorAll("button[data-term-edit-field]").forEach(editBtn => {
-      editBtn.addEventListener("click", () => {
-        const input = editBtn.closest(".term-note-pair").querySelector("input[data-term-note-field]");
-        input.style.display = "";
-        input.focus();
-        input.select();
-      });
-    });
-
-    table.querySelectorAll("input[data-term-note-field]").forEach(input => {
-      const originalValue = input.value;
-      const field = input.dataset.termNoteField;
-      const batchIndex = Number(input.dataset.batchIndex);
-      const studentId = input.dataset.studentId;
-      const iconBtn = input.closest(".term-note-pair").querySelector(".term-note-icon-btn");
-
-      async function commit() {
-        const value = input.value.trim() || null;
-        const { error, updated } = await saveTermNoteField(field, batchIndex, studentId, value);
-        if (error) { showToast("Update failed: " + error.message, "error"); return; }
-        termNotes.set(`${batchIndex}:${studentId}`, updated);
-        const flagField = TERM_NOTE_FLAG_FOR_FIELD[field];
-        iconBtn.classList.toggle("has-content", !!value || !!updated[flagField]);
-        iconBtn.title = value || t(TERM_NOTE_TITLE_KEY[field]);
-        input.style.display = "none";
-      }
-      input.addEventListener("blur", commit);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-        else if (e.key === "Escape") { input.value = originalValue; input.style.display = "none"; }
-      });
-    });
-
-    table.querySelectorAll("button[data-term-flag-field]").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const field = btn.dataset.termFlagField;
-        const remarkField = Object.keys(TERM_NOTE_FLAG_FOR_FIELD).find(k => TERM_NOTE_FLAG_FOR_FIELD[k] === field);
-        const batchIndex = Number(btn.dataset.batchIndex);
-        const studentId = btn.dataset.studentId;
-        const note = termNotes.get(`${batchIndex}:${studentId}`) ?? {};
-        const newValue = !note[field];
-        const { error } = await supabaseClient
-          .from("term_batch_notes")
-          .upsert({ class_id: classId, batch_index: batchIndex, student_id: studentId, ...note, [field]: newValue }, { onConflict: "class_id,batch_index,student_id" });
-        if (error) { showToast("Update failed: " + error.message, "error"); return; }
-        const updated = { ...note, [field]: newValue };
-        termNotes.set(`${batchIndex}:${studentId}`, updated);
-        btn.classList.toggle("has-content", newValue || !!updated[remarkField]);
-      });
     });
   }
 
@@ -2464,10 +2343,10 @@
         const { error } = await supabaseClient.from("students")
           .update({ needs_tutoring: !student.needs_tutoring }).eq("id", student.id);
         if (error) { showToast("Update failed: " + error.message, "error"); return; }
-        // Full reload rather than patching the button in place — the rows
-        // are re-drawn from cached HTML (search/collapse), so a local-only
-        // tweak would flip back the next time the list re-renders.
-        await loadStudents();
+        student.needs_tutoring = !student.needs_tutoring;
+        syncTutoringItemsFromStudents();
+        renderStudentRows();
+        renderTutoringList();
       });
     });
     // Withdraw mid-term (not at the class's next "+8 more weeks" renewal
@@ -2570,6 +2449,16 @@
   // Actively searching or filtering by class bypasses the collapse-to-3
   // limit entirely and shows every match directly — that's a specific
   // lookup, not browsing.
+  // The 📚 button is filled in at draw time from live `students` state
+  // (rows are cached as HTML strings, so baking its on/off look into the
+  // cache meant every toggle needed a full data reload to show up).
+  function withTutoringButtons(html) {
+    return html.replace(/%%TUTORING_BTN:([^%]+)%%/g, (_, id) => {
+      const on = !!students.find(s => s.id === id)?.needs_tutoring;
+      return `<button type="button" class="icon-action-btn${on ? "" : " tutoring-off"}" data-toggle-tutoring="${id}" title="${t(on ? "tutoring.toggle_on" : "tutoring.toggle_off")}" aria-label="${t("tutoring.toggle_off")}">📚</button>`;
+    });
+  }
+
   function renderStudentRows() {
     const tbody = document.getElementById("student-rows");
     const btn = document.getElementById("student-toggle-btn");
@@ -2581,10 +2470,10 @@
 
     if (searchText || classFilter) {
       btn.style.display = "none";
-      tbody.innerHTML = filtered.length ? filtered.map(r => r.html).join("") : `<tr><td colspan="6" class="empty">${t("packages.empty_students")}</td></tr>`;
+      tbody.innerHTML = filtered.length ? filtered.map(r => withTutoringButtons(r.html)).join("") : `<tr><td colspan="6" class="empty">${t("packages.empty_students")}</td></tr>`;
       attachStudentRowListeners(tbody);
     } else {
-      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => r.html), 6, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
+      renderCollapsible(tbody, "student-toggle-btn", filtered.map(r => withTutoringButtons(r.html)), 6, t("packages.empty_students"), () => attachStudentRowListeners(tbody));
     }
   }
   document.getElementById("student-search").addEventListener("input", renderStudentRows);
@@ -2593,23 +2482,54 @@
   // One full list of every flagged (📚) student across all classes — no
   // class selection needed. A withdrawn student is left off: there's no
   // ongoing tuition to top up for someone who's quit.
+  //
+  // Backed by its own small list (tutoringItems) rather than reading
+  // `students` directly: the full student load is a long chain of queries
+  // (packages, attendance, WhatsApp history, payments…) and this card sits
+  // at the very top of the page, so it's filled from a single tiny query
+  // the moment the page opens (loadTutoringEarly) and simply re-synced from
+  // the full data once that lands.
+  let tutoringItems = [];
+  let studentsFullyLoaded = false;
+  function syncTutoringItemsFromStudents() {
+    tutoringItems = students.filter(s => s.needs_tutoring);
+  }
+  async function loadTutoringEarly() {
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("id, name, tutoring_note, needs_tutoring, contacts(name, gender), packages(status, created_at, classes(name, weekly_day_of_week, weekly_start_time))")
+      .eq("active", true).eq("is_group", true).eq("needs_tutoring", true);
+    if (error || studentsFullyLoaded) return; // the full load already drew a fresher list
+    tutoringItems = (data ?? []).map(s => ({
+      ...s,
+      currentPkg: [...(s.packages ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null,
+    }));
+    renderTutoringList();
+  }
+
   function renderTutoringList() {
     const listEl = document.getElementById("tutoring-list");
-    const flagged = students
+    const flagged = tutoringItems
       .filter(s => s.needs_tutoring && s.currentPkg?.status !== "cancelled")
       .sort((a, b) => groupStudentLabel(a).localeCompare(groupStudentLabel(b), "zh-Hant"));
+    const countEl = document.getElementById("tutoring-count");
+    countEl.textContent = flagged.length;
+    countEl.style.display = flagged.length ? "" : "none";
     if (!flagged.length) {
-      listEl.innerHTML = `<p class="empty">${t("tutoring.empty")}</p>`;
+      listEl.innerHTML = `<p class="tutoring-empty">${t("tutoring.empty")}</p>`;
       return;
     }
     const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     listEl.innerHTML = flagged.map(s => {
       const cls = s.currentPkg?.classes;
       const classLabel = cls ? `${cls.name} (${t("day." + cls.weekly_day_of_week)} ${cls.weekly_start_time.slice(0, 5)})` : "";
+      const genderClass = s.contacts?.gender === "female" ? "female" : s.contacts?.gender === "male" ? "male" : "unknown";
+      const initial = (groupStudentLabel(s) || "?").trim().charAt(0).toUpperCase() || "?";
       return `
         <div class="tutoring-row">
+          <span class="avatar gender-${genderClass}">${esc(initial)}</span>
           <strong>${esc(groupStudentLabel(s))}</strong>
-          <span style="color:#71717a;">${esc(classLabel)}</span>
+          ${classLabel ? `<span class="tutoring-class">${esc(classLabel)}</span>` : ""}
           <input type="text" data-tutoring-note="${s.id}" value="${esc(s.tutoring_note)}" placeholder="${esc(t("tutoring.note_placeholder"))}" />
           <button type="button" class="icon-action-btn danger" data-tutoring-remove="${s.id}" title="${esc(t("tutoring.toggle_on"))}" aria-label="${esc(t("tutoring.toggle_on"))}">✕</button>
         </div>`;
@@ -2617,23 +2537,28 @@
 
     listEl.querySelectorAll("input[data-tutoring-note]").forEach(input => {
       input.addEventListener("change", async () => {
-        const student = students.find(s => s.id === input.dataset.tutoringNote);
+        const id = input.dataset.tutoringNote;
         const note = input.value.trim() || null;
-        const { error } = await supabaseClient.from("students").update({ tutoring_note: note }).eq("id", input.dataset.tutoringNote);
+        const { error } = await supabaseClient.from("students").update({ tutoring_note: note }).eq("id", id);
         if (error) { showToast("Update failed: " + error.message, "error"); return; }
-        if (student) student.tutoring_note = note;
+        for (const s of [students.find(s => s.id === id), tutoringItems.find(s => s.id === id)]) if (s) s.tutoring_note = note;
       });
     });
     listEl.querySelectorAll("button[data-tutoring-remove]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const { error } = await supabaseClient.from("students").update({ needs_tutoring: false }).eq("id", btn.dataset.tutoringRemove);
         if (error) { showToast("Update failed: " + error.message, "error"); return; }
-        await loadStudents();
+        const id = btn.dataset.tutoringRemove;
+        const student = students.find(s => s.id === id);
+        if (student) student.needs_tutoring = false;
+        tutoringItems = tutoringItems.filter(s => s.id !== id);
+        if (studentsFullyLoaded) renderStudentRows();
+        renderTutoringList();
       });
     });
   }
 
-  async function loadStudents() {
+  async function loadStudents({ skipDependents = false } = {}) {
     const tbody = document.getElementById("student-rows");
     const { data, error } = await supabaseClient
       .from("students")
@@ -2814,7 +2739,7 @@
           <td>${statusCell}</td>
           <td style="white-space:nowrap;">
             <button type="button" class="icon-action-btn" data-edit-student="${s.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
-            <button type="button" class="icon-action-btn${s.needs_tutoring ? "" : " tutoring-off"}" data-toggle-tutoring="${s.id}" title="${t(s.needs_tutoring ? "tutoring.toggle_on" : "tutoring.toggle_off")}" aria-label="${t("tutoring.toggle_off")}">📚</button>
+            %%TUTORING_BTN:${s.id}%%
             ${pkg?.status === "active" ? `<button type="button" class="icon-action-btn" data-withdraw-student="${s.id}" title="${t("student.withdraw")}" aria-label="${t("student.withdraw")}">🚪</button>` : ""}
             ${enrollActionBtn}
             <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
@@ -2838,10 +2763,12 @@
     });
     studentRowsCache = rowsHtml;
     renderStudentRows();
+    studentsFullyLoaded = true;
+    syncTutoringItemsFromStudents();
     renderTutoringList();
 
-    await refreshAttendanceSection();
-    await loadPayments();
+    if (skipDependents) return;
+    await Promise.all([refreshAttendanceSection(), loadPayments()]);
   }
 
   async function deleteStudent(student) {
@@ -3112,7 +3039,7 @@
     // package's rate, not this new package's rate.
     const { data: unusedCredits } = await supabaseClient
       .from("attendance")
-      .select("id, appointment_id, appointments!inner(class_id)")
+      .select("id, appointment_id, appointments!attendance_appointment_id_fkey!inner(class_id)")
       .eq("student_id", studentId).eq("status", "leave").eq("make_up_status", "deferred_to_next_package")
       .is("deferred_credit_used_in_package_id", null).eq("appointments.class_id", classId);
 
@@ -3247,8 +3174,39 @@
     await loadClasses();
   });
 
-  await loadClasses();
-  await loadStudents();
+  // Collapsed by default (count pill stays visible in the header); the
+  // last open/closed choice is remembered per browser.
+  (function initTutoringToggle() {
+    const card = document.querySelector(".tutoring-card");
+    const head = document.getElementById("tutoring-toggle");
+    const list = document.getElementById("tutoring-list");
+    let open = false;
+    try { open = localStorage.getItem("tutoringOpen") === "1"; } catch (e) {}
+    function apply() {
+      card.classList.toggle("open", open);
+      list.style.display = open ? "" : "none";
+      head.classList.toggle("collapsed-h", !open);
+    }
+    function toggle() {
+      open = !open;
+      try { localStorage.setItem("tutoringOpen", open ? "1" : "0"); } catch (e) {}
+      apply();
+    }
+    head.addEventListener("click", toggle);
+    head.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+    apply();
+  })();
+
+  loadTutoringEarly(); // not awaited on purpose — runs alongside the heavy loads below
+  await loadClasses({ skipDependents: true });
+  // The attendance grid and payments only need `classes` (already loaded),
+  // not the students list — so all three go at once instead of the grid
+  // sitting behind the whole students chain.
+  await Promise.all([
+    loadStudents({ skipDependents: true }),
+    refreshAttendanceSection(),
+    loadPayments(),
+  ]);
 })();
 
 // Quick-reply template cards (packages.html only) — copy-paste prompts for
