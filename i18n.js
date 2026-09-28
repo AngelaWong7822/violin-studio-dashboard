@@ -256,6 +256,10 @@ const I18N_STRINGS = {
 
     "payments.title": "Payments",
     "payments.unpaid_only": "Show unpaid only",
+    "payments.owe_lessons": "{n} unpaid",
+    "payments.owe_extra": "Extra fee owed",
+    "payments.settled": "✓ Settled",
+    "payments.owing_title": "Has outstanding payment",
     "payments.empty": "🧾 Nothing to show.",
     "payments.col_student": "Student",
     "payments.col_renewal_count": "Terms",
@@ -748,6 +752,10 @@ const I18N_STRINGS = {
 
     "payments.title": "付款",
     "payments.unpaid_only": "只顯示未付",
+    "payments.owe_lessons": "欠 {n} 堂",
+    "payments.owe_extra": "欠額外費用",
+    "payments.settled": "✓ 已付清",
+    "payments.owing_title": "有未付款項",
     "payments.empty": "🧾 冇嘢顯示。",
     "payments.col_student": "學生",
     "payments.col_renewal_count": "報讀期數",

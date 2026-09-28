@@ -154,7 +154,7 @@
         <th data-i18n="schedule.followup_col_attended">Attended on</th>
         <th data-i18n="schedule.followup_col_status">Status</th>
       </tr></thead>
-      <tbody id="followup-rows"><tr><td colspan="4" class="empty"><span class="loading-notes"><i>♪</i><i>♫</i><i>♪</i></span> Loading…</td></tr></tbody>
+      <tbody id="followup-rows"><tr class="sk-row"><td colspan="4"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="4"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="4"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
     </table>
   </div>
 
@@ -779,7 +779,7 @@
   document.getElementById("lead-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("lead-name").value;
-    const whatsapp_number = document.getElementById("lead-phone").value || null;
+    const whatsapp_number = normalizedPhone(document.getElementById("lead-phone").value);
     const social_media_name = document.getElementById("lead-social").value || null;
     const level = document.getElementById("lead-level").value || null;
     const age = document.getElementById("lead-age").value || null;
@@ -879,7 +879,7 @@
     e.preventDefault();
     const contactId = document.getElementById("lead-edit-contact-id").value;
     const name = document.getElementById("lead-edit-name").value;
-    const whatsapp_number = document.getElementById("lead-edit-phone").value || null;
+    const whatsapp_number = normalizedPhone(document.getElementById("lead-edit-phone").value);
     const social_media_name = document.getElementById("lead-edit-social").value || null;
     const level = document.getElementById("lead-edit-level").value || null;
     const age = document.getElementById("lead-edit-age").value || null;

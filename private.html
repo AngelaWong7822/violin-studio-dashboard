@@ -370,7 +370,7 @@
         <th data-i18n="contacts.col_allowed">Allowed (AI analyzes)</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="6" class="empty"><span class="loading-notes"><i>♪</i><i>♫</i><i>♪</i></span> Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
     </table>
   </div>
 </main>
@@ -1420,6 +1420,7 @@
     hint.hidden = false;
     studentDialog.showModal();
   }
+  persistInput(document.getElementById("student-search"), "private.studentSearch");
   document.getElementById("student-search").addEventListener("input", render);
   document.getElementById("new-student-btn").addEventListener("click", () => {
     document.getElementById("student-form").reset();
@@ -1459,7 +1460,7 @@
     };
     // Shared, contact-level fields (the parent / WhatsApp identity).
     const contactFields = {
-      whatsapp_number: document.getElementById("student-phone").value || null,
+      whatsapp_number: normalizedPhone(document.getElementById("student-phone").value),
       gender: document.getElementById("student-gender").value,
       social_media_name: document.getElementById("student-social").value || null,
       level: document.getElementById("student-level").value || null,

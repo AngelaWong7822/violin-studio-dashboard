@@ -206,6 +206,30 @@ function notesProgress(measures) {
   return '<span class="notes-progress">' + bars.join('<span class="np-bar"></span>') + "</span>";
 }
 
+// A WhatsApp field left at its "852" placeholder prefix (no real digits
+// typed) isn't a genuine phone number. Treating it as one would let two
+// different people who both skipped this field collide on the literal
+// string "852" and, because contacts.whatsapp_number is unique, silently
+// merge into the very same contact/lead — the second save overwrites the
+// first person's name and status instead of creating a separate record.
+function normalizedPhone(raw) {
+  const digits = (raw ?? "").replace(/[^0-9]/g, "");
+  return /^852[0-9]{8}$/.test(digits) ? digits : null;
+}
+
+// Remember a filter/search box across page reloads (per browser).
+function persistInput(el, key) {
+  if (!el) return;
+  const isCheck = el.type === "checkbox";
+  try {
+    const saved = localStorage.getItem("ui:" + key);
+    if (saved !== null) { if (isCheck) el.checked = saved === "1"; else el.value = saved; }
+  } catch (e) {}
+  el.addEventListener(isCheck || el.tagName === "SELECT" ? "change" : "input", () => {
+    try { localStorage.setItem("ui:" + key, isCheck ? (el.checked ? "1" : "0") : el.value); } catch (e) {}
+  });
+}
+
 // Yes/No confirm — replaces confirm() for destructive actions.
 function showConfirm(message, { danger = true } = {}) {
   return new Promise((resolve) => {

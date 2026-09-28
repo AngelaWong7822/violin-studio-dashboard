@@ -438,3 +438,16 @@ h1::after { font-size: 12px; font-style: italic; letter-spacing: 0.2px; }
 
 .float-note { position: fixed; z-index: 2000; pointer-events: none; color: #ea580c; animation: note-float 1.6s ease-out forwards; }
 @keyframes note-float { 0% { transform: translateY(0) rotate(-10deg) scale(0.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(160px) rotate(14deg) scale(1); opacity: 0; } }
+
+/* ==== UX: skeleton loaders + payment owing cues ==== */
+.sk-row td { border-bottom: none !important; padding: 12px 12px !important; }
+.sk-row:hover { background: transparent !important; }
+.sk-bar { display: block; height: 14px; border-radius: 999px; background: linear-gradient(90deg, #fed7aa 25%, #ffedd5 50%, #fed7aa 75%); background-size: 200% 100%; animation: sk-shimmer 1.3s ease-in-out infinite; }
+@keyframes sk-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sk-bar { animation: none; } }
+.owe-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #e11d48; margin-right: 8px; vertical-align: middle; box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.15); }
+.count-pill.count-pill-owe { background: #ffe4e6; color: #be123c; }
+.owe-tag { display: inline-block; margin-left: 6px; padding: 2px 9px; border-radius: 999px; background: #e11d48; color: #fff; font-size: 12px; font-weight: 700; }
+.settled-tag { display: inline-block; margin-left: 6px; font-size: 12px; font-weight: 700; color: #15803d; }
+tr.pay-settled > td { opacity: 0.6; }
+tr.pay-settled:hover > td { opacity: 1; }

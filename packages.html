@@ -360,7 +360,7 @@
         <th data-i18n="classes.col_lessons">Lessons scheduled</th>
         <th></th>
       </tr></thead>
-      <tbody id="class-rows"><tr><td colspan="5" class="empty"><span class="loading-notes"><i>♪</i><i>♫</i><i>♪</i></span> Loading…</td></tr></tbody>
+      <tbody id="class-rows"><tr class="sk-row"><td colspan="5"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="5"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="5"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
     </table>
     <button class="link" id="class-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
@@ -386,7 +386,7 @@
         <th data-i18n="packages.col_status">Status</th>
         <th></th>
       </tr></thead>
-      <tbody id="student-rows"><tr><td colspan="6" class="empty"><span class="loading-notes"><i>♪</i><i>♫</i><i>♪</i></span> Loading…</td></tr></tbody>
+      <tbody id="student-rows"><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
     </table>
     <button class="link" id="student-toggle-btn" style="display:none; margin-top:8px;"></button>
   </div>
@@ -411,7 +411,7 @@
         <th data-i18n="payments.col_extra_fee">Extra fee</th>
         <th data-i18n="schedule.col_paid">Paid</th>
       </tr></thead>
-      <tbody id="payment-rows"><tr><td colspan="6" class="empty"><span class="loading-notes"><i>♪</i><i>♫</i><i>♪</i></span> Loading…</td></tr></tbody>
+      <tbody id="payment-rows"><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
     </table>
   </div>
 
@@ -958,7 +958,8 @@
       + buildClassOptgroupsHtml(classes);
 
     const filter = document.getElementById("student-class-filter");
-    const prevFilter = filter.value;
+    let prevFilter = filter.value;
+    if (!prevFilter) { try { prevFilter = localStorage.getItem("ui:packages.classFilter") || ""; } catch (e) {} }
     filter.innerHTML = `<option value="" data-i18n="packages.filter_all_classes">All classes</option>`
       + buildClassOptgroupsHtml(classes);
     if (prevFilter && classes.some(c => c.id === prevFilter)) filter.value = prevFilter;
@@ -1724,6 +1725,10 @@
   // ---------- Payments (merged in from the old standalone Payments page) ----------
   const unpaidOnlyToggle = document.getElementById("unpaid-only");
   const paymentSearchEl = document.getElementById("payment-search");
+  persistInput(paymentSearchEl, "packages.paymentSearch");
+  persistInput(unpaidOnlyToggle, "packages.unpaidOnly");
+  persistInput(document.getElementById("student-search"), "packages.studentSearch");
+  persistInput(document.getElementById("student-class-filter"), "packages.classFilter");
   const paymentRowsEl = document.getElementById("payment-rows");
   const paymentExpandedIds = new Set();
   const paymentExpandedTermIds = new Set(); // manually re-opened older terms (by package id)
@@ -1841,6 +1846,9 @@
       // lessons forever.
       const allLessons = student.entries.filter(({ pkg }) => Number(pkg.price) > 0).flatMap(({ lessons }) => lessons);
       const paidCount = allLessons.filter(l => l.paid).length;
+      const owedLessons = allLessons.length - paidCount;
+      const owesExtra = student.entries.some(({ lessons }) => extraFeeLessons(lessons).some(l => !l.make_up_extra_fee_paid));
+      const isSettled = owedLessons === 0 && !owesExtra;
       const isOpen = paymentExpandedIds.has(student.studentId);
 
       const cards = student.entries.map(({ pkg, lessons }, i) => {
@@ -1914,13 +1922,13 @@
       }).join("");
 
       return `
-        <tr class="student-row" data-student-id="${student.studentId}">
+        <tr class="student-row ${isSettled ? "pay-settled" : "pay-owing"}" data-student-id="${student.studentId}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td>${student.name}</td>
+          <td>${isSettled ? "" : `<span class="owe-dot" title="${t("payments.owing_title")}"></span>`}${student.name}</td>
           <td>${student.entries.length}</td>
           <td><span class="count-pill">$${totalAmount}</span></td>
           <td>${totalExtraFee > 0 ? `<span class="count-pill count-pill-warn">+$${totalExtraFee}</span>` : "—"}</td>
-          <td><span class="count-pill count-pill-paid">${paidCount} / ${allLessons.length}</span> ${notesProgress(student.entries.filter(({ pkg }) => Number(pkg.price) > 0).slice(-1).map(({ lessons }) => ({ done: lessons.filter(l => l.paid).length, total: lessons.length })))}</td>
+          <td><span class="count-pill ${isSettled ? "count-pill-paid" : "count-pill-owe"}">${paidCount} / ${allLessons.length}</span>${owedLessons > 0 ? `<span class="owe-tag">${tf("payments.owe_lessons", { n: owedLessons })}</span>` : (owesExtra ? `<span class="owe-tag">${t("payments.owe_extra")}</span>` : `<span class="settled-tag">${t("payments.settled")}</span>`)} ${notesProgress(student.entries.filter(({ pkg }) => Number(pkg.price) > 0).slice(-1).map(({ lessons }) => ({ done: lessons.filter(l => l.paid).length, total: lessons.length })))}</td>
         </tr>
         <tr class="student-detail" data-student-detail="${student.studentId}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
@@ -2914,7 +2922,7 @@
     const studentFields = { name: nameValue || null };
     // Shared, contact-level fields (the parent / WhatsApp identity).
     const contactFields = {
-      whatsapp_number: document.getElementById("student-phone").value || null,
+      whatsapp_number: normalizedPhone(document.getElementById("student-phone").value),
       gender: document.getElementById("student-gender").value,
       social_media_name: document.getElementById("student-social").value || null,
       level: document.getElementById("student-level").value || null,
