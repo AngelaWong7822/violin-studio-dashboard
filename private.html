@@ -1839,8 +1839,10 @@
           <strong>${c?.name ?? "?"}</strong>
           <span class="phone">${c?.whatsapp_number ?? ""}</span>
           <span>${a.intent}</span>
-          <input type="date" class="pending-date" data-pending-date="${p.id}" value="${a.requested_date ?? ""}" />
-          <input type="time" class="pending-time" data-pending-time="${p.id}" value="${a.requested_time ?? ""}" />
+          ${a.intent === "cancellation"
+            ? `<span class="cancel-note">${t("private.pending_cancel_note")}</span>`
+            : `<input type="date" class="pending-date" data-pending-date="${p.id}" value="${a.requested_date ?? ""}" />
+          <input type="time" class="pending-time" data-pending-time="${p.id}" value="${a.requested_time ?? ""}" />`}
           <span class="confidence">(${Math.round((a.confidence ?? 0) * 100)}%)</span>
           <span class="time-ago">${timeAgo(p.created_at)}</span>
           <button type="button" class="link approve" data-approve="${p.id}">${t("private.approve")}</button>
@@ -1855,6 +1857,41 @@
         const p = pendingReviews.find(x => x.id === btn.dataset.approve);
         if (!p) return;
         const a = p.proposed_appointment;
+
+        // A cancellation review has no date/time to fill in — it's just
+        // "cancel whatever's next" — so it needs its own path rather than
+        // falling into the booking/reschedule logic below, which requires
+        // both fields and would otherwise just show "missing time" forever.
+        if (a.intent === "cancellation") {
+          // Look up only — never create a student here. resolveStudentForContact()
+          // auto-creates one when none exists, which is right for a booking
+          // (a first-time WhatsApp message), but wrong for a cancellation:
+          // there's nothing to cancel for a brand-new/phantom student record.
+          const { data: existingStudents } = await supabaseClient
+            .from("students").select("id, name").eq("contact_id", a.contact_id).eq("active", true).eq("is_group", false);
+          const rows = existingStudents ?? [];
+          let studentId = rows.length === 1 ? rows[0].id : null;
+          if (rows.length > 1) {
+            const q = (a.person_name ?? "").trim().toLowerCase();
+            const hit = q ? rows.filter(r => (r.name ?? "").toLowerCase().includes(q) || q.includes((r.name ?? "").toLowerCase())) : [];
+            studentId = hit.length === 1 ? hit[0].id : null;
+          }
+          if (!studentId) { showToast(t(rows.length > 1 ? "private.pending_pick_student" : "private.pending_no_student"), "error", 4000); return; }
+          const { data: upcoming } = await supabaseClient
+            .from("appointments").select("id").eq("student_id", studentId)
+            .gte("scheduled_start", new Date().toISOString()).order("scheduled_start", { ascending: true })
+            .limit(1).maybeSingle();
+          if (upcoming) {
+            const { error } = await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("id", upcoming.id);
+            if (error) { showToast("Save failed: " + error.message, "error"); return; }
+          }
+          await supabaseClient.from("pending_actions").update({ status: "approved", reviewed_by: "angela", reviewed_at: new Date().toISOString() }).eq("id", p.id);
+          await loadPendingReviews();
+          await load();
+          showToast(t("private.approved_confirm"), "success");
+          return;
+        }
+
         // Read from the date/time inputs, not the original AI-guessed
         // values — she may have corrected them inline before approving.
         const requestedDate = document.querySelector(`[data-pending-date="${p.id}"]`).value;

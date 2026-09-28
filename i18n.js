@@ -344,6 +344,7 @@ const I18N_STRINGS = {
     "private.parent_contact": "Parent contact",
     "private.same_parent_as": "Same parent: {name}",
     "private.pending_pick_student": "This parent has more than one student — approve it from the 私人學生 list so you can pick which child.",
+    "private.pending_no_student": "Couldn't find an existing private student for this contact — please handle the cancellation manually.",
     "private.cancel_consult_confirm": "Cancel this consultation?",
     "private.ai_created_title": "Added automatically from a WhatsApp booking",
     "private.last_message_title": "Last WhatsApp message",
@@ -376,6 +377,7 @@ const I18N_STRINGS = {
     "private.time_hours_ago": "{n}h ago",
     "private.time_days_ago": "{n}d ago",
     "private.pending_missing_time": "No specific date/time yet — reply to the client to pin one down first.",
+    "private.pending_cancel_note": "Approving cancels the student's next lesson",
     "format.1on1": "1-on-1",
     "format.1on2": "1-on-2",
 
@@ -840,6 +842,7 @@ const I18N_STRINGS = {
     "private.parent_contact": "家長 / 聯絡人",
     "private.same_parent_as": "同一家長:{name}",
     "private.pending_pick_student": "呢個家長有多過一個學生 — 請喺「私人學生」清單度approve,咁先揀到邊個小朋友。",
+    "private.pending_no_student": "搵唔到呢個客人嘅私人學生資料 — 請自己手動處理呢個取消。",
     "private.cancel_consult_confirm": "取消呢個諮詢?",
     "private.ai_created_title": "由WhatsApp自動預約加入",
     "private.last_message_title": "最後WhatsApp傾偈時間",
@@ -872,6 +875,7 @@ const I18N_STRINGS = {
     "private.time_hours_ago": "{n}小時前",
     "private.time_days_ago": "{n}日前",
     "private.pending_missing_time": "仲未有具體日期時間 — 請先回覆客人確認清楚先。",
+    "private.pending_cancel_note": "撳批准會取消學生下一堂",
     "format.1on1": "1對1",
     "format.1on2": "1對2",
 

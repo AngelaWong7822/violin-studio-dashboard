@@ -451,3 +451,6 @@ h1::after { font-size: 12px; font-style: italic; letter-spacing: 0.2px; }
 .settled-tag { display: inline-block; margin-left: 6px; font-size: 12px; font-weight: 700; color: #15803d; }
 tr.pay-settled > td { opacity: 0.6; }
 tr.pay-settled:hover > td { opacity: 1; }
+
+/* pending-review cancellation note — sits where the date/time inputs would */
+.cancel-note { font-size: 12px; color: #be123c; font-weight: 600; }
