@@ -148,6 +148,7 @@ const I18N_STRINGS = {
 
     "leadstatus.consultation_booked": "Consultation booked",
     "leadstatus.attended": "Attended",
+    "leadstatus.deposit_paid": "Deposit paid",
     "leadstatus.converted": "Converted",
     "leadstatus.lost": "Lost",
 
@@ -646,6 +647,7 @@ const I18N_STRINGS = {
 
     "leadstatus.consultation_booked": "已約諮詢",
     "leadstatus.attended": "已出席",
+    "leadstatus.deposit_paid": "已比留位費",
     "leadstatus.converted": "已轉正式生",
     "leadstatus.lost": "流失",
 
