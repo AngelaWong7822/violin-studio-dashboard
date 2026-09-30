@@ -1723,23 +1723,47 @@
     if (c.regular_weekday == null || !c.regular_time) return;
 
     const now = new Date();
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const [h, m] = c.regular_time.split(":").map(Number);
-
     const existingByDateKey = new Map(student.lessons.map(l => [new Date(l.when).toDateString(), l]));
-    const candidateDates = [];
-    const mismatched = []; // { lesson, start } — same regular day, wrong time
-    for (let d = new Date(now.getFullYear(), now.getMonth(), now.getDate()); d < endOfMonth; d.setDate(d.getDate() + 1)) {
-      if (d.getDay() !== c.regular_weekday) continue;
-      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
-      if (start < now) continue; // today's slot already passed
-      const existing = existingByDateKey.get(start.toDateString());
-      if (existing) {
-        const cur = new Date(existing.when);
-        if (cur.getHours() !== h || cur.getMinutes() !== m) mismatched.push({ lesson: existing, start });
-        continue; // right time already, or queued for a time fix
+
+    // Scans every `regular_weekday` between `from` (inclusive) and `to`
+    // (exclusive), skipping any slot that's already passed or already has
+    // a lesson at the right time.
+    function scanRange(from, to) {
+      const candidates = [];
+      const mism = []; // { lesson, start } — same regular day, wrong time
+      for (let d = new Date(from); d < to; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== c.regular_weekday) continue;
+        const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
+        if (start < now) continue; // today's slot already passed
+        const existing = existingByDateKey.get(start.toDateString());
+        if (existing) {
+          const cur = new Date(existing.when);
+          if (cur.getHours() !== h || cur.getMinutes() !== m) mism.push({ lesson: existing, start });
+          continue; // right time already, or queued for a time fix
+        }
+        candidates.push(start);
       }
-      candidateDates.push(start);
+      return { candidates, mism };
+    }
+
+    let { candidates: candidateDates, mism: mismatched } = scanRange(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      new Date(now.getFullYear(), now.getMonth() + 1, 1),
+    );
+
+    // Nothing left this month (most likely because it's already run out of
+    // that weekday, like clicking this on the month's last Wednesday
+    // afternoon) — fall through to next month's regular slots instead of
+    // just reporting "nothing to book" and making her wait for next month
+    // to roll over before she can plan ahead.
+    let bookingNextMonth = false;
+    if (!candidateDates.length && !mismatched.length) {
+      ({ candidates: candidateDates, mism: mismatched } = scanRange(
+        new Date(now.getFullYear(), now.getMonth() + 1, 1),
+        new Date(now.getFullYear(), now.getMonth() + 2, 1),
+      ));
+      bookingNextMonth = true;
     }
 
     const weekdayLabel = t("day." + c.regular_weekday);
@@ -1761,7 +1785,7 @@
     let changed = false;
 
     if (candidateDates.length &&
-        await showConfirm(tf("private.book_month_confirm", { n: candidateDates.length, weekday: weekdayLabel, time: c.regular_time }))) {
+        await showConfirm(tf(bookingNextMonth ? "private.book_month_confirm_next" : "private.book_month_confirm", { n: candidateDates.length, weekday: weekdayLabel, time: c.regular_time }))) {
       const rows = candidateDates.map(start => ({
         type: "lesson", lesson_format: format, student_id: student.id,
         scheduled_start: start.toISOString(),
