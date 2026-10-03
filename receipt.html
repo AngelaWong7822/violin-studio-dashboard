@@ -347,15 +347,11 @@
     return new Date(iso).toLocaleDateString("en-HK", { dateStyle: "medium" });
   }
 
-  // A rescheduled lesson (whole-class move, e.g. a typhoon) shows its
-  // original date struck through with an arrow to the date it actually
-  // landed on — same convention as the studio's paper receipt template.
-  // Structured (not pre-rendered HTML) so both the on-screen row and the
-  // native PDF generator can render it their own way from the same data.
+  // A rescheduled lesson just shows the date it actually landed on — no
+  // struck-through original date or arrow. (The struckText branches in
+  // addItemRow and the PDF generator stay in place but are never hit.)
   function scheduleLineData(appt) {
-    return appt.rescheduled_from
-      ? { struckText: formatDateLabel(appt.rescheduled_from), text: formatDateLabel(appt.scheduled_start) }
-      : { struckText: null, text: formatDateLabel(appt.scheduled_start) };
+    return { struckText: null, text: formatDateLabel(appt.scheduled_start) };
   }
 
   // Same rules the Packages page's Payments tab uses, so a term's price on
