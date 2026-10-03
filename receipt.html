@@ -213,6 +213,17 @@
     #item-table tbody textarea.item-desc { display: none; }
     .item-desc-print { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
   }
+
+  /* ---- cute + darker: on-screen preview matches the PDF palette ---- */
+  #receipt-sheet { font-family: "Huninn", "Microsoft JhengHei", sans-serif; color: #2d190c; }
+  .receipt-meta { background: #fff3e2; border-color: #fdba74; }
+  .receipt-meta label, .item-schedule .schedule-title { color: #9a3412; font-weight: 700; }
+  .receipt-meta input { border-bottom-color: #ea9650; color: #2d190c; }
+  #item-table thead tr, #item-table thead th, .total-row { background: #fac48c; }
+  #item-table thead th, .total-row .total-label { color: #431407; font-weight: 700; }
+  #item-table tbody td { border-bottom-color: #f0c8a0; }
+  #item-table tbody textarea.item-desc, .item-desc-print { font-weight: 700; }
+  .receipt-footer .signature-block .sig-line { border-top-color: #431407; color: #431407; }
 </style>
 </head>
 <body>
@@ -657,15 +668,15 @@
   PDF.BOTTOM_LIMIT = PDF.PAGE_H - 60;
 
   const PDF_COLORS = {
-    text: [42, 36, 32],
-    gold: [95, 66, 10],
-    headerBg: [226, 214, 187],
-    headerText: [38, 32, 26],
-    border: [217, 208, 195],
-    metaBg: [250, 248, 244],
-    metaBorder: [237, 230, 216],
-    metaLine: [221, 212, 200],
-    sigText: [55, 46, 38],
+    text: [45, 25, 12],
+    gold: [154, 52, 18],
+    headerBg: [250, 196, 140],
+    headerText: [67, 20, 7],
+    border: [240, 200, 160],
+    metaBg: [255, 243, 226],
+    metaBorder: [253, 186, 116],
+    metaLine: [234, 150, 80],
+    sigText: [67, 20, 7],
     struck: [168, 155, 138],
   };
 
@@ -699,31 +710,141 @@
   // ~7MB source font — confirmed directly: a test PDF with a full line of
   // Chinese text still came out under 300KB.
   const CJK_FONT_URL = "https://cdn.jsdelivr.net/gh/google/fonts@352f6b7d9d6cc4fa9e242b931291d31b21a6dc84/ofl/notosanstc/NotoSansTC[wght].ttf";
+  // Rounded "cute" face (same family the dashboard uses on screen). It only
+  // covers a common-use subset of Chinese, so the receipt first checks that
+  // every character it is about to print exists in it — if even one doesn't
+  // (a rare character in a student's name, say) the whole document falls
+  // back to Noto Sans TC rather than printing a blank/missing glyph on a
+  // receipt. Same pinned-commit trick as above, so it stays cached.
+  const HUNINN_URL = "https://cdn.jsdelivr.net/gh/google/fonts@352f6b7d9d6cc4fa9e242b931291d31b21a6dc84/ofl/huninn/Huninn-Regular.ttf";
+  // Kept under this name regardless of which font file is actually
+  // embedded — it is only a label inside the PDF, and every draw call below
+  // already refers to it.
   const CJK_FONT_NAME = "NotoSansTC";
-  let cjkFontLoadPromise = null;
-  function loadCjkFontIntoPdf(doc) {
-    if (!cjkFontLoadPromise) {
-      cjkFontLoadPromise = fetch(CJK_FONT_URL)
-        .then(res => res.arrayBuffer())
-        .then(buf => {
-          const bytes = new Uint8Array(buf);
-          let binary = "";
-          const chunkSize = 0x8000;
-          for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-          return btoa(binary);
-        });
+
+  const fontBytesCache = new Map();
+  function fetchFontBytes(url) {
+    if (!fontBytesCache.has(url)) {
+      const p = fetch(url).then(res => {
+        if (!res.ok) throw new Error("font download failed: " + res.status);
+        return res.arrayBuffer();
+      });
+      p.catch(() => fontBytesCache.delete(url));
+      fontBytesCache.set(url, p);
     }
-    return cjkFontLoadPromise.then(base64 => {
-      doc.addFileToVFS(`${CJK_FONT_NAME}.ttf`, base64);
-      // This is a variable font (one file covers its whole weight range),
-      // but PDF viewers don't render variable-font weight axes — jsPDF
-      // just embeds its default instance, so "bold" text drawn with it
-      // comes out the same visual weight as "normal". A worthwhile
-      // trade-off for correct Chinese rendering everywhere rather than
-      // chasing down a separate static bold CJK font file too.
-      doc.addFont(`${CJK_FONT_NAME}.ttf`, CJK_FONT_NAME, "normal");
-      doc.addFont(`${CJK_FONT_NAME}.ttf`, CJK_FONT_NAME, "bold");
+    return fontBytesCache.get(url);
+  }
+
+  function bytesToBase64(buf) {
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    return btoa(binary);
+  }
+
+  // Minimal TrueType 'cmap' reader (formats 4 and 12) — just enough to ask
+  // "does this font have a glyph for this character?". Returns a function
+  // that is always false when the table can not be understood, which safely
+  // routes to the fallback font.
+  function ttfCoverage(buf) {
+    try {
+      const dv = new DataView(buf);
+      const numTables = dv.getUint16(4);
+      let cmapOff = 0;
+      for (let i = 0; i < numTables; i++) {
+        const tag = String.fromCharCode(dv.getUint8(12 + i * 16), dv.getUint8(13 + i * 16), dv.getUint8(14 + i * 16), dv.getUint8(15 + i * 16));
+        if (tag === "cmap") cmapOff = dv.getUint32(12 + i * 16 + 8);
+      }
+      if (!cmapOff) return () => false;
+      const subs = [];
+      for (let i = 0; i < dv.getUint16(cmapOff + 2); i++) {
+        subs.push({ p: dv.getUint16(cmapOff + 4 + i * 8), e: dv.getUint16(cmapOff + 6 + i * 8), o: dv.getUint32(cmapOff + 8 + i * 8) });
+      }
+      const sub = subs.find(x => x.p === 3 && x.e === 10) || subs.find(x => x.p === 3 && x.e === 1);
+      if (!sub) return () => false;
+      const base = cmapOff + sub.o;
+      const fmt = dv.getUint16(base);
+      if (fmt === 12) {
+        const groups = dv.getUint32(base + 12);
+        return (cp) => {
+          for (let i = 0; i < groups; i++) {
+            if (cp >= dv.getUint32(base + 16 + i * 12) && cp <= dv.getUint32(base + 20 + i * 12)) return true;
+          }
+          return false;
+        };
+      }
+      if (fmt === 4) {
+        const segX2 = dv.getUint16(base + 6), segs = segX2 / 2;
+        const endO = base + 14, startO = endO + segX2 + 2, deltaO = startO + segX2, rangeO = deltaO + segX2;
+        return (cp) => {
+          if (cp > 0xffff) return false;
+          for (let i = 0; i < segs; i++) {
+            if (cp > dv.getUint16(endO + i * 2)) continue;
+            const start = dv.getUint16(startO + i * 2);
+            if (cp < start) return false;
+            const ro = dv.getUint16(rangeO + i * 2);
+            if (ro === 0) return ((cp + dv.getInt16(deltaO + i * 2)) & 0xffff) !== 0;
+            return dv.getUint16(rangeO + i * 2 + ro + (cp - start) * 2) !== 0;
+          }
+          return false;
+        };
+      }
+    } catch (e) { /* fall through */ }
+    return () => false;
+  }
+
+  async function loadCjkFontIntoPdf(doc, neededText) {
+    let buf = null;
+    try {
+      const huninn = await fetchFontBytes(HUNINN_URL);
+      const has = ttfCoverage(huninn);
+      if ([...neededText].every(ch => /\s/.test(ch) || has(ch.codePointAt(0)))) buf = huninn;
+    } catch (e) { /* offline / blocked — fall back below */ }
+    if (!buf) buf = await fetchFontBytes(CJK_FONT_URL);
+    doc.addFileToVFS(`${CJK_FONT_NAME}.ttf`, bytesToBase64(buf));
+    // Neither file ships a real bold master (Noto is a variable font that
+    // PDF viewers render at its default weight; Huninn is Regular-only), so
+    // both styles map to the same file and enableFakeBold() thickens the
+    // "bold" ones instead.
+    doc.addFont(`${CJK_FONT_NAME}.ttf`, CJK_FONT_NAME, "normal");
+    doc.addFont(`${CJK_FONT_NAME}.ttf`, CJK_FONT_NAME, "bold");
+  }
+
+  // Draws "bold" text as fill + a hairline stroke in the same colour — the
+  // standard PDF trick for synthetic bold. Only touches text drawn while the
+  // current font style is "bold"; line/stroke state is restored afterwards.
+  function enableFakeBold(doc) {
+    const origText = doc.text.bind(doc);
+    doc.text = function (text, x, y, options, transform) {
+      if (doc.getFont().fontStyle !== "bold") return origText(text, x, y, options, transform);
+      const prevWidth = doc.getLineWidth();
+      const prevDraw = doc.getDrawColor();
+      doc.setDrawColor(doc.getTextColor());
+      doc.setLineWidth(0.45);
+      origText(text, x, y, { ...(options || {}), renderingMode: "fillThenStroke" }, transform);
+      doc.setLineWidth(prevWidth);
+      doc.setDrawColor(prevDraw);
+      return doc;
+    };
+  }
+
+  // Every character the PDF is going to print, so the font choice above can
+  // be made once for the whole document before any drawing starts.
+  function collectPdfText() {
+    const parts = [
+      "TOM'S VIOLIN STUDIO ISSUED TO: DATE: DESCRIPTION UNIT PRICE QTY TOTAL Signature",
+      "Contact number: 95179962 Address: 9A Spark City(Mong Kok), Tong Mi Road 25, Mong Kok",
+      "$0123456789,.-/:()",
+      document.getElementById("receipt-issued-to").value,
+      t("receipt.schedule_title"),
+    ];
+    collectReceiptItems().forEach(it => {
+      parts.push(it.description);
+      it.scheduleLines.forEach(l => parts.push(l.text));
     });
+    if (showTermsPage) parts.push("條款與細則", "Terms and Conditions", ...TERMS_AND_CONDITIONS_ZH, ...TERMS_AND_CONDITIONS_EN);
+    return parts.join(" ");
   }
 
   // jsPDF embeds whatever image data it's given as-is — passing the raw
@@ -774,7 +895,7 @@
       doc.addImage(logoImg.dataUrl, "JPEG", PDF.PAGE_W / 2 - w / 2, y, w, h);
       y += h + 10;
     }
-    doc.setFont(CJK_FONT_NAME, "normal");
+    doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(13);
     doc.setTextColor(...PDF_COLORS.text);
     drawTrackedText(doc, "TOM'S VIOLIN STUDIO", PDF.PAGE_W / 2, y, { align: "center", spacing: 3 });
@@ -788,7 +909,7 @@
     doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, boxH, 3, 3, "FD");
 
     doc.setFont(CJK_FONT_NAME, "bold");
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.gold);
     drawTrackedText(doc, "ISSUED TO:", PDF.MARGIN + padX, labelY, { spacing: 1 });
     drawTrackedText(doc, "DATE:", PDF.PAGE_W - PDF.MARGIN - padX, labelY, { align: "right", spacing: 1 });
@@ -809,7 +930,7 @@
     doc.setFillColor(...PDF_COLORS.headerBg);
     doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
     doc.setFont(CJK_FONT_NAME, "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setTextColor(...PDF_COLORS.headerText);
     doc.text("DESCRIPTION", PDF.COL_DESC_X + 8, y + h / 2 + 3);
     doc.text("UNIT PRICE", PDF.COL_PRICE_X + PDF.COL_PRICE_W / 2, y + h / 2 + 3, { align: "center" });
@@ -870,7 +991,7 @@
 
     if (measured.scheduleLines.length) {
       doc.setFont(CJK_FONT_NAME, "bold");
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.setTextColor(...PDF_COLORS.gold);
       // .toUpperCase() is a no-op on Chinese text, so this stays safe for
       // either language — matches the on-screen label's CSS
@@ -1037,8 +1158,9 @@
         loadImageAsJpeg("logo.png"),
         loadImageAsJpeg("stamp.png"),
         loadImageAsJpeg("signature.png"),
-        loadCjkFontIntoPdf(doc),
+        loadCjkFontIntoPdf(doc, collectPdfText()),
       ]);
+      enableFakeBold(doc);
 
       buildReceiptPage(doc, { logo, stamp, signature });
       if (showTermsPage) buildTermsPage(doc, { logo });
