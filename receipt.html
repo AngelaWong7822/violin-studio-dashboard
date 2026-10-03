@@ -215,15 +215,21 @@
   }
 
   /* ---- cute + darker: on-screen preview matches the PDF palette ---- */
-  #receipt-sheet { font-family: "Huninn", "Microsoft JhengHei", sans-serif; color: #2d190c; }
-  .receipt-meta { background: #fff3e2; border-color: #fdba74; }
-  .receipt-meta label, .item-schedule .schedule-title { color: #9a3412; font-weight: 700; }
-  .receipt-meta input { border-bottom-color: #ea9650; color: #2d190c; }
+  #receipt-sheet { font-family: "Huninn", "Microsoft JhengHei", sans-serif; color: #30221a; }
+  .receipt-meta { background: #fff3e2; border-color: #fdba74; border-radius: 10px; }
+  .receipt-meta label, .item-schedule .schedule-title { color: #873820; font-weight: 700; }
+  .receipt-meta input { border-bottom-color: #ea9650; color: #30221a; }
   #item-table thead tr, #item-table thead th, .total-row { background: #fac48c; }
-  #item-table thead th, .total-row .total-label { color: #431407; font-weight: 700; }
+  #item-table thead th, .total-row .total-label { color: #3e1a0e; font-weight: 700; }
   #item-table tbody td { border-bottom-color: #f0c8a0; }
-  #item-table tbody textarea.item-desc, .item-desc-print { font-weight: 700; }
-  .receipt-footer .signature-block .sig-line { border-top-color: #431407; color: #431407; }
+  #item-table tbody textarea.item-desc, .item-desc-print { font-weight: 600; }
+  .receipt-meta { margin-bottom: 48px; }
+  .item-schedule { margin-top: 20px; }
+  .item-schedule .schedule-line { line-height: 1.8; }
+  #item-table thead th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+  #item-table thead th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+  .total-row { border-radius: 8px; }
+  .receipt-footer .signature-block .sig-line { border-top-color: #3e1a0e; color: #3e1a0e; }
 </style>
 </head>
 <body>
@@ -668,15 +674,15 @@
   PDF.BOTTOM_LIMIT = PDF.PAGE_H - 60;
 
   const PDF_COLORS = {
-    text: [45, 25, 12],
-    gold: [154, 52, 18],
+    text: [48, 34, 26],
+    gold: [135, 56, 32],
     headerBg: [250, 196, 140],
-    headerText: [67, 20, 7],
+    headerText: [62, 26, 14],
     border: [240, 200, 160],
     metaBg: [255, 243, 226],
     metaBorder: [253, 186, 116],
     metaLine: [234, 150, 80],
-    sigText: [67, 20, 7],
+    sigText: [62, 26, 14],
     struck: [168, 155, 138],
   };
 
@@ -821,7 +827,7 @@
       const prevWidth = doc.getLineWidth();
       const prevDraw = doc.getDrawColor();
       doc.setDrawColor(doc.getTextColor());
-      doc.setLineWidth(0.45);
+      doc.setLineWidth(0.22);
       origText(text, x, y, { ...(options || {}), renderingMode: "fillThenStroke" }, transform);
       doc.setLineWidth(prevWidth);
       doc.setDrawColor(prevDraw);
@@ -906,7 +912,7 @@
     const boxH = 50, padX = 16, labelY = y + 18, valueY = y + 36;
     doc.setFillColor(...PDF_COLORS.metaBg);
     doc.setDrawColor(...PDF_COLORS.metaBorder);
-    doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, boxH, 3, 3, "FD");
+    doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, boxH, 8, 8, "FD");
 
     doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(9);
@@ -922,13 +928,13 @@
     doc.setDrawColor(...PDF_COLORS.metaLine);
     doc.line(PDF.MARGIN + padX, valueY + 4, PDF.MARGIN + padX + 150, valueY + 4);
 
-    return y + boxH + 24;
+    return y + boxH + 24 + 28; // + two blank lines above DESCRIPTION
   }
 
   function drawTableHeader(doc, y) {
     const h = 26;
     doc.setFillColor(...PDF_COLORS.headerBg);
-    doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
+    doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, h, 7, 7, "F");
     doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(10);
     doc.setTextColor(...PDF_COLORS.headerText);
@@ -964,17 +970,17 @@
 
     const scheduleLines = [];
     if (item.scheduleLines.length) {
-      h += 14;
+      h += 14 + 14; // title row + one blank line above it
       doc.setFont(CJK_FONT_NAME, "normal");
       doc.setFontSize(10);
       item.scheduleLines.forEach(line => {
         if (line.struckText) {
           scheduleLines.push(line);
-          h += 13;
+          h += 15;
         } else {
           const wrapped = doc.splitTextToSize(line.text, maxW);
           scheduleLines.push({ ...line, wrapped });
-          h += wrapped.length * 13;
+          h += wrapped.length * 15;
         }
       });
     }
@@ -990,6 +996,7 @@
     measured.descLines.forEach(line => { doc.text(line, PDF.COL_DESC_X + padX, cy); cy += 14; });
 
     if (measured.scheduleLines.length) {
+      cy += 14; // blank line above the title
       doc.setFont(CJK_FONT_NAME, "bold");
       doc.setFontSize(10);
       doc.setTextColor(...PDF_COLORS.gold);
@@ -1010,10 +1017,10 @@
           // "->" not "→" — the Unicode arrow isn't in jsPDF's standard
           // font encoding and renders as garbage instead of a visible error.
           doc.text(` -> ${line.text}`, PDF.COL_DESC_X + padX + struckW, cy);
-          cy += 13;
+          cy += 15;
         } else {
           doc.setTextColor(...PDF_COLORS.text);
-          line.wrapped.forEach(wline => { doc.text(wline, PDF.COL_DESC_X + padX, cy); cy += 13; });
+          line.wrapped.forEach(wline => { doc.text(wline, PDF.COL_DESC_X + padX, cy); cy += 15; });
         }
       });
     }
@@ -1034,7 +1041,7 @@
   function drawTotalRow(doc, y, total) {
     const h = 26;
     doc.setFillColor(...PDF_COLORS.headerBg);
-    doc.rect(PDF.MARGIN, y, PDF.CONTENT_W, h, "F");
+    doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, h, 7, 7, "F");
     doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.headerText);
