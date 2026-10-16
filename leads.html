@@ -150,11 +150,12 @@
     <table>
       <thead><tr>
         <th data-i18n="lead.name">Name</th>
+        <th data-i18n="lead.age">Age</th>
         <th data-i18n="lead.phone">WhatsApp number</th>
         <th data-i18n="schedule.followup_col_attended">Attended on</th>
         <th data-i18n="schedule.followup_col_status">Status</th>
       </tr></thead>
-      <tbody id="followup-rows"><tr class="sk-row"><td colspan="4"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="4"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="4"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
+      <tbody id="followup-rows"><tr class="sk-row"><td colspan="5"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="5"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="5"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
     </table>
   </div>
 
@@ -353,11 +354,11 @@
     const tbody = document.getElementById("followup-rows");
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, contacts(name, whatsapp_number), appointments!leads_consultation_appointment_fk(scheduled_start)")
+      .select("id, status, contacts(name, whatsapp_number, age), appointments!leads_consultation_appointment_fk(scheduled_start)")
       .in("status", ["consultation_booked", "attended"])
       .eq("followed_up", false);
-    if (error) { tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${error.message}</td></tr>`; return; }
-    if (!data.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (!data.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
 
     // Oldest attended date first (most overdue at the top); anyone who
     // hasn't attended yet (no date at all) has nothing to follow up on
@@ -378,6 +379,7 @@
       return `
       <tr${overdue ? ' style="background:#fef2f2;"' : ""}>
         <td>${l.contacts?.name ?? ""}</td>
+        <td>${l.contacts?.age ?? ""}</td>
         <td>${l.contacts?.whatsapp_number ?? ""}</td>
         <td>${dateCell}</td>
         <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span></td>

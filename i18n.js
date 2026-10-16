@@ -268,6 +268,10 @@ const I18N_STRINGS = {
     "payments.col_extra_fee": "Extra fee",
     "payments.term_label": "Term {n}:",
     "payments.mark_all_paid": "Mark all paid",
+    "payments.note_placeholder": "Note (e.g. 10/16 FPS)",
+    "payments.note_paid_stamp": "paid",
+    "payments.note_unlock": "Unlock to edit",
+    "payments.note_lock": "Lock",
     "payments.mark_all_paid_confirm": "Mark every lesson in this term as paid?",
 
     "packages.title": "Group Class Packages",
@@ -768,6 +772,10 @@ const I18N_STRINGS = {
     "payments.col_extra_fee": "額外收費",
     "payments.term_label": "第{n}期:",
     "payments.mark_all_paid": "全部已付",
+    "payments.note_placeholder": "備註（例如 10/16 轉數快）",
+    "payments.note_paid_stamp": "已付",
+    "payments.note_unlock": "解鎖修改",
+    "payments.note_lock": "鎖定",
     "payments.mark_all_paid_confirm": "確定要將呢期所有堂一次過設做已付?",
 
     "packages.title": "小組課套票",

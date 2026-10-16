@@ -272,6 +272,9 @@
   .term-card-header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; color: #27272a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f1; }
   .term-card-header .term-label { font-weight: 600; color: #71717a; }
   .term-card-header .term-price { color: #71717a; }
+  .term-card-header .pay-note-lock { border: none; background: none; cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1; }
+  .term-card-header .pay-note-input.is-locked { background: #fff7ed; border-style: dashed; cursor: default; }
+  .term-card-header .pay-note-input { flex: 1 1 180px; min-width: 140px; max-width: 300px; font-size: 12px; padding: 3px 12px; border: 1px solid #fdba74; border-radius: 999px; background: #fff; color: #431407; }
   .term-card-header .term-extra-fee { color: #1e6b34; font-weight: 600; }
   .term-card.term-card-collapsed { background: #f4f4f5; }
   .term-card.term-card-collapsed .term-card-header { cursor: pointer; color: #a1a1aa; border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
@@ -1758,7 +1761,7 @@
     // several renewals shows as a single line, not repeated rows.
     const { data: pkgs, error } = await supabaseClient
       .from("packages")
-      .select("id, class_id, student_id, start_date, total_lessons, price, students!inner(active, name, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
+      .select("id, class_id, student_id, start_date, total_lessons, price, payment_note, students!inner(active, name, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
       .eq("students.active", true)
       .order("start_date", { ascending: false });
     if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
@@ -1803,6 +1806,14 @@
 
     paymentsAllGroupAppts = await getAllGroupAppointments();
     renderPayments();
+  }
+
+  // Terms whose saved note she has unlocked for editing; a note with text
+  // starts locked so a stray click does not overwrite it.
+  const payNoteUnlocked = new Set();
+
+  function escapeAttr(v) {
+    return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   }
 
   function groupPackagesByStudent(list) {
@@ -1908,6 +1919,11 @@
               ${extraFeeTotal(lessons) > 0 ? `<span class="term-extra-fee">${t("makeup.extra_fee_label")} +$${extraFeeTotal(lessons)}</span>` : ""}
               <span>${termPaidCount} / ${lessons.length} ${t("schedule.col_paid")}</span>
               ${isOpenTerm && termPaidCount < lessons.length ? `<button type="button" class="link mark-all-paid-btn" data-term-id="${pkg.id}">${t("payments.mark_all_paid")}</button>` : ""}
+              ${(() => {
+                const hasNote = !!(pkg.payment_note ?? "").trim();
+                const locked = hasNote && !payNoteUnlocked.has(pkg.id);
+                return `<input type="text" class="pay-note-input${locked ? " is-locked" : ""}" data-term-id="${pkg.id}" value="${escapeAttr(pkg.payment_note)}" placeholder="${escapeAttr(t("payments.note_placeholder"))}"${locked ? " readonly" : ""} />${hasNote ? `<button type="button" class="pay-note-lock" data-term-id="${pkg.id}" title="${escapeAttr(t(locked ? "payments.note_unlock" : "payments.note_lock"))}">${locked ? "🔒" : "🔓"}</button>` : ""}`;
+              })()}
             </div>
             ${isOpenTerm ? `
               <table class="detail-table">
@@ -2015,7 +2031,43 @@
           });
         }
         unpaid.forEach(l => { l.paid = true; });
+
+        // Stamp today's date into an empty note so she can see when it was
+        // settled — she can overwrite it afterwards.
+        if (!(entry.pkg.payment_note ?? "").trim()) {
+          const now = new Date();
+          const stamp = `${now.getMonth() + 1}/${now.getDate()} ${t("payments.note_paid_stamp")}`;
+          const { error: noteError } = await supabaseClient.from("packages").update({ payment_note: stamp }).eq("id", entry.pkg.id);
+          if (!noteError) entry.pkg.payment_note = stamp;
+        }
         renderPayments();
+      });
+    });
+
+    paymentRowsEl.querySelectorAll(".pay-note-input").forEach(input => {
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") input.blur();
+      });
+      input.addEventListener("change", async () => {
+        const entry = paymentPackages.find(({ pkg }) => pkg.id === input.dataset.termId);
+        if (!entry) return;
+        const value = input.value.trim() || null;
+        const { error } = await supabaseClient.from("packages").update({ payment_note: value }).eq("id", entry.pkg.id);
+        if (error) { showToast("Save failed: " + error.message, "error"); input.value = entry.pkg.payment_note ?? ""; return; }
+        entry.pkg.payment_note = value;
+        if (value) { payNoteUnlocked.delete(entry.pkg.id); renderPayments(); }
+      });
+    });
+
+    paymentRowsEl.querySelectorAll(".pay-note-lock").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.termId;
+        if (payNoteUnlocked.has(id)) payNoteUnlocked.delete(id); else payNoteUnlocked.add(id);
+        renderPayments();
+        if (payNoteUnlocked.has(id)) paymentRowsEl.querySelector(`.pay-note-input[data-term-id="${id}"]`)?.focus();
       });
     });
 
