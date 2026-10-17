@@ -121,6 +121,7 @@
   .icon-action-btn { border: none; background: none; cursor: pointer; font-size: 15px; color: #71717a; padding: 2px 5px; border-radius: 4px; }
   .icon-action-btn:hover { color: #18181b; background: #f4f4f5; }
   .week-calendar-grid { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .week-calendar-grid-2 { margin-top: 10px; }
   .week-calendar-day {
     flex: 1 1 0; min-width: 108px; background: #fafafa; border-radius: 12px;
     padding: 8px; display: flex; flex-direction: column; gap: 6px;
@@ -741,7 +742,8 @@
     const el = document.getElementById("week-bookings-list");
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const rangeEnd = new Date(startOfToday.getTime() + 7 * 86400000);
+    const CAL_DAYS = 14; // two rows of 7: this week + next week
+    const rangeEnd = new Date(startOfToday.getTime() + CAL_DAYS * 86400000);
 
     // Teaching-hours config — defaults if the row/table isn't there yet.
     if (!studioSettings) {
@@ -883,7 +885,7 @@
     let totalBooked = 0;
     let liveStatus = null; // computed for today only: currently teaching, or free (+ next lesson today)
     const daysHtml = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < CAL_DAYS; i++) {
       const day = new Date(startOfToday.getTime() + i * 86400000);
       const isToday = i === 0;
       const dayEnd = new Date(day.getTime() + 86400000);
@@ -1011,7 +1013,8 @@
 
     el.innerHTML =
       `<p style="margin:0 0 10px; color:#71717a; font-size:12px;">${tf("private.week_bookings_count", { n: totalBooked })}</p>` +
-      `<div class="week-calendar-grid">${daysHtml.join("")}</div>` +
+      `<div class="week-calendar-grid">${daysHtml.slice(0, 7).join("")}</div>` +
+      `<div class="week-calendar-grid week-calendar-grid-2">${daysHtml.slice(7).join("")}</div>` +
       undatedHtml;
     applyI18n();
 

@@ -292,8 +292,8 @@ const I18N_STRINGS = {
     "packages.empty_packages": "No packages yet.",
 
     "private.title": "Private Students",
-    "private.week_bookings_title": "🗓️ This Week's Bookings (next 7 days)",
-    "private.week_bookings_empty": "No bookings in the next 7 days.",
+    "private.week_bookings_title": "🗓️ Bookings (next 14 days)",
+    "private.week_bookings_empty": "No bookings in the next 14 days.",
     "private.week_bookings_count": "{n} lessons",
     "private.free_slots_title": "🔍 Suggested trial slots",
     "private.free_slots_settings": "Teaching hours",
@@ -796,8 +796,8 @@ const I18N_STRINGS = {
     "packages.empty_packages": "仲未有套票。",
 
     "private.title": "私人學生",
-    "private.week_bookings_title": "🗓️ 本週預約(未來7日)",
-    "private.week_bookings_empty": "未來7日冇任何預約。",
+    "private.week_bookings_title": "🗓️ 預約(未來14日)",
+    "private.week_bookings_empty": "未來14日冇任何預約。",
     "private.week_bookings_count": "共{n}堂",
     "private.free_slots_title": "🔍 建議面試時段",
     "private.free_slots_settings": "教堂時間",
