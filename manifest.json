@@ -1,7 +1,7 @@
 {
   "name": "Tom's Violin Studio",
   "short_name": "Violin Studio",
-  "start_url": "index.html",
+  "start_url": "private.html",
   "display": "standalone",
   "background_color": "#f7f5f2",
   "theme_color": "#3d2b1f",

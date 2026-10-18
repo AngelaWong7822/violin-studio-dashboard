@@ -34,7 +34,7 @@
   applyI18n();
   (async () => {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) window.location.href = "index.html";
+    if (session) window.location.href = "private.html";
   })();
 
   document.getElementById("login-form").addEventListener("submit", async (e) => {
@@ -49,7 +49,7 @@
       errorEl.style.display = "block";
       return;
     }
-    window.location.href = "index.html";
+    window.location.href = "private.html";
   });
 </script>
 </body>

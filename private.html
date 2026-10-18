@@ -303,12 +303,23 @@
   @media (max-width: 600px) {
     #student-form > div[style*="flex-direction:column"] { grid-template-columns: 1fr; }
   }
+
+  /* trial lessons (試堂) get their own lilac look so they never read as a consultation */
+  .week-calendar-lesson.is-consult.is-trial { background: #f3e8ff; }
+  .week-calendar-lesson.is-consult.is-trial .week-calendar-time { color: #7e22ce; }
+  .week-calendar-lesson.is-consult.is-trial .week-calendar-name { color: #6b21a8; }
+  .cute-week .week-calendar-lesson.is-consult.is-trial { background: #f3e8ff; border-color: #d8b4fe; }
+  .cute-week .week-calendar-lesson.is-consult.is-trial .week-calendar-time { color: #7e22ce; }
+  .cute-week .week-calendar-lesson.is-consult.is-trial .week-calendar-name { color: #6b21a8; }
+
+  .pending-review-row .pending-student { padding: 4px 12px; border-radius: 999px; border: 1.5px solid #ea580c; background: #fff; font-size: 13px; color: #9a3412; font-weight: 600; }
+
+  .cute-gcal h1::before { content: "📅 "; }
 </style>
 </head>
 <body>
 <header class="topnav">
   <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
-  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
   <a href="leads.html" data-i18n="nav.leads">Leads</a>
   <a href="packages.html" data-i18n="nav.packages">Group Classes</a>
   <a href="private.html" class="active" data-i18n="nav.private">Private Students</a>
@@ -373,6 +384,14 @@
       </tr></thead>
       <tbody id="student-rows"><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:70%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:90%"></span></td></tr><tr class="sk-row"><td colspan="6"><span class="sk-bar" style="width:55%"></span></td></tr></tbody>
     </table>
+  </div>
+
+  <div class="card cute-card cute-gcal">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+      <h1 data-i18n="schedule.calendar_title" style="margin:0;">Shared Google Calendar</h1>
+      <button type="button" id="calendar-toggle" class="link"></button>
+    </div>
+    <div id="calendar-embed" hidden style="margin-top:12px;"></div>
   </div>
 </main>
 
@@ -488,7 +507,29 @@
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
   initSettingsMenu();
-  window.onLangChange = () => { load(); loadPendingReviews(); };
+  window.onLangChange = () => { load(); loadPendingReviews(); refreshCalendarToggleLabel(); };
+
+  // Shared Google Calendar — always starts collapsed. The iframe is only
+  // built the first time it is expanded (a 500px Google embed is heavy to
+  // load on every visit).
+  const calEmbed = document.getElementById("calendar-embed");
+  const calToggle = document.getElementById("calendar-toggle");
+  let calLoaded = false;
+  function refreshCalendarToggleLabel() {
+    calToggle.textContent = calEmbed.hidden ? t("schedule.calendar_show") : t("schedule.calendar_hide");
+  }
+  function setCalendarOpen(open) {
+    calEmbed.hidden = !open;
+    if (open && !calLoaded) {
+      calEmbed.innerHTML =
+        `<iframe src="https://calendar.google.com/calendar/embed?src=${encodeURIComponent(GOOGLE_CALENDAR_EMBED_ID)}&ctz=Asia%2FHong_Kong"
+          style="border:0" width="100%" height="500" frameborder="0" scrolling="no"></iframe>`;
+      calLoaded = true;
+    }
+    refreshCalendarToggleLabel();
+  }
+  calToggle.addEventListener("click", () => setCalendarOpen(calEmbed.hidden));
+  setCalendarOpen(false);
   document.addEventListener("click", () => {
     document.querySelectorAll(".row-menu.open").forEach(m => m.classList.remove("open"));
   });
@@ -740,6 +781,8 @@
   // "已約 + 可約" in a single glance, per Angela's request.
   async function renderWeekCalendar() {
     const el = document.getElementById("week-bookings-list");
+    // Cards truncate long names with "…" — the full text goes in a hover tooltip.
+    const attrEsc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const CAL_DAYS = 14; // two rows of 7: this week + next week
@@ -771,7 +814,7 @@
 
     const [{ data: appts }, { data: pending }, { data: combinedMakeups }] = await Promise.all([
       supabaseClient.from("appointments")
-        .select("id, lead_id, scheduled_start, scheduled_end, type, notes, classes(name), leads!appointments_lead_id_fkey(contacts(name))")
+        .select("id, lead_id, scheduled_start, scheduled_end, type, notes, classes(name), leads!appointments_lead_id_fkey(visit_type, contacts(name))")
         .neq("status", "cancelled")
         .gte("scheduled_start", startOfToday.toISOString())
         .lt("scheduled_start", rangeEnd.toISOString()),
@@ -811,7 +854,7 @@
       if (a.type === "group_class") {
         card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "group", name: a.classes?.name || t("private.wc_group") };
       } else if (a.type === "consultation") {
-        card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "consult", name: a.leads?.contacts?.name || a.notes || t("private.wc_consult"), apptId: a.id, leadId: a.lead_id };
+        card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "consult", name: (a.leads?.contacts?.name || a.notes || t("private.wc_consult")) + (a.leads?.visit_type === "trial" ? t("private.wc_trial_suffix") : ""), apptId: a.id, leadId: a.lead_id, trial: a.leads?.visit_type === "trial" };
       }
       if (card) {
         const key = s.toDateString();
@@ -928,7 +971,7 @@
 
       const lessonsHtml = items.map(it => {
         if (it.kind === "hold") {
-          return `<div class="wc-hold">📌 ${fmtSlotRange(it.start, it.end)}${it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""}</div>`;
+          return `<div class="wc-hold" title="${attrEsc(fmtSlotRange(it.start, it.end) + (it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""))}">📌 ${fmtSlotRange(it.start, it.end)}${it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""}</div>`;
         }
         if (it.kind === "makeup") {
           // Read-only here on purpose — editing/undoing this decision
@@ -936,7 +979,7 @@
           // attendance row and its fee live.
           const timeLabel = it.hasTime ? fmtLessonRange(it.when, it.whenEnd) + " · " : "";
           const feeLabel = it.fee ? ` +$${it.fee}` : "";
-          return `<div class="week-calendar-lesson is-group is-makeup">
+          return `<div class="week-calendar-lesson is-group is-makeup" title="${attrEsc(timeLabel + t("private.wc_makeup_label") + " " + it.name + (it.remark ? " · " + it.remark : "") + feeLabel)}">
               <span class="wc-group-icon">🎻</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${timeLabel}${t("private.wc_makeup_label")}</span>
@@ -945,7 +988,7 @@
             </div>`;
         }
         if (it.kind === "group" || it.kind === "consult") {
-          const icon = it.kind === "group" ? "👥" : "🔍";
+          const icon = it.kind === "group" ? "👥" : it.trial ? "🌟" : "🔍";
           // Consultations can be called off from here (cancels the appointment
           // + frees the lead's pointer). Group classes can't — that belongs
           // in packages.html, where the enrolled students / make-ups get
@@ -953,7 +996,7 @@
           const delBtn = it.kind === "consult"
             ? `<button type="button" class="wc-del-btn" data-cal-del-consult="${it.apptId}" data-lead-id="${it.leadId ?? ""}" title="${t("private.cancel_consult")}" aria-label="${t("private.cancel_consult")}">✕</button>`
             : "";
-          return `<div class="week-calendar-lesson is-${it.kind}">
+          return `<div class="week-calendar-lesson is-${it.kind}${it.trial ? " is-trial" : ""}" title="${attrEsc(fmtLessonRange(it.when, it.whenEnd) + " " + it.name)}">
               <span class="wc-group-icon">${icon}</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
@@ -964,7 +1007,7 @@
         }
         const genderClass = it.gender === "female" ? "female" : it.gender === "male" ? "male" : "unknown";
         const initial = (it.name || "?").trim().charAt(0).toUpperCase() || "?";
-        return `<div class="week-calendar-lesson">
+        return `<div class="week-calendar-lesson" title="${attrEsc(fmtLessonRange(it.when, it.whenEnd) + " " + it.name)}">
               <span class="avatar gender-${genderClass}">${initial}</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
@@ -1861,11 +1904,21 @@
     container.innerHTML = pendingReviews.map(p => {
       const c = p.messages?.contacts;
       const a = p.proposed_appointment;
+      // A parent with several kids: the AI often can not tell which one the
+      // message is about, so let her pick right here (pre-selected when the
+      // AI's guessed name matches exactly one child).
+      const kids = students.filter(s => s.contact_id === a.contact_id);
+      const nameQ = (a.person_name ?? "").trim().toLowerCase();
+      const guess = nameQ ? kids.filter(k => { const n = (k.name ?? "").toLowerCase(); return n && (n.includes(nameQ) || nameQ.includes(n)); }) : [];
+      const kidSelect = kids.length > 1
+        ? `<select class="pending-student" data-pending-student="${p.id}"><option value="">${t("private.pending_pick_placeholder")}</option>${kids.map(k => `<option value="${k.id}"${guess.length === 1 && guess[0].id === k.id ? " selected" : ""}>${studentLabel(k)}</option>`).join("")}</select>`
+        : "";
       return `
         <div class="pending-review-row" data-pending-id="${p.id}">
           <strong>${c?.name ?? "?"}</strong>
           <span class="phone">${c?.whatsapp_number ?? ""}</span>
           <span>${a.intent}</span>
+          ${kidSelect}
           ${a.intent === "cancellation"
             ? `<span class="cancel-note">${t("private.pending_cancel_note")}</span>`
             : `<input type="date" class="pending-date" data-pending-date="${p.id}" value="${a.requested_date ?? ""}" />
@@ -1885,6 +1938,10 @@
         if (!p) return;
         const a = p.proposed_appointment;
 
+        const kidSel = document.querySelector(`[data-pending-student="${p.id}"]`);
+        if (kidSel && !kidSel.value) { showToast(t("private.pending_pick_first"), "error", 3500); return; }
+        const pickedStudentId = kidSel ? kidSel.value : null;
+
         // A cancellation review has no date/time to fill in — it's just
         // "cancel whatever's next" — so it needs its own path rather than
         // falling into the booking/reschedule logic below, which requires
@@ -1897,8 +1954,8 @@
           const { data: existingStudents } = await supabaseClient
             .from("students").select("id, name").eq("contact_id", a.contact_id).eq("active", true).eq("is_group", false);
           const rows = existingStudents ?? [];
-          let studentId = rows.length === 1 ? rows[0].id : null;
-          if (rows.length > 1) {
+          let studentId = pickedStudentId || (rows.length === 1 ? rows[0].id : null);
+          if (!pickedStudentId && rows.length > 1) {
             const q = (a.person_name ?? "").trim().toLowerCase();
             const hit = q ? rows.filter(r => (r.name ?? "").toLowerCase().includes(q) || q.includes((r.name ?? "").toLowerCase())) : [];
             studentId = hit.length === 1 ? hit[0].id : null;
@@ -1930,10 +1987,12 @@
         const start = new Date(`${requestedDate}T${requestedTime}:00+08:00`);
         const minutes = a.duration_minutes_guess ?? 45;
         const end = new Date(start.getTime() + minutes * 60_000);
-        let studentId;
-        try {
-          studentId = await resolveStudentForContact(a.contact_id, a.person_name);
-        } catch (err) { showToast(err.message, "error", 4000); return; }
+        let studentId = pickedStudentId;
+        if (!studentId) {
+          try {
+            studentId = await resolveStudentForContact(a.contact_id, a.person_name);
+          } catch (err) { showToast(err.message, "error", 4000); return; }
+        }
 
         // A "reschedule" moves an existing booking rather than creating a
         // second one — otherwise the original appointment stays "confirmed"

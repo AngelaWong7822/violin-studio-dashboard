@@ -121,12 +121,13 @@
   @media (max-width: 600px) {
     #lead-form > div[style*="flex-direction:column"], #lead-edit-form > div[style*="flex-direction:column"] { grid-template-columns: 1fr; }
   }
+
+  .visit-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #fde68a; color: #78350f; font-size: 11px; font-weight: 700; vertical-align: middle; }
 </style>
 </head>
 <body>
 <header class="topnav">
   <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
-  <a href="index.html" data-i18n="nav.schedule">Schedule</a>
   <a href="leads.html" class="active" data-i18n="nav.leads">Leads</a>
   <a href="packages.html" data-i18n="nav.packages">Packages</a>
   <a href="private.html" data-i18n="nav.private">Private Students</a>
@@ -216,7 +217,19 @@
         </select>
       </label>
       <label><span data-i18n="lead.preferred_times">Preferred times</span> <input type="text" id="lead-preferred-times" data-i18n-placeholder="lead.preferred_times_placeholder" placeholder="e.g. Sat morning, Fri after 5pm" /></label>
-      <label><span data-i18n="lead.consultation_time">Consultation time</span> <input type="datetime-local" id="lead-consultation-time" /></label>
+      <label><span data-i18n="lead.visit_type">Type</span>
+        <select id="lead-visit-type">
+          <option value="consultation" data-i18n="lead.visit_consultation">Consultation</option>
+          <option value="trial" data-i18n="lead.visit_trial">Trial lesson</option>
+        </select>
+      </label>
+      <label><span data-i18n="lead.consultation_time">Meeting time</span> <input type="datetime-local" id="lead-consultation-time" /></label>
+      <label id="lead-trial-duration-label" style="display:none;"><span data-i18n="lead.trial_duration">Trial length</span>
+        <select id="lead-trial-duration">
+          <option value="45" data-i18n="lead.trial_45">45 min</option>
+          <option value="60" data-i18n="lead.trial_60">1 hour</option>
+        </select>
+      </label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="lead-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -230,6 +243,7 @@
     <h1 data-i18n="dialog.edit_lead">Edit lead</h1>
     <div style="display:flex; flex-direction:column; gap:10px;">
       <input type="hidden" id="lead-edit-contact-id" />
+      <input type="hidden" id="lead-edit-lead-id" />
       <label><span data-i18n="lead.name">Name</span> <input type="text" id="lead-edit-name" required /></label>
       <label><span data-i18n="lead.phone">WhatsApp number</span> <input type="text" id="lead-edit-phone" data-i18n-placeholder="lead.phone_placeholder" placeholder="+852 9123 4567" /></label>
       <label><span data-i18n="lead.social_media_name">Social media name</span> <input type="text" id="lead-edit-social" /></label>
@@ -267,6 +281,12 @@
           <option value="instagram" data-i18n="source.instagram">Instagram</option>
         </select>
       </label>
+      <label><span data-i18n="lead.visit_type">Type</span>
+        <select id="lead-edit-visit-type">
+          <option value="consultation" data-i18n="lead.visit_consultation">Consultation</option>
+          <option value="trial" data-i18n="lead.visit_trial">Trial lesson</option>
+        </select>
+      </label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="lead-edit-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -288,8 +308,8 @@
   initSettingsMenu();
   window.onLangChange = () => { loadFollowUps(); loadBoard(); };
 
-  const STATUSES = ["consultation_booked", "attended", "deposit_paid", "converted", "lost"];
-  // Once a lead is attended/converted (or lost) its remark fields are done
+  const STATUSES = ["consultation_booked", "attended", "deposit_paid", "lost"];
+  // Once a lead is attended/deposit-paid (or lost) its remark fields are done
   // being actively worked — lock them read-only by default so a stray tap
   // can't quietly edit settled history; the ✏️ edit button unlocks them
   // again for a deliberate correction.
@@ -354,7 +374,7 @@
     const tbody = document.getElementById("followup-rows");
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, contacts(name, whatsapp_number, age), appointments!leads_consultation_appointment_fk(scheduled_start)")
+      .select("id, status, visit_type, contacts(name, whatsapp_number, age), appointments!leads_consultation_appointment_fk(scheduled_start)")
       .in("status", ["consultation_booked", "attended"])
       .eq("followed_up", false);
     if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
@@ -382,7 +402,7 @@
         <td>${l.contacts?.age ?? ""}</td>
         <td>${l.contacts?.whatsapp_number ?? ""}</td>
         <td>${dateCell}</td>
-        <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span></td>
+        <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span>${l.visit_type === "trial" ? `<span class="visit-tag">${t("lead.visit_trial")}</span>` : ""}</td>
       </tr>`;
     }).join("");
   }
@@ -390,7 +410,7 @@
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, contact_id, status, created_at, updated_at, lost_reason, preferred_times, consultation_appointment_id, followed_up, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, status)")
+      .select("id, contact_id, status, visit_type, created_at, updated_at, lost_reason, preferred_times, consultation_appointment_id, followed_up, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, scheduled_end, status)")
       .order("created_at", { ascending: false });
 
     const board = document.getElementById("board");
@@ -443,21 +463,21 @@
         // only visible in the "Needs Follow-up" table at the top. Kept
         // visible after converting or being marked lost too, since both
         // are just later stages of the same lead.
-        const attendedDateLine = (status === "attended" || status === "deposit_paid" || status === "converted" || status === "lost") && appt?.scheduled_start
+        const attendedDateLine = (status === "attended" || status === "deposit_paid" || status === "lost") && appt?.scheduled_start
           ? `<div class="meta">${tf("lead.attended_on", { date: new Date(appt.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" }) })}</div>`
           : "";
 
         // A warm highlight for anything still sitting un-followed-up in a
         // stage where that matters — matches which leads the "Needs
         // Follow-up" table surfaces (see loadFollowUps' status filter).
-        // Not applied to "converted"/"lost": follow-up is a moot point once
+        // Not applied to "deposit_paid"/"lost": follow-up is a moot point once
         // a lead has already landed there.
         const needsFollowUpBg = !lead.followed_up && (status === "consultation_booked" || status === "attended");
 
         const card = document.createElement("div");
         card.className = `lead-card${c?.source ? ` source-${c.source}` : ""}${needsFollowUpBg ? " needs-follow-up" : ""}`;
         card.innerHTML = `
-          <div class="name">${c?.name ?? "(no name)"}</div>
+          <div class="name">${c?.name ?? "(no name)"}${lead.visit_type === "trial" ? `<span class="visit-tag">${t("lead.visit_trial")}</span>` : ""}</div>
           <div class="meta">${whatsappCell}</div>
           ${metaParts.length ? `<div class="meta">${metaParts.join(" · ")}</div>` : ""}
           <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
@@ -469,10 +489,10 @@
         // on — not once it's cancelled (appointment row stays around for
         // history, lead just no longer points at it), already attended
         // (marking "attended" also marks the appointment "completed", so
-        // there's nothing left to cancel), already converted (the
+        // there's nothing left to cancel), already deposit-paid (the
         // consultation is long done and settled by that point), or lost
         // (nothing left worth cancelling on a dead lead either).
-        if (lead.consultation_appointment_id && appt && appt.status !== "cancelled" && status !== "attended" && status !== "deposit_paid" && status !== "converted" && status !== "lost") {
+        if (lead.consultation_appointment_id && appt && appt.status !== "cancelled" && status !== "attended" && status !== "deposit_paid" && status !== "lost") {
           const consultRow = document.createElement("div");
           consultRow.className = "meta consultation-row";
           const timeLabel = document.createElement("span");
@@ -485,10 +505,14 @@
           timeInput.value = toDatetimeLocalValue(appt.scheduled_start);
           timeInput.addEventListener("change", async () => {
             if (!timeInput.value) return;
-            // Consultations are a fixed 20min, same as when first booked —
-            // rescheduling just shifts the whole window to the new start.
+            // Rescheduling just shifts the whole window to the new start and
+            // keeps whatever length it was booked with (20min consultation,
+            // or the 45min / 1hr chosen for a trial lesson).
             const start = new Date(timeInput.value);
-            const end = new Date(start.getTime() + 20 * 60 * 1000);
+            const bookedMs = appt?.scheduled_end && appt?.scheduled_start
+              ? new Date(appt.scheduled_end) - new Date(appt.scheduled_start)
+              : 20 * 60 * 1000;
+            const end = new Date(start.getTime() + bookedMs);
             const { error } = await supabaseClient
               .from("appointments")
               .update({ scheduled_start: start.toISOString(), scheduled_end: end.toISOString() })
@@ -672,9 +696,9 @@
         // status, so it doesn't fight with the select above. Toggling it
         // on is also what drops this lead off the "Needs Follow-up" table
         // at the top of the page (see loadFollowUps' followed_up filter).
-        // Not shown for "lost" or "converted": there's nothing left to
-        // follow up on once a lead is dead or already signed up.
-        if (status !== "lost" && status !== "converted") {
+        // Not shown for "lost" or "deposit_paid": there's nothing left to
+        // follow up on once a lead is dead or has already secured a seat.
+        if (status !== "lost" && status !== "deposit_paid") {
           const followUpBtn = document.createElement("button");
           followUpBtn.type = "button";
           followUpBtn.className = "icon-action-btn" + (lead.followed_up ? " followed-up-active" : "");
@@ -774,8 +798,16 @@
     // whatsapp-ingest's stored format and silently creates a duplicate
     // "shadow" contact instead of linking to the real WhatsApp conversation.
     document.getElementById("lead-phone").value = "852";
+    syncTrialDuration();
     dialog.showModal();
   });
+  // Trial lessons let her pick 45 min or 1 hour; a consultation is just
+  // the usual fixed 20 minutes, so the picker stays hidden for it.
+  function syncTrialDuration() {
+    const isTrial = document.getElementById("lead-visit-type").value === "trial";
+    document.getElementById("lead-trial-duration-label").style.display = isTrial ? "" : "none";
+  }
+  document.getElementById("lead-visit-type").addEventListener("change", syncTrialDuration);
   document.getElementById("lead-cancel-btn").addEventListener("click", () => dialog.close());
 
   document.getElementById("lead-form").addEventListener("submit", async (e) => {
@@ -788,6 +820,8 @@
     const source = document.getElementById("lead-source").value;
     const preferred_times = document.getElementById("lead-preferred-times").value || null;
     const consultationTimeStr = document.getElementById("lead-consultation-time").value;
+    const visit_type = document.getElementById("lead-visit-type").value;
+    const durationMin = visit_type === "trial" ? Number(document.getElementById("lead-trial-duration").value) || 45 : 20;
 
     // This WhatsApp number may already have a contact row (e.g. it messaged
     // in before and whatsapp-ingest auto-created it, or it's an existing
@@ -821,14 +855,14 @@
     if (existingLead) {
       const { data: updatedLead, error: leadError } = await supabaseClient
         .from("leads")
-        .update({ status: "consultation_booked", preferred_times, updated_at: new Date().toISOString() })
+        .update({ status: "consultation_booked", visit_type, preferred_times, updated_at: new Date().toISOString() })
         .eq("id", existingLead.id).select().single();
       if (leadError) { showToast("Save failed: " + leadError.message, "error"); return; }
       lead = updatedLead;
     } else {
       const { data: newLead, error: leadError } = await supabaseClient
         .from("leads")
-        .insert({ contact_id: contact.id, status: "consultation_booked", preferred_times })
+        .insert({ contact_id: contact.id, status: "consultation_booked", visit_type, preferred_times })
         .select().single();
       if (leadError) { showToast("Save failed: " + leadError.message, "error"); return; }
       lead = newLead;
@@ -840,7 +874,7 @@
     // this page does directly.
     if (consultationTimeStr) {
       const start = new Date(consultationTimeStr);
-      const end = new Date(start.getTime() + 20 * 60 * 1000); // consultations default to 20min, same as the Schedule page
+      const end = new Date(start.getTime() + durationMin * 60 * 1000); // consultation 20min; trial lesson 45min / 1hr
       const { data: appt, error: apptError } = await supabaseClient
         .from("appointments")
         .insert({
@@ -867,6 +901,8 @@
   function openEditLead(lead) {
     const c = lead.contacts;
     document.getElementById("lead-edit-contact-id").value = lead.contact_id;
+    document.getElementById("lead-edit-lead-id").value = lead.id;
+    document.getElementById("lead-edit-visit-type").value = lead.visit_type ?? "consultation";
     document.getElementById("lead-edit-name").value = c?.name ?? "";
     document.getElementById("lead-edit-phone").value = c?.whatsapp_number || "852";
     document.getElementById("lead-edit-social").value = c?.social_media_name ?? "";
@@ -886,6 +922,8 @@
     const level = document.getElementById("lead-edit-level").value || null;
     const age = document.getElementById("lead-edit-age").value || null;
     const source = document.getElementById("lead-edit-source").value;
+    const leadId = document.getElementById("lead-edit-lead-id").value;
+    const visitType = document.getElementById("lead-edit-visit-type").value;
 
     const { error } = await supabaseClient
       .from("contacts")
@@ -895,6 +933,8 @@
     // this update can fail (editing the number to one another contact
     // already has), so surface it rather than a generic message.
     if (error) { showToast("Save failed: " + error.message, "error"); return; }
+    const { error: typeError } = await supabaseClient.from("leads").update({ visit_type: visitType }).eq("id", leadId);
+    if (typeError) { showToast("Save failed: " + typeError.message, "error"); return; }
 
     editDialog.close();
     await loadFollowUps();
