@@ -582,7 +582,7 @@
       .eq("active", true)
       .eq("is_group", false)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
 
     // One query each for appointments/attendance/messages across ALL
     // students, instead of the old per-student loop (3 round trips × N
@@ -971,7 +971,7 @@
 
       const lessonsHtml = items.map(it => {
         if (it.kind === "hold") {
-          return `<div class="wc-hold" title="${attrEsc(fmtSlotRange(it.start, it.end) + (it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""))}">📌 ${fmtSlotRange(it.start, it.end)}${it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""}</div>`;
+          return `<div class="wc-hold" title="${attrEsc(fmtSlotRange(it.start, it.end) + (it.name ? " · " + tf("private.wc_hold_by", { name: it.name }) : ""))}">📌 ${fmtSlotRange(it.start, it.end)}${it.name ? " · " + tf("private.wc_hold_by", { name: esc(it.name) }) : ""}</div>`;
         }
         if (it.kind === "makeup") {
           // Read-only here on purpose — editing/undoing this decision
@@ -983,7 +983,7 @@
               <span class="wc-group-icon">🎻</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${timeLabel}${t("private.wc_makeup_label")}</span>
-                <span class="week-calendar-name">${it.name}${it.remark ? " · " + it.remark : ""}${feeLabel}</span>
+                <span class="week-calendar-name">${esc(it.name)}${it.remark ? " · " + esc(it.remark) : ""}${feeLabel}</span>
               </span>
             </div>`;
         }
@@ -1000,7 +1000,7 @@
               <span class="wc-group-icon">${icon}</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
-                <span class="week-calendar-name">${it.name}</span>
+                <span class="week-calendar-name">${esc(it.name)}</span>
               </span>
               ${delBtn}
             </div>`;
@@ -1008,10 +1008,10 @@
         const genderClass = it.gender === "female" ? "female" : it.gender === "male" ? "male" : "unknown";
         const initial = (it.name || "?").trim().charAt(0).toUpperCase() || "?";
         return `<div class="week-calendar-lesson" title="${attrEsc(fmtLessonRange(it.when, it.whenEnd) + " " + it.name)}">
-              <span class="avatar gender-${genderClass}">${initial}</span>
+              <span class="avatar gender-${genderClass}">${esc(initial)}</span>
               <span class="week-calendar-lesson-info">
                 <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
-                <span class="week-calendar-name week-calendar-name-link" data-jump-student="${it.studentId}" title="${t("private.jump_to_student")}">${it.name}</span>
+                <span class="week-calendar-name week-calendar-name-link" data-jump-student="${it.studentId}" title="${t("private.jump_to_student")}">${esc(it.name)}</span>
               </span>
               <button type="button" class="wc-del-btn" data-cal-del-lesson="${it.apptId}" title="${t("private.delete_lesson")}" aria-label="${t("private.delete_lesson")}">✕</button>
             </div>`;
@@ -1043,7 +1043,7 @@
     const undatedHtml = undatedPending.length
       ? `<div class="wc-undated">
           <span class="wc-undated-label">🤔 ${t("private.wc_undated")}</span>
-          ${undatedPending.map(u => `<span class="wc-undated-item" title="${String(u.rationale).replace(/"/g, "&quot;")}">${u.name} · ${t("private.intent_" + u.intent)}</span>`).join("")}
+          ${undatedPending.map(u => `<span class="wc-undated-item" title="${esc(u.rationale)}">${esc(u.name)} · ${t("private.intent_" + u.intent)}</span>`).join("")}
         </div>`
       : "";
 
@@ -1137,7 +1137,7 @@
       const rawPhone = s.contacts?.whatsapp_number ?? "";
       const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
       const whatsappCell = rawPhone && digitsOnly
-        ? `<a class="whatsapp-chip" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener" title="${rawPhone}">💬</a>`
+        ? `<a class="whatsapp-chip" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener" title="${esc(rawPhone)}">💬</a>`
         : "—";
 
       const lessonsOpen = expandedLessonIds.has(s.id);
@@ -1161,7 +1161,7 @@
         <tr>
           <td>${fmtDateTimeWithWeekday(m.created_at)}</td>
           <td>${t(m.direction === "outbound" ? "private.msg_outbound" : "private.msg_inbound")}</td>
-          <td style="white-space:normal; word-break:break-word;">${m.body}</td>
+          <td style="white-space:normal; word-break:break-word;">${esc(m.body)}</td>
           <td><span class="status-pill status-confirmed">${intentLabel(m.llm_parse_result)}</span></td>
           <td><button type="button" class="link" data-delete-message="${m.id}" style="color:#b91c1c;">${t("private.delete_message")}</button></td>
         </tr>`).join("");
@@ -1178,7 +1178,7 @@
       // "Yen Fu"'s WhatsApp, no sibling involved) isn't one.
       const siblingCount = students.filter(x => x.contact_id === s.contact_id).length;
       const parentTag = (siblingCount > 1 && s.name && s.contacts?.name && s.name !== s.contacts.name)
-        ? `<span class="parent-tag" title="${t("private.parent_contact")}">👪 ${s.contacts.name}</span>` : "";
+        ? `<span class="parent-tag" title="${t("private.parent_contact")}">👪 ${esc(s.contacts.name)}</span>` : "";
       // At-a-glance flag for advanced students (Grade 6+) — per Angela: 想
       // 高級學生有D icon可以分別到.
       const levelBadge = ADVANCED_LEVELS.has(s.contacts?.level)
@@ -1188,7 +1188,7 @@
       return `
         <tr class="student-row" data-student-id="${s.id}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td><span class="avatar gender-${genderClass}">${initial}</span>${levelBadge}${label}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" role="button" tabindex="0" data-edit-schedule="${s.id}" title="${t("private.edit_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime, s.regular_duration_minutes)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
+          <td><span class="avatar gender-${genderClass}">${esc(initial)}</span>${levelBadge}${esc(label)}${parentTag}${s.isAiCreated ? ` <span title="${t("private.ai_created_title")}">🤖</span>` : ""}${regWeekday != null && regTime ? `<span class="regular-schedule-badge" role="button" tabindex="0" data-edit-schedule="${s.id}" title="${t("private.edit_schedule")}">🔁 ${formatRegularSchedule(regWeekday, regTime, s.regular_duration_minutes)}</span>` : ""}${s.lastMessageAt ? `<span class="last-activity last-activity-message" title="${t("private.last_message_title")}">💬 ${timeAgo(s.lastMessageAt)}</span>` : ""}</td>
           <td style="text-align:center;">${s.nextLesson ? `<span class="next-lesson-badge">${formatNextLesson(new Date(s.nextLesson.when))}</span>` : `<span class="empty" style="font-size:12px;">${t("private.next_lesson_none")}</span>`}</td>
           <td>${whatsappCell}</td>
           <td><label class="toggle-switch"><input type="checkbox" data-allowed-contact-id="${s.contact_id}" ${s.contacts?.allowed_for_ai ? "checked" : ""} /><span class="slider"></span></label></td>
@@ -1911,12 +1911,12 @@
       const nameQ = (a.person_name ?? "").trim().toLowerCase();
       const guess = nameQ ? kids.filter(k => { const n = (k.name ?? "").toLowerCase(); return n && (n.includes(nameQ) || nameQ.includes(n)); }) : [];
       const kidSelect = kids.length > 1
-        ? `<select class="pending-student" data-pending-student="${p.id}"><option value="">${t("private.pending_pick_placeholder")}</option>${kids.map(k => `<option value="${k.id}"${guess.length === 1 && guess[0].id === k.id ? " selected" : ""}>${studentLabel(k)}</option>`).join("")}</select>`
+        ? `<select class="pending-student" data-pending-student="${p.id}"><option value="">${t("private.pending_pick_placeholder")}</option>${kids.map(k => `<option value="${k.id}"${guess.length === 1 && guess[0].id === k.id ? " selected" : ""}>${esc(studentLabel(k))}</option>`).join("")}</select>`
         : "";
       return `
         <div class="pending-review-row" data-pending-id="${p.id}">
-          <strong>${c?.name ?? "?"}</strong>
-          <span class="phone">${c?.whatsapp_number ?? ""}</span>
+          <strong>${esc(c?.name ?? "?")}</strong>
+          <span class="phone">${esc(c?.whatsapp_number ?? "")}</span>
           <span>${a.intent}</span>
           ${kidSelect}
           ${a.intent === "cancellation"
@@ -1927,7 +1927,7 @@
           <span class="time-ago">${timeAgo(p.created_at)}</span>
           <button type="button" class="link approve" data-approve="${p.id}">${t("private.approve")}</button>
           <button type="button" class="link reject" data-reject="${p.id}">${t("private.reject")}</button>
-          <div class="rationale">${p.messages?.body ? `"${p.messages.body}"` : ""}${a.rationale ? " — " + a.rationale : ""}</div>
+          <div class="rationale">${p.messages?.body ? `"${esc(p.messages.body)}"` : ""}${a.rationale ? " — " + esc(a.rationale) : ""}</div>
         </div>`;
     }).join("");
     applyI18n();

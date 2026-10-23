@@ -519,7 +519,7 @@
       ? studentsCache.filter(s => groupStudentLabel(s).toLowerCase().includes(searchText))
       : studentsCache;
     studentOptionsEl.innerHTML = filtered.length
-      ? filtered.map(s => `<div class="combo-option" data-id="${s.id}">${groupStudentLabel(s)}</div>`).join("")
+      ? filtered.map(s => `<div class="combo-option" data-id="${s.id}">${esc(groupStudentLabel(s))}</div>`).join("")
       : `<div class="combo-empty">${t("receipt.no_students_found")}</div>`;
     studentOptionsEl.querySelectorAll(".combo-option").forEach(opt => {
       opt.addEventListener("click", () => selectStudent(opt.dataset.id));
@@ -621,7 +621,7 @@
     const termNumberById = new Map(chronological.map((p, i) => [p.id, i + 1]));
 
     packageSelect.innerHTML = `<option value="">${t("receipt.select_package_placeholder")}</option>`
-      + pkgs.map(p => `<option value="${p.id}">${p.classes?.name ?? ""}（${tf("receipt.term_number", { n: termNumberById.get(p.id) })}）</option>`).join("");
+      + pkgs.map(p => `<option value="${p.id}">${esc(p.classes?.name ?? "")}（${tf("receipt.term_number", { n: termNumberById.get(p.id) })}）</option>`).join("");
     packageSelect.disabled = false;
     packageSelect.dataset.pkgs = JSON.stringify(pkgs);
   }

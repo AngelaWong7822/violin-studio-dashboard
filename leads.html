@@ -123,6 +123,23 @@
   }
 
   .visit-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #fde68a; color: #78350f; font-size: 11px; font-weight: 700; vertical-align: middle; }
+
+  /* follow-up table: tighter columns, day-count pills, tappable WhatsApp */
+  .followup-table { table-layout: fixed; width: 100%; min-width: 760px; }
+  .followup-table th:nth-child(1), .followup-table td:nth-child(1) { width: 20%; }
+  .followup-table th:nth-child(2), .followup-table td:nth-child(2) { width: 10%; }
+  .followup-table th:nth-child(3), .followup-table td:nth-child(3) { width: 22%; }
+  .followup-table th:nth-child(4), .followup-table td:nth-child(4) { width: 26%; }
+  .followup-table th:nth-child(5), .followup-table td:nth-child(5) { width: 22%; }
+  .followup-table td { padding: 9px 12px; vertical-align: middle; }
+  .followup-table .date-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dpill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .dpill.late { background: #e11d48; color: #fff; }
+  .dpill.soon { background: #fed7aa; color: #9a3412; }
+  .dpill.future { background: #f4f4f5; color: #71717a; }
+  .wa-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; background: #dcfce7; border: 1px solid #86efac; color: #166534; font-weight: 700; font-size: 13px; text-decoration: none; }
+  .wa-btn:hover { background: #bbf7d0; }
+  .followup-none { color: #d4d4d8; }
 </style>
 </head>
 <body>
@@ -148,7 +165,7 @@
 <main style="max-width:1200px;">
   <div class="card cute-card cute-followup">
     <h1 style="margin:0 0 10px;" data-i18n="schedule.followup_title">Needs Follow-up</h1>
-    <table>
+    <table class="followup-table">
       <thead><tr>
         <th data-i18n="lead.name">Name</th>
         <th data-i18n="lead.age">Age</th>
@@ -377,7 +394,7 @@
       .select("id, status, visit_type, contacts(name, whatsapp_number, age), appointments!leads_consultation_appointment_fk(scheduled_start)")
       .in("status", ["consultation_booked", "attended"])
       .eq("followed_up", false);
-    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
     if (!data.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
 
     // Oldest attended date first (most overdue at the top); anyone who
@@ -393,14 +410,27 @@
       const start = l.appointments?.scheduled_start;
       const days = start ? daysSince(start) : null;
       const overdue = days !== null && days >= OVERDUE_DAYS;
+      // Red once it is past the overdue threshold, orange while it is
+      // recent, grey for a meeting that has not happened yet.
+      let dayPill = "";
+      if (days !== null) {
+        if (overdue) dayPill = `<span class="dpill late">${tf("schedule.followup_overdue", { n: days })}</span>`;
+        else if (days >= 0) dayPill = `<span class="dpill soon">${days === 0 ? t("common.today") : tf("schedule.followup_days_ago", { n: days })}</span>`;
+        else dayPill = `<span class="dpill future">${tf("schedule.followup_in_days", { n: -days })}</span>`;
+      }
       const dateCell = start
-        ? `${new Date(start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}<div style="font-size:11px;${overdue ? " color:#b91c1c; font-weight:600;" : " color:#a1a1aa;"}">${tf("schedule.followup_days_ago", { n: days })}</div>`
-        : "—";
+        ? `<div class="date-line"><span>${new Date(start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}</span>${dayPill}</div>`
+        : `<span class="followup-none">—</span>`;
+      const rawPhone = l.contacts?.whatsapp_number ?? "";
+      const digits = rawPhone.replace(/[^0-9]/g, "");
+      const waCell = rawPhone && digits
+        ? `<a class="wa-btn" href="https://wa.me/${digits}" target="_blank" rel="noopener">💬 ${esc(rawPhone)}</a>`
+        : `<span class="followup-none">—</span>`;
       return `
       <tr${overdue ? ' style="background:#fef2f2;"' : ""}>
-        <td>${l.contacts?.name ?? ""}</td>
-        <td>${l.contacts?.age ?? ""}</td>
-        <td>${l.contacts?.whatsapp_number ?? ""}</td>
+        <td>${esc(l.contacts?.name ?? "")}</td>
+        <td>${l.contacts?.age ? esc(l.contacts.age) : `<span class="followup-none">—</span>`}</td>
+        <td>${waCell}</td>
         <td>${dateCell}</td>
         <td><span class="status-pill status-confirmed">${t("leadstatus." + l.status)}</span>${l.visit_type === "trial" ? `<span class="visit-tag">${t("lead.visit_trial")}</span>` : ""}</td>
       </tr>`;
@@ -416,7 +446,7 @@
     const board = document.getElementById("board");
     board.innerHTML = "";
     if (error) {
-      board.innerHTML = `<p class="empty">Error: ${error.message}</p>`;
+      board.innerHTML = `<p class="empty">Error: ${esc(error.message)}</p>`;
       return;
     }
 
@@ -453,7 +483,7 @@
         const rawPhone = c?.whatsapp_number ?? "";
         const digitsOnly = rawPhone.replace(/[^0-9]/g, "");
         const whatsappCell = rawPhone && digitsOnly
-          ? `<a class="whatsapp-link" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${rawPhone}</a>`
+          ? `<a class="whatsapp-link" href="https://wa.me/${digitsOnly}" target="_blank" rel="noopener">💬 ${esc(rawPhone)}</a>`
           : "";
 
         const appt = lead.appointments;
@@ -477,9 +507,9 @@
         const card = document.createElement("div");
         card.className = `lead-card${c?.source ? ` source-${c.source}` : ""}${needsFollowUpBg ? " needs-follow-up" : ""}`;
         card.innerHTML = `
-          <div class="name">${c?.name ?? "(no name)"}${lead.visit_type === "trial" ? `<span class="visit-tag">${t("lead.visit_trial")}</span>` : ""}</div>
+          <div class="name">${esc(c?.name ?? "(no name)")}${lead.visit_type === "trial" ? `<span class="visit-tag">${t("lead.visit_trial")}</span>` : ""}</div>
           <div class="meta">${whatsappCell}</div>
-          ${metaParts.length ? `<div class="meta">${metaParts.join(" · ")}</div>` : ""}
+          ${metaParts.length ? `<div class="meta">${metaParts.map(esc).join(" · ")}</div>` : ""}
           <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
           <div class="meta stage-age">${timeAgo(lead.updated_at ?? lead.created_at)}</div>
           ${attendedDateLine}

@@ -206,6 +206,16 @@ function notesProgress(measures) {
   return '<span class="notes-progress">' + bars.join('<span class="np-bar"></span>') + "</span>";
 }
 
+// Escapes text for safe use inside innerHTML — both element text and
+// double/single-quoted attributes. Anything that originates outside the
+// dashboard (WhatsApp message bodies, WhatsApp display names, the AI's
+// rationale) must go through this before being put into a template string.
+function esc(v) {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 // A WhatsApp field left at its "852" placeholder prefix (no real digits
 // typed) isn't a genuine phone number. Treating it as one would let two
 // different people who both skipped this field collide on the literal

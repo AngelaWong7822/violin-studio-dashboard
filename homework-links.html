@@ -168,7 +168,7 @@
       .from("homework_links")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
     links = data ?? [];
     render();
   }
@@ -203,17 +203,19 @@
 
     tbody.innerHTML = filtered.map(l => {
       const tagsHtml = (l.tags ?? "").split(",").map(s => s.trim()).filter(Boolean)
-        .map(tag => `<span class="hwlink-tag">${tag}</span>`).join("");
-      const openHref = l.type === "pdf" ? (l.file_path ? fileUrl(l.file_path) : "") : (l.url ?? "");
+        .map(tag => `<span class="hwlink-tag">${esc(tag)}</span>`).join("");
+      const rawHref = l.type === "pdf" ? (l.file_path ? fileUrl(l.file_path) : "") : (l.url ?? "");
+      // Only http(s) links are ever opened — blocks javascript:/data: URLs.
+      const openHref = /^https?:\/\//i.test(rawHref) ? rawHref : "";
       const kind = l.type === "pdf" ? fileKind(l.file_name) : { icon: "▶️", labelKey: "hwlink.open_youtube" };
       const openCell = openHref
-        ? `<a class="hwlink-open type-${l.type}" href="${openHref}" target="_blank" rel="noopener">${kind.icon} ${t(kind.labelKey)}</a>`
+        ? `<a class="hwlink-open type-${l.type}" href="${esc(openHref)}" target="_blank" rel="noopener">${kind.icon} ${t(kind.labelKey)}</a>`
         : "—";
       return `
         <tr data-link-id="${l.id}">
-          <td>${l.title}</td>
+          <td>${esc(l.title)}</td>
           <td>${tagsHtml}</td>
-          <td style="color:#71717a; font-size:13px;">${l.notes ?? ""}</td>
+          <td style="color:#71717a; font-size:13px;">${esc(l.notes ?? "")}</td>
           <td>${openCell}</td>
           <td style="white-space:nowrap;">
             <button type="button" class="icon-action-btn" data-edit-link="${l.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>

@@ -871,7 +871,7 @@
       .select("id, name, weekly_day_of_week, weekly_start_time, duration_minutes, active")
       .eq("active", true)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
     classes = data;
 
     // Lesson count + enrolled-student count for every class, in 2 queries
@@ -900,7 +900,7 @@
       const timeLabel = `<span class="weekday-pill wd-${cls.weekly_day_of_week}">${t("weekday_full." + cls.weekly_day_of_week)}</span>${start} - ${end}`;
       return `
         <tr>
-          <td><span class="weekday-dot wd-${cls.weekly_day_of_week}"></span>${cls.name}</td>
+          <td><span class="weekday-dot wd-${cls.weekly_day_of_week}"></span>${esc(cls.name)}</td>
           <td class="class-time-cell">${timeLabel}</td>
           <td>${enrolledCount}</td>
           <td>${lessonCount ?? 0}</td>
@@ -948,7 +948,7 @@
   function buildClassOptgroupsHtml(list, suffixFor) {
     return groupClassesByWeekday(list).map(([day, items]) => {
       const options = items.map(c =>
-        `<option value="${c.id}">${c.weekly_start_time.slice(0, 5)} — ${c.name}${suffixFor ? suffixFor(c) : ""}</option>`
+        `<option value="${c.id}">${c.weekly_start_time.slice(0, 5)} — ${esc(c.name)}${suffixFor ? suffixFor(c) : ""}</option>`
       ).join("");
       return `<optgroup label="${t("weekday_full." + day)}">${options}</optgroup>`;
     }).join("");
@@ -1128,7 +1128,7 @@
       return `<div style="font-size:10px; color:#b91c1c; white-space:normal;">${t("makeup.pending")}</div>`;
     }
     if (row.make_up_status === "combined_with_private" && row.make_up_remark) {
-      return `<div style="font-size:10px; color:#1e6b34; white-space:normal;">${row.make_up_remark}${combinedExtraSuffix(row)}</div>`;
+      return `<div style="font-size:10px; color:#1e6b34; white-space:normal;">${esc(row.make_up_remark)}${combinedExtraSuffix(row)}</div>`;
     }
     return `<div style="font-size:10px; color:#b91c1c; font-weight:600; white-space:normal;">${t("makeup.unprocessed")}</div>`;
   }
@@ -1176,7 +1176,7 @@
     }
     const headRow = `<tr><th class="date-col" data-i18n="attendance.grid_col_date">Date</th>${columns.map(c => {
       const badge = c.isWithdrawn ? t("attendance.withdrawn_student") : c.isVisitor ? t("attendance.makeup_visitor") : "";
-      return `<th${colClass(c.isWithdrawn, c.isVisitor, c.studentId)}>${c.name}${badge ? ` <span class="visitor-badge">(${badge})</span>` : ""}</th>`;
+      return `<th${colClass(c.isWithdrawn, c.isVisitor, c.studentId)}>${esc(c.name)}${badge ? ` <span class="visitor-badge">(${badge})</span>` : ""}</th>`;
     }).join("")}</tr>`;
 
     // Shared by the per-date cells and the divider row's per-student "mark
@@ -1195,7 +1195,7 @@
     function dateRowHtml(a) {
       const dateLabel = new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" });
       const rescheduleNote = a.rescheduled_from
-        ? `<div style="font-size:10px; color:#52525b; white-space:normal;">(補回${new Date(a.rescheduled_from).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}${a.reschedule_reason ? " " + a.reschedule_reason : ""})</div>`
+        ? `<div style="font-size:10px; color:#52525b; white-space:normal;">(補回${new Date(a.rescheduled_from).toLocaleDateString(localeForDates(), { dateStyle: "medium" })}${a.reschedule_reason ? " " + esc(a.reschedule_reason) : ""})</div>`
         : "";
       const cells = columns.map(({ studentId, isVisitor, isWithdrawn }) => {
         const row = attendanceRows.find(r => r.appointment_id === a.id && r.student_id === studentId);
@@ -1527,11 +1527,11 @@
       ));
       const targetOptions = otherAppts.map(a => `
         <option value="${a.id}" ${a.id === row.made_up_appointment_id ? "selected" : ""}>
-          ${a.classes?.name ?? ""} — ${new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })} (${t("day." + new Date(a.scheduled_start).getDay())}) ${new Date(a.scheduled_start).toLocaleTimeString(localeForDates(), { timeStyle: "short" })}
+          ${esc(a.classes?.name ?? "")} — ${new Date(a.scheduled_start).toLocaleDateString(localeForDates(), { dateStyle: "medium" })} (${t("day." + new Date(a.scheduled_start).getDay())}) ${new Date(a.scheduled_start).toLocaleTimeString(localeForDates(), { timeStyle: "short" })}
         </option>`).join("");
       return `
         <div class="makeup-row" data-attendance-id="${row.id}" data-student-id="${row.student_id}" data-appointment-id="${row.appointment_id}">
-          <strong>${groupStudentLabel(row.students)}</strong>
+          <strong>${esc(groupStudentLabel(row.students))}</strong>
           <span style="color:#71717a;">${dateLabel}</span>
           <select data-field="make_up_status">
             <option value="unprocessed" ${row.make_up_status === "unprocessed" || !row.make_up_status ? "selected" : ""}>${t("makeup.unprocessed")}</option>
@@ -1544,7 +1544,7 @@
             <option value="">—</option>
             ${targetOptions}
           </select>
-          <input type="text" data-field="make_up_remark" value="${row.make_up_remark ?? ""}" placeholder="${t("makeup.remark_placeholder")}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
+          <input type="text" data-field="make_up_remark" value="${esc(row.make_up_remark ?? "")}" placeholder="${t("makeup.remark_placeholder")}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
           <input type="date" data-field="make_up_date" value="${row.make_up_date ?? ""}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
           <input type="time" data-field="make_up_time" value="${row.make_up_time ?? ""}" style="${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
           <input type="number" step="0.01" min="0" data-field="make_up_extra_fee" value="${row.make_up_extra_fee ?? ""}" placeholder="${t("makeup.extra_fee_placeholder")}" style="width:90px; ${row.make_up_status === "combined_with_private" ? "" : "display:none;"}" />
@@ -1763,7 +1763,7 @@
       .select("id, class_id, student_id, start_date, total_lessons, price, payment_note, students!inner(active, name, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
       .eq("students.active", true)
       .order("start_date", { ascending: false });
-    if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
 
     const incomingCreditAmounts = await getIncomingCreditAmounts(pkgs.map(p => p.id));
 
@@ -1864,7 +1864,7 @@
       const cards = student.entries.map(({ pkg, lessons }, i) => {
         const isLatest = i === student.entries.length - 1;
         const isOpenTerm = isLatest || paymentExpandedTermIds.has(pkg.id);
-        const classLabel = pkg.classes ? `${pkg.classes.name} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})` : "";
+        const classLabel = pkg.classes ? `${esc(pkg.classes.name)} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})` : "";
         const startLabel = new Date(`${pkg.start_date}T00:00:00`).toLocaleDateString(localeForDates(), { dateStyle: "medium" });
         const termPaidCount = lessons.filter(l => l.paid).length;
         const detailRows = lessons.map(l => {
@@ -1883,7 +1883,7 @@
             statusLabel = t("makeup.pending");
             statusColor = "#b91c1c";
           } else if (l.status === "leave" && l.make_up_status === "combined_with_private") {
-            statusLabel = `疊埋上私人堂(${l.make_up_remark ?? ""}${combinedExtraSuffix(l)})`;
+            statusLabel = `疊埋上私人堂(${esc(l.make_up_remark ?? "")}${combinedExtraSuffix(l)})`;
             statusColor = "#1e6b34";
           } else if (l.status === "leave") {
             statusLabel = t("makeup.unprocessed");
@@ -1939,7 +1939,7 @@
       return `
         <tr class="student-row ${isSettled ? "pay-settled" : "pay-owing"}" data-student-id="${student.studentId}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
-          <td>${isSettled ? "" : `<span class="owe-dot" title="${t("payments.owing_title")}"></span>`}${student.name}</td>
+          <td>${isSettled ? "" : `<span class="owe-dot" title="${t("payments.owing_title")}"></span>`}${esc(student.name)}</td>
           <td>${student.entries.length}</td>
           <td><span class="count-pill">$${totalAmount}</span></td>
           <td>${totalExtraFee > 0 ? `<span class="count-pill count-pill-warn">+$${totalExtraFee}</span>` : "—"}</td>
@@ -2137,7 +2137,7 @@
       list.innerHTML = pkgs.map(p => `
         <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
           <input type="checkbox" checked data-pkg-id="${p.id}" />
-          <span style="flex:1;">${groupStudentLabel(p.students)}</span>
+          <span style="flex:1;">${esc(groupStudentLabel(p.students))}</span>
           <span style="font-size:12px; color:#71717a;">$</span>
           <input type="number" data-pkg-price="${p.id}" value="${STANDARD_PRICE_PER_TERM}" min="0" style="width:70px; font-size:13px; padding:3px 5px;" />
         </label>`).join("");
@@ -2510,7 +2510,7 @@
       const isOut = m.direction === "outbound";
       return `
       <div style="align-self:${isOut ? "flex-end" : "flex-start"}; max-width:82%;">
-        <div style="background:${isOut ? "#dcf8c6" : "#f4f4f5"}; color:#18181b; font-size:13px; line-height:1.4; padding:7px 11px; border-radius:${isOut ? "12px 12px 3px 12px" : "12px 12px 12px 3px"}; white-space:normal; word-break:break-word;">${m.body}</div>
+        <div style="background:${isOut ? "#dcf8c6" : "#f4f4f5"}; color:#18181b; font-size:13px; line-height:1.4; padding:7px 11px; border-radius:${isOut ? "12px 12px 3px 12px" : "12px 12px 12px 3px"}; white-space:normal; word-break:break-word;">${esc(m.body)}</div>
         <div style="font-size:10px; color:#a1a1aa; margin:2px 3px 0; ${isOut ? "text-align:right;" : ""}">${new Date(m.created_at).toLocaleString(localeForDates(), { dateStyle: "medium", timeStyle: "short" })}</div>
       </div>`;
     }).join("");
@@ -2636,7 +2636,7 @@
       .eq("active", true)
       .eq("is_group", true)
       .order("created_at", { ascending: false });
-    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`; return; }
+    if (error) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
     students = data;
 
     // Every package for every group student, in ONE query (was one query
@@ -2746,7 +2746,7 @@
 
       let classCell = "—", statusCell = "—", enrollActionBtn;
       if (pkg) {
-        classCell = pkg.classes ? `${pkg.classes.name} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})` : "";
+        classCell = pkg.classes ? `${esc(pkg.classes.name)} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})` : "";
         statusCell = `<span class="status-pill status-${pkg.status === "active" ? "confirmed" : pkg.status}">${t("pkgstatus." + pkg.status)}</span>`;
         enrollActionBtn = pkg.status === "active"
           ? ""
@@ -2801,8 +2801,8 @@
       const html = `
         <tr${isWithdrawn ? ' class="row-withdrawn"' : ""}>
           ${arrowCell}
-          <td class="student-name-cell" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-age="${s.contacts?.age ?? "—"}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">
-            <span class="avatar gender-${genderClass}">${initial}</span><span class="student-name-link">${displayName}${violinIcon}</span>${lastActivityBadge}
+          <td class="student-name-cell" data-view-detail="${s.id}" data-join-date-raw="${joinDateRaw}" data-earliest-pkg-id="${earliestPkgId}" data-total-lessons="${totalLessonsSum}" data-price="$${totalPaid}" data-age="${esc(s.contacts?.age ?? "—")}" data-leaves="${leavesCell}" data-withdrawn-date-raw="${withdrawnDateRaw}" data-latest-pkg-id="${latestPkgId}">
+            <span class="avatar gender-${genderClass}">${esc(initial)}</span><span class="student-name-link">${esc(displayName)}${violinIcon}</span>${lastActivityBadge}
           </td>
           <td>${classCell}</td>
           <td>${renewalCountCell}</td>

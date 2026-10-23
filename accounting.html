@@ -567,7 +567,7 @@
     const rows = gaps.map(g => {
       const days = Math.round((g.end - g.start) / DAY_MS) + 1;
       const resumeNote = g.resumingClasses?.length
-        ? `<p class="travel-window-note">${tf("accounting.travel_resume_note", { names: g.resumingClasses.join("、") })}</p>`
+        ? `<p class="travel-window-note">${tf("accounting.travel_resume_note", { names: g.resumingClasses.map(esc).join("、") })}</p>`
         : "";
       return `<div class="travel-window-row-wrap">` +
         `<div class="travel-window-row">` +
@@ -588,14 +588,14 @@
     const now = new Date();
     const statusRows = (classStatuses ?? []).map(({ name, batch }) => {
       if (!batch) {
-        return `<div class="class-status-row status-none"><span class="status-name"><span class="status-dot"></span>${name}</span><span class="class-status-note">${t("accounting.travel_status_none")}</span></div>`;
+        return `<div class="class-status-row status-none"><span class="status-name"><span class="status-dot"></span>${esc(name)}</span><span class="class-status-note">${t("accounting.travel_status_none")}</span></div>`;
       }
       const isCurrent = batch.start <= now;
       const statusClass = isCurrent ? "status-busy" : "status-upcoming";
       const label = isCurrent
         ? tf("accounting.travel_status_current", { date: batch.end.toLocaleDateString(localeForDates(), fmtOpts) })
         : tf("accounting.travel_status_next", { start: batch.start.toLocaleDateString(localeForDates(), fmtOpts), end: batch.end.toLocaleDateString(localeForDates(), fmtOpts) });
-      return `<div class="class-status-row ${statusClass}"><span class="status-name"><span class="status-dot"></span>${name}</span><span class="class-status-note">${label}</span></div>`;
+      return `<div class="class-status-row ${statusClass}"><span class="status-name"><span class="status-dot"></span>${esc(name)}</span><span class="class-status-note">${label}</span></div>`;
     });
     document.querySelector("#travel-status-toggle span:last-child").textContent =
       `${t("accounting.travel_status_title")} (${(classStatuses ?? []).length})`;
