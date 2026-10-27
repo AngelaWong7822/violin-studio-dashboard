@@ -285,6 +285,10 @@
   .detail-table th, .detail-table td { padding: 4px 8px; text-align: left; }
   .detail-table th { color: #71717a; font-weight: 500; }
   .detail-table tr:nth-child(even) { background: #fafafa; }
+
+  .extra-lessons { margin-top: 12px; padding: 10px 14px; background: #f0f9ff; border: 1.5px dashed #7dd3fc; border-radius: 14px; }
+  .extra-lessons .extra-title { font-weight: 700; color: #0369a1; margin-bottom: 6px; }
+  .extra-lessons .extra-sum { font-weight: 400; font-size: 12px; color: #0c4a6e; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -648,6 +652,28 @@
       </label>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="reschedule-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
+        <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Extra 1:1 lesson for a group-class student -->
+<dialog id="extra-dialog" style="border:none; border-radius:10px; padding:0; width:340px;">
+  <form id="extra-form" class="card" style="margin:0; box-shadow:none;">
+    <h1 id="extra-dialog-title" data-i18n="extra.add_title">Extra 1:1 lesson</h1>
+    <input type="hidden" id="extra-student-id" />
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label><span data-i18n="extra.when">Date &amp; time</span> <input type="datetime-local" id="extra-when" required /></label>
+      <label><span data-i18n="extra.duration">Length</span>
+        <select id="extra-duration">
+          <option value="45" data-i18n="extra.min45">45 min</option>
+          <option value="60" data-i18n="extra.min60">1 hour</option>
+        </select>
+      </label>
+      <label><span data-i18n="extra.price">Price ($)</span> <input type="number" id="extra-price" min="0" step="1" value="600" required /></label>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+        <button type="button" class="link" id="extra-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
       </div>
     </div>
@@ -1735,6 +1761,8 @@
   const paymentExpandedIds = new Set();
   const paymentExpandedTermIds = new Set(); // manually re-opened older terms (by package id)
   let paymentPackages = []; // [{ pkg, lessons: [{apptId, date, status, attendanceId, paid}] }]
+  // Extra 1:1 lessons group-class students book on top of their term: studentId -> [{ apptId, when, whenEnd, price, attendanceId, paid }]
+  let paymentExtras = new Map();
   let paymentsAllGroupAppts = []; // cached appointments, used to resolve a make-up's target date for display
 
   function effectivePrice(pkg, lessons) {
@@ -1803,8 +1831,51 @@
       return { pkg, lessons };
     });
 
+    // Extra 1:1 lessons (class_id null) the same students booked outside the
+    // class — kept apart from the term math, shown as their own payment block.
+    paymentExtras = new Map();
+    if (studentIds.length) {
+      const extraAppts = await fetchAllRows(() => supabaseClient.from("appointments")
+        .select("id, student_id, scheduled_start, scheduled_end, price")
+        .in("student_id", studentIds).eq("type", "lesson").is("class_id", null).neq("status", "cancelled")
+        .order("scheduled_start", { ascending: false }).order("id"));
+      const extraAtt = extraAppts.length
+        ? await fetchAllRows(() => supabaseClient.from("attendance").select("id, appointment_id, student_id, paid").in("appointment_id", extraAppts.map(a => a.id)).order("id"))
+        : [];
+      const attByAppt = new Map(extraAtt.map(r => [r.appointment_id, r]));
+      for (const a of extraAppts) {
+        const att = attByAppt.get(a.id);
+        if (!paymentExtras.has(a.student_id)) paymentExtras.set(a.student_id, []);
+        paymentExtras.get(a.student_id).push({ apptId: a.id, studentId: a.student_id, when: a.scheduled_start, whenEnd: a.scheduled_end, price: a.price ?? 0, attendanceId: att?.id ?? null, paid: !!att?.paid });
+      }
+    }
+
     paymentsAllGroupAppts = await getAllGroupAppointments();
     renderPayments();
+  }
+
+  function extraLessonsHtml(studentId) {
+    const list = paymentExtras.get(studentId) ?? [];
+    if (!list.length) return "";
+    const total = list.reduce((sum, x) => sum + Number(x.price || 0), 0);
+    const paidAmt = list.filter(x => x.paid).reduce((sum, x) => sum + Number(x.price || 0), 0);
+    const rows = list.map(x => {
+      const d = new Date(x.when);
+      const mins = x.whenEnd ? Math.round((new Date(x.whenEnd) - d) / 60000) : 45;
+      return `<tr>
+        <td>${d.toLocaleDateString(localeForDates(), { dateStyle: "medium" })}(${t("day." + d.getDay())}) ${d.toLocaleTimeString(localeForDates(), { timeStyle: "short" })}</td>
+        <td>${mins}${t("extra.minutes_suffix")}</td>
+        <td>$${Number(x.price || 0)}</td>
+        <td><input type="checkbox" data-extra-paid="${x.apptId}" ${x.paid ? "checked" : ""} /></td>
+        <td><button type="button" class="link" data-extra-del="${x.apptId}" style="color:#b91c1c;">${t("extra.delete")}</button></td>
+      </tr>`;
+    }).join("");
+    return `<div class="extra-lessons">
+      <div class="extra-title">🎻 ${t("extra.section_title")} <span class="extra-sum">${tf("extra.summary", { n: list.length })} · $${paidAmt} / $${total}</span></div>
+      <table class="detail-table"><thead><tr>
+        <th>${t("extra.when")}</th><th>${t("extra.duration")}</th><th>${t("extra.price")}</th><th>${t("schedule.col_paid")}</th><th></th>
+      </tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
   }
 
   // Terms whose saved note she has unlocked for editing; a note with text
@@ -1838,7 +1909,8 @@
       // filtered list just because their 8/8 regular lessons are settled
       // while a combined-with-private extra fee is still owed.
       visible = visible.filter(s => s.entries.some(({ pkg, lessons }) =>
-        (Number(pkg.price) > 0 && lessons.some(l => !l.paid)) || extraFeeLessons(lessons).some(l => !l.make_up_extra_fee_paid)));
+        (Number(pkg.price) > 0 && lessons.some(l => !l.paid)) || extraFeeLessons(lessons).some(l => !l.make_up_extra_fee_paid))
+        || (paymentExtras.get(s.studentId) ?? []).some(x => !x.paid));
     }
     const paymentQuery = paymentSearchEl.value.trim().toLowerCase();
     if (paymentQuery) visible = visible.filter(s => (s.name ?? "").toLowerCase().includes(paymentQuery));
@@ -1858,7 +1930,8 @@
       const paidCount = allLessons.filter(l => l.paid).length;
       const owedLessons = allLessons.length - paidCount;
       const owesExtra = student.entries.some(({ lessons }) => extraFeeLessons(lessons).some(l => !l.make_up_extra_fee_paid));
-      const isSettled = owedLessons === 0 && !owesExtra;
+      const unpaidExtraCount = (paymentExtras.get(student.studentId) ?? []).filter(x => !x.paid).length;
+      const isSettled = owedLessons === 0 && !owesExtra && unpaidExtraCount === 0;
       const isOpen = paymentExpandedIds.has(student.studentId);
 
       const cards = student.entries.map(({ pkg, lessons }, i) => {
@@ -1943,16 +2016,47 @@
           <td>${student.entries.length}</td>
           <td><span class="count-pill">$${totalAmount}</span></td>
           <td>${totalExtraFee > 0 ? `<span class="count-pill count-pill-warn">+$${totalExtraFee}</span>` : "—"}</td>
-          <td><span class="count-pill ${isSettled ? "count-pill-paid" : "count-pill-owe"}">${paidCount} / ${allLessons.length}</span>${owedLessons > 0 ? `<span class="owe-tag">${tf("payments.owe_lessons", { n: owedLessons })}</span>` : (owesExtra ? `<span class="owe-tag">${t("payments.owe_extra")}</span>` : `<span class="settled-tag">${t("payments.settled")}</span>`)} ${notesProgress(student.entries.filter(({ pkg }) => Number(pkg.price) > 0).slice(-1).map(({ lessons }) => ({ done: lessons.filter(l => l.paid).length, total: lessons.length })))}</td>
+          <td><span class="count-pill ${isSettled ? "count-pill-paid" : "count-pill-owe"}">${paidCount} / ${allLessons.length}</span>${owedLessons > 0 ? `<span class="owe-tag">${tf("payments.owe_lessons", { n: owedLessons })}</span>` : unpaidExtraCount > 0 ? `<span class="owe-tag">${tf("extra.owe_tag", { n: unpaidExtraCount })}</span>` : (owesExtra ? `<span class="owe-tag">${t("payments.owe_extra")}</span>` : `<span class="settled-tag">${t("payments.settled")}</span>`)} ${notesProgress(student.entries.filter(({ pkg }) => Number(pkg.price) > 0).slice(-1).map(({ lessons }) => ({ done: lessons.filter(l => l.paid).length, total: lessons.length })))}</td>
         </tr>
         <tr class="student-detail" data-student-detail="${student.studentId}" style="${isOpen ? "" : "display:none;"}">
           <td></td>
           <td colspan="5">
-            <div class="term-cards">${cards}</div>
+            <div class="term-cards">${cards}</div>${extraLessonsHtml(student.studentId)}
           </td>
         </tr>`;
     }).join("");
     applyI18n();
+
+    paymentRowsEl.querySelectorAll("input[data-extra-paid]").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", async () => {
+        const apptId = cb.dataset.extraPaid;
+        const item = [...paymentExtras.values()].flat().find(x => x.apptId === apptId);
+        if (!item) return;
+        const paid = cb.checked;
+        let error;
+        if (item.attendanceId) {
+          ({ error } = await supabaseClient.from("attendance").update({ paid }).eq("id", item.attendanceId));
+        } else {
+          const res = await supabaseClient.from("attendance").insert({ appointment_id: apptId, student_id: item.studentId, paid }).select().single();
+          error = res.error;
+          if (!error) item.attendanceId = res.data.id;
+        }
+        if (error) { showToast("Update failed: " + error.message, "error"); cb.checked = !paid; return; }
+        item.paid = paid;
+        renderPayments();
+      });
+    });
+    paymentRowsEl.querySelectorAll("button[data-extra-del]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!(await showConfirm(t("extra.delete_confirm")))) return;
+        // Cancel rather than hard-delete, so the Google Calendar sync can remove the event.
+        const { error } = await supabaseClient.from("appointments").update({ status: "cancelled" }).eq("id", btn.dataset.extraDel);
+        if (error) { showToast("Delete failed: " + error.message, "error"); return; }
+        await loadPayments();
+      });
+    });
 
     paymentRowsEl.querySelectorAll(".student-row").forEach(tr => {
       tr.addEventListener("click", () => {
@@ -1971,7 +2075,7 @@
       });
     });
 
-    paymentRowsEl.querySelectorAll(".student-detail input[type=checkbox]:not(.extra-fee-paid-toggle)").forEach(cb => {
+    paymentRowsEl.querySelectorAll(".student-detail input[type=checkbox]:not(.extra-fee-paid-toggle):not([data-extra-paid])").forEach(cb => {
       cb.addEventListener("click", (e) => e.stopPropagation());
       cb.addEventListener("change", async () => {
         const paid = cb.checked;
@@ -2403,6 +2507,9 @@
     tbody.querySelectorAll("button[data-edit-student]").forEach(btn => {
       btn.addEventListener("click", () => openEditStudent(students.find(s => s.id === btn.dataset.editStudent)));
     });
+    tbody.querySelectorAll("button[data-add-extra]").forEach(btn => {
+      btn.addEventListener("click", () => openExtraLessonDialog(students.find(s => s.id === btn.dataset.addExtra)));
+    });
     tbody.querySelectorAll("button[data-delete-student]").forEach(btn => {
       btn.addEventListener("click", () => deleteStudent(students.find(s => s.id === btn.dataset.deleteStudent)));
     });
@@ -2810,6 +2917,7 @@
           <td style="white-space:nowrap;">
             <button type="button" class="icon-action-btn" data-edit-student="${s.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
             %%TUTORING_BTN:${s.id}%%
+            ${isWithdrawn ? "" : `<button type="button" class="icon-action-btn" data-add-extra="${s.id}" title="${t("extra.add_title")}" aria-label="${t("extra.add_title")}">🎻</button>`}
             ${pkg?.status === "active" ? `<button type="button" class="icon-action-btn" data-withdraw-student="${s.id}" title="${t("student.withdraw")}" aria-label="${t("student.withdraw")}">🚪</button>` : ""}
             ${enrollActionBtn}
             <button class="icon-delete-btn" data-delete-student="${s.id}" title="${t("student.delete")}" aria-label="${t("student.delete")}">🗑️</button>
@@ -2926,6 +3034,59 @@
   }
 
   const studentDialog = document.getElementById("student-dialog");
+  // Set only while the dialog was opened from a lead ("convert to student"):
+  // the new student must hang off THAT lead's contact (even when it has no
+  // phone number to look up), and the contact's existing number is kept.
+  let fromLeadContactId = null;
+  studentDialog.addEventListener("close", () => { fromLeadContactId = null; });
+
+  // ---------- Extra 1:1 lesson for a group-class student ----------
+  // Cheaper than a normal private lesson ($600 / 45min, $800 / 1hr by
+  // default, editable per lesson). Stays an ordinary appointment of type
+  // "lesson" on the group student — NOT a private student — so the private
+  // page's bookings calendar can show it (tagged) and the Payments tab here
+  // tracks whether it has been paid.
+  const EXTRA_PRICE = { 45: 600, 60: 800 };
+  const extraDialog = document.getElementById("extra-dialog");
+  const extraDurationEl = document.getElementById("extra-duration");
+  const extraPriceEl = document.getElementById("extra-price");
+  let extraLastDefault = EXTRA_PRICE[45];
+  function openExtraLessonDialog(student) {
+    if (!student) return;
+    document.getElementById("extra-form").reset();
+    document.getElementById("extra-student-id").value = student.id;
+    document.getElementById("extra-dialog-title").textContent = tf("extra.dialog_title", { name: groupStudentLabel(student) });
+    extraDurationEl.value = "45";
+    extraLastDefault = EXTRA_PRICE[45];
+    extraPriceEl.value = extraLastDefault;
+    extraDialog.showModal();
+  }
+  extraDurationEl.addEventListener("change", () => {
+    // Follow the length's usual price, but never overwrite a price she typed herself.
+    const next = EXTRA_PRICE[Number(extraDurationEl.value)];
+    if (Number(extraPriceEl.value) === extraLastDefault) extraPriceEl.value = next;
+    extraLastDefault = next;
+  });
+  document.getElementById("extra-cancel-btn").addEventListener("click", () => extraDialog.close());
+  document.getElementById("extra-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const studentId = document.getElementById("extra-student-id").value;
+    const whenStr = document.getElementById("extra-when").value;
+    const duration = parseInt(extraDurationEl.value, 10);
+    const price = parseFloat(extraPriceEl.value) || 0;
+    if (!studentId || !whenStr) return;
+    const start = new Date(whenStr);
+    const end = new Date(start.getTime() + duration * 60 * 1000);
+    const { data: appt, error } = await supabaseClient.from("appointments")
+      .insert({ type: "lesson", lesson_format: "1on1", student_id: studentId, scheduled_start: start.toISOString(), scheduled_end: end.toISOString(), status: "confirmed", created_via: "manual_dashboard", price })
+      .select().single();
+    if (error) { showToast("Save failed: " + error.message, "error"); return; }
+    const { error: attError } = await supabaseClient.from("attendance").insert({ appointment_id: appt.id, student_id: studentId });
+    if (attError) { showToast("Lesson saved, but couldn't create its attendance row: " + attError.message, "error", 5000); }
+    extraDialog.close();
+    showToast(t("extra.saved"), "success");
+    await loadPayments();
+  });
   document.getElementById("new-student-btn").addEventListener("click", () => {
     document.getElementById("student-form").reset();
     document.getElementById("student-id").value = "";
@@ -3037,13 +3198,18 @@
     // blind-inserting, which would otherwise fail on
     // contacts.whatsapp_number's unique constraint.
     let contact = null;
-    if (contactFields.whatsapp_number) {
+    if (fromLeadContactId) {
+      contact = { id: fromLeadContactId };
+    } else if (contactFields.whatsapp_number) {
       const { data: existingContact } = await supabaseClient
         .from("contacts").select("id").eq("whatsapp_number", contactFields.whatsapp_number).maybeSingle();
       contact = existingContact;
     }
     if (contact) {
-      const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contact.id);
+      const contactUpdate = { ...contactFields };
+      // Never wipe a lead contact's stored number just because the box was left unusable.
+      if (fromLeadContactId && contactUpdate.whatsapp_number == null) delete contactUpdate.whatsapp_number;
+      const { error } = await supabaseClient.from("contacts").update(contactUpdate).eq("id", contact.id);
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { data: newContact, error } = await supabaseClient
@@ -3277,6 +3443,33 @@
     refreshAttendanceSection(),
     loadPayments(),
   ]);
+
+  // Arrived from a lead card's "convert to group-class student" button.
+  async function openStudentFromLead(leadId) {
+    const { data: lead } = await supabaseClient.from("leads")
+      .select("id, contact_id, contacts(name, whatsapp_number, social_media_name, level, age)").eq("id", leadId).maybeSingle();
+    if (!lead) { showToast(t("lead.convert_not_found"), "error", 4000); return; }
+    if (students.some(s => s.contact_id === lead.contact_id)) { showToast(t("lead.convert_already_group"), "error", 4500); return; }
+    const c = lead.contacts ?? {};
+    document.getElementById("student-form").reset();
+    document.getElementById("student-id").value = "";
+    document.getElementById("student-contact-id").value = "";
+    document.getElementById("student-edit-class-field").style.display = "none";
+    document.getElementById("student-dialog-title").textContent = t("lead.convert_group_title");
+    document.getElementById("student-name").value = c.name ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number || "852";
+    document.getElementById("student-social").value = c.social_media_name ?? "";
+    document.getElementById("student-level").value = c.level ?? "";
+    document.getElementById("student-age").value = c.age ?? "";
+    setNeedsViolinToggle("not_needed");
+    fromLeadContactId = lead.contact_id;
+    studentDialog.showModal();
+  }
+  const fromLeadParam = new URLSearchParams(window.location.search).get("fromLead");
+  if (fromLeadParam) {
+    history.replaceState(null, "", window.location.pathname);
+    await openStudentFromLead(fromLeadParam);
+  }
 })();
 
 // Quick-reply template cards (packages.html only) — copy-paste prompts for

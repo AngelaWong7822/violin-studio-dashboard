@@ -315,6 +315,16 @@
   .pending-review-row .pending-student { padding: 4px 12px; border-radius: 999px; border: 1.5px solid #ea580c; background: #fff; font-size: 13px; color: #9a3412; font-weight: 600; }
 
   .cute-gcal h1::before { content: "📅 "; }
+
+  .pending-review-row .pending-hint { font-size: 12px; padding: 4px 12px; border-radius: 12px; margin-top: 6px; display: inline-block; }
+  .pending-review-row .pending-hint.warn { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; font-weight: 600; }
+  .pending-review-row .pending-hint.info { background: #ecfccb; color: #3f6212; border: 1px solid #bef264; }
+
+  /* a group-class student's extra 1:1 lesson: sky blue, apart from private / group / trial / make-up */
+  .week-calendar-lesson.is-extra { background: #e0f2fe; }
+  .week-calendar-lesson.is-extra .week-calendar-time { color: #0369a1; }
+  .week-calendar-lesson.is-extra .week-calendar-name { color: #0c4a6e; }
+  .cute-week .week-calendar-lesson.is-extra { background: #e0f2fe; border-color: #7dd3fc; box-shadow: none; }
 </style>
 </head>
 <body>
@@ -814,7 +824,7 @@
 
     const [{ data: appts }, { data: pending }, { data: combinedMakeups }] = await Promise.all([
       supabaseClient.from("appointments")
-        .select("id, lead_id, scheduled_start, scheduled_end, type, notes, classes(name), leads!appointments_lead_id_fkey(visit_type, contacts(name))")
+        .select("id, lead_id, student_id, scheduled_start, scheduled_end, type, notes, classes(name), leads!appointments_lead_id_fkey(visit_type, contacts(name)), students!appointments_student_id_fkey(is_group, name, contacts(name))")
         .neq("status", "cancelled")
         .gte("scheduled_start", startOfToday.toISOString())
         .lt("scheduled_start", rangeEnd.toISOString()),
@@ -853,6 +863,9 @@
       let card = null;
       if (a.type === "group_class") {
         card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "group", name: a.classes?.name || t("private.wc_group") };
+      } else if (a.type === "lesson" && a.students?.is_group) {
+        // A group-class student's extra 1:1 (booked from the Group Classes page).
+        card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "extra", name: a.students.name || a.students.contacts?.name || "", apptId: a.id };
       } else if (a.type === "consultation") {
         card = { when: a.scheduled_start, whenEnd: a.scheduled_end, kind: "consult", name: (a.leads?.contacts?.name || a.notes || t("private.wc_consult")) + (a.leads?.visit_type === "trial" ? t("private.wc_trial_suffix") : ""), apptId: a.id, leadId: a.lead_id, trial: a.leads?.visit_type === "trial" };
       }
@@ -985,6 +998,17 @@
                 <span class="week-calendar-time">${timeLabel}${t("private.wc_makeup_label")}</span>
                 <span class="week-calendar-name">${esc(it.name)}${it.remark ? " · " + esc(it.remark) : ""}${feeLabel}</span>
               </span>
+            </div>`;
+        }
+        if (it.kind === "extra") {
+          const extraName = it.name + t("private.wc_extra_suffix");
+          return `<div class="week-calendar-lesson is-extra" title="${attrEsc(fmtLessonRange(it.when, it.whenEnd) + " " + extraName)}">
+              <span class="wc-group-icon">🎻</span>
+              <span class="week-calendar-lesson-info">
+                <span class="week-calendar-time">${fmtLessonRange(it.when, it.whenEnd)}</span>
+                <span class="week-calendar-name">${esc(it.name)}${t("private.wc_extra_suffix")}</span>
+              </span>
+              <button type="button" class="wc-del-btn" data-cal-del-lesson="${it.apptId}" title="${t("private.delete_lesson")}" aria-label="${t("private.delete_lesson")}">✕</button>
             </div>`;
         }
         if (it.kind === "group" || it.kind === "consult") {
@@ -1395,6 +1419,11 @@
 
   // ---------- Student create/edit ----------
   const studentDialog = document.getElementById("student-dialog");
+  // Set only while the dialog was opened from a lead ("convert to student"):
+  // the new student must hang off THAT lead's contact (even when it has no
+  // phone number to look up), and the contact's existing number is kept.
+  let fromLeadContactId = null;
+  studentDialog.addEventListener("close", () => { fromLeadContactId = null; });
   function setDialogGender(gender) {
     document.getElementById("student-gender").value = gender;
     document.querySelectorAll(".gender-toggle-btn").forEach(btn => {
@@ -1546,13 +1575,18 @@
     // existing lead. Reuse that row instead of blind-inserting, which
     // would otherwise fail on contacts.whatsapp_number's unique constraint.
     let contact = null;
-    if (contactFields.whatsapp_number) {
+    if (fromLeadContactId) {
+      contact = { id: fromLeadContactId };
+    } else if (contactFields.whatsapp_number) {
       const { data: existingContact } = await supabaseClient
         .from("contacts").select("id").eq("whatsapp_number", contactFields.whatsapp_number).maybeSingle();
       contact = existingContact;
     }
     if (contact) {
-      const { error } = await supabaseClient.from("contacts").update(contactFields).eq("id", contact.id);
+      const contactUpdate = { ...contactFields };
+      // Never wipe a lead contact's stored number just because the box was left unusable.
+      if (fromLeadContactId && contactUpdate.whatsapp_number == null) delete contactUpdate.whatsapp_number;
+      const { error } = await supabaseClient.from("contacts").update(contactUpdate).eq("id", contact.id);
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
     } else {
       const { data: newContact, error } = await supabaseClient
@@ -1895,6 +1929,46 @@
     renderPendingReviews();
   }
 
+  // A parent with several kids often mixes them up in a message, so the
+  // review row shows each kid's fixed weekly slot + next lesson, pre-picks
+  // the kid by name or (failing that) by matching the proposed day+time to a
+  // slot, and warns when the two disagree.
+  function kidsByName(kids, personName) {
+    const q = (personName ?? "").trim().toLowerCase();
+    if (!q) return [];
+    return kids.filter(k => { const n = (k.name ?? "").toLowerCase(); return n && (n.includes(q) || q.includes(n)); });
+  }
+  function kidsForSlot(kids, dateStr, timeStr) {
+    if (!dateStr || !timeStr) return [];
+    const wd = new Date(`${dateStr}T00:00:00`).getDay();
+    const hm = timeStr.slice(0, 5);
+    return kids.filter(k => k.regular_weekday === wd && (k.regular_time ?? "").slice(0, 5) === hm);
+  }
+  function kidOptionLabel(k) {
+    const slot = k.regular_weekday != null && k.regular_time ? formatRegularSchedule(k.regular_weekday, k.regular_time, k.regular_duration_minutes) : "";
+    const next = k.nextLesson ? tf("private.pending_next_lesson", { when: formatNextLesson(new Date(k.nextLesson.when)) }) : "";
+    const extra = [slot, next].filter(Boolean).join(" · ");
+    return extra ? `${studentLabel(k)}（${extra}）` : studentLabel(k);
+  }
+  function kidHintHtml(kids, a, dateStr, timeStr, selectedId) {
+    const named = kidsByName(kids, a.person_name);
+    const slotKids = kidsForSlot(kids, dateStr, timeStr);
+    if (slotKids.length === 1) {
+      const slotKid = slotKids[0];
+      if (selectedId && selectedId !== slotKid.id) {
+        const picked = kids.find(k => k.id === selectedId);
+        return `<div class="pending-hint warn">${tf("private.pending_hint_selected_other", { picked: esc(studentLabel(picked)), slot: esc(studentLabel(slotKid)) })}</div>`;
+      }
+      if (!selectedId && named.length === 1 && named[0].id !== slotKid.id) {
+        return `<div class="pending-hint warn">${tf("private.pending_hint_mismatch", { named: esc(studentLabel(named[0])), slot: esc(studentLabel(slotKid)) })}</div>`;
+      }
+      if (!selectedId && !named.length) {
+        return `<div class="pending-hint info">${tf("private.pending_hint_by_slot", { kid: esc(studentLabel(slotKid)) })}</div>`;
+      }
+    }
+    return "";
+  }
+
   function renderPendingReviews() {
     const card = document.getElementById("pending-reviews-card");
     const container = document.getElementById("pending-reviews");
@@ -1908,11 +1982,14 @@
       // message is about, so let her pick right here (pre-selected when the
       // AI's guessed name matches exactly one child).
       const kids = students.filter(s => s.contact_id === a.contact_id);
-      const nameQ = (a.person_name ?? "").trim().toLowerCase();
-      const guess = nameQ ? kids.filter(k => { const n = (k.name ?? "").toLowerCase(); return n && (n.includes(nameQ) || nameQ.includes(n)); }) : [];
+      const nameKids = kidsByName(kids, a.person_name);
+      const slotKids = kidsForSlot(kids, a.requested_date, a.requested_time);
+      // Name wins when it points at exactly one kid; otherwise the slot does.
+      const preKid = nameKids.length === 1 ? nameKids[0] : slotKids.length === 1 ? slotKids[0] : null;
       const kidSelect = kids.length > 1
-        ? `<select class="pending-student" data-pending-student="${p.id}"><option value="">${t("private.pending_pick_placeholder")}</option>${kids.map(k => `<option value="${k.id}"${guess.length === 1 && guess[0].id === k.id ? " selected" : ""}>${esc(studentLabel(k))}</option>`).join("")}</select>`
+        ? `<select class="pending-student" data-pending-student="${p.id}"><option value="">${t("private.pending_pick_placeholder")}</option>${kids.map(k => `<option value="${k.id}"${preKid && preKid.id === k.id ? " selected" : ""}>${esc(kidOptionLabel(k))}</option>`).join("")}</select>`
         : "";
+      const kidHint = kids.length > 1 ? `<div data-pending-hint="${p.id}">${kidHintHtml(kids, a, a.requested_date, a.requested_time, null)}</div>` : "";
       return `
         <div class="pending-review-row" data-pending-id="${p.id}">
           <strong>${esc(c?.name ?? "?")}</strong>
@@ -1927,10 +2004,25 @@
           <span class="time-ago">${timeAgo(p.created_at)}</span>
           <button type="button" class="link approve" data-approve="${p.id}">${t("private.approve")}</button>
           <button type="button" class="link reject" data-reject="${p.id}">${t("private.reject")}</button>
+          ${kidHint}
           <div class="rationale">${p.messages?.body ? `"${esc(p.messages.body)}"` : ""}${a.rationale ? " — " + esc(a.rationale) : ""}</div>
         </div>`;
     }).join("");
     applyI18n();
+
+    function refreshKidHint(pid) {
+      const pr = pendingReviews.find(x => x.id === pid);
+      const holder = container.querySelector(`[data-pending-hint="${pid}"]`);
+      if (!pr || !holder) return;
+      const kids = students.filter(s => s.contact_id === pr.proposed_appointment.contact_id);
+      const dateEl = container.querySelector(`[data-pending-date="${pid}"]`);
+      const timeEl = container.querySelector(`[data-pending-time="${pid}"]`);
+      const selEl = container.querySelector(`[data-pending-student="${pid}"]`);
+      holder.innerHTML = kidHintHtml(kids, pr.proposed_appointment, dateEl?.value, timeEl?.value, selEl?.value || null);
+    }
+    container.querySelectorAll("[data-pending-student], [data-pending-date], [data-pending-time]").forEach(el => {
+      el.addEventListener("change", () => refreshKidHint(el.closest(".pending-review-row").dataset.pendingId));
+    });
 
     container.querySelectorAll("[data-approve]").forEach(btn => {
       btn.addEventListener("click", async () => {
@@ -2047,6 +2139,40 @@
 
   await load();
   await loadPendingReviews();
+
+  // Arrived from a lead card's "convert to private student" button.
+  async function openStudentFromLead(leadId) {
+    const { data: lead } = await supabaseClient.from("leads")
+      .select("id, contact_id, contacts(name, whatsapp_number, social_media_name, level, age)").eq("id", leadId).maybeSingle();
+    if (!lead) { showToast(t("lead.convert_not_found"), "error", 4000); return; }
+    if (students.some(s => s.contact_id === lead.contact_id)) { showToast(t("lead.convert_already_private"), "error", 4500); return; }
+    const c = lead.contacts ?? {};
+    document.getElementById("student-form").reset();
+    document.getElementById("student-id").value = "";
+    document.getElementById("student-contact-id").value = "";
+    document.getElementById("student-sibling-contact-id").value = "";
+    document.getElementById("student-dialog-title").textContent = t("lead.convert_private_title");
+    document.getElementById("student-dialog-avatar").textContent = (c.name || "?").trim().charAt(0).toUpperCase() || "?";
+    document.getElementById("student-name").value = c.name ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number || "852";
+    document.getElementById("student-social").value = c.social_media_name ?? "";
+    document.getElementById("student-level").value = c.level ?? "";
+    document.getElementById("student-age").value = c.age ?? "";
+    setDialogGender("male");
+    document.getElementById("student-regular-weekday").value = "";
+    document.getElementById("student-regular-time").value = "";
+    document.getElementById("student-regular-duration").value = "";
+    const hint = document.getElementById("student-parent-hint");
+    hint.textContent = tf("lead.convert_hint", { name: c.name ?? "" });
+    hint.hidden = false;
+    fromLeadContactId = lead.contact_id;
+    studentDialog.showModal();
+  }
+  const fromLeadParam = new URLSearchParams(window.location.search).get("fromLead");
+  if (fromLeadParam) {
+    history.replaceState(null, "", window.location.pathname);
+    await openStudentFromLead(fromLeadParam);
+  }
 })();
 </script>
 </body>

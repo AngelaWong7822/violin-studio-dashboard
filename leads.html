@@ -140,6 +140,18 @@
   .wa-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; background: #dcfce7; border: 1px solid #86efac; color: #166534; font-weight: 700; font-size: 13px; text-decoration: none; }
   .wa-btn:hover { background: #bbf7d0; }
   .followup-none { color: #d4d4d8; }
+
+  .convert-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+  .convert-btn { border: 1.5px solid #fb923c; background: #fff; color: #c2410c; font-weight: 700; font-size: 12px; padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+  .convert-btn:hover { background: #ffedd5; }
+  .enrolled-tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #dcfce7; color: #166534; font-weight: 700; font-size: 12px; border: 1px solid #86efac; }
+
+  /* lost / enrolled cards: name only until clicked */
+  .lead-card.is-collapsed { padding-top: 8px; padding-bottom: 8px; }
+  .lead-card.is-collapsed > *:not(.name) { display: none !important; }
+  .lead-card .name.collapsible { cursor: pointer; user-select: none; }
+  .lead-card .name.collapsible::before { content: "▾ "; color: #c2410c; }
+  .lead-card.is-collapsed .name.collapsible::before { content: "▸ "; }
 </style>
 </head>
 <body>
@@ -181,6 +193,10 @@
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap;">
       <h1 style="margin:0;" data-i18n="leads.title">Leads pipeline</h1>
       <div style="display:flex; align-items:center; gap:16px;">
+        <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
+          <span class="toggle-switch"><input type="checkbox" id="show-enrolled-toggle" /><span class="slider"></span></span>
+          <span data-i18n="lead.show_enrolled">Show enrolled</span>
+        </label>
         <label style="font-size:13px; font-weight:normal; display:inline-flex; align-items:center; gap:6px;">
           <span class="toggle-switch"><input type="checkbox" id="show-lost-toggle" /><span class="slider"></span></span>
           <span data-i18n="leads.show_lost">Show lost</span>
@@ -332,8 +348,14 @@
   // again for a deliberate correction.
   const LOCK_FROM_INDEX = STATUSES.indexOf("attended");
   function isLockedStatus(status) { return STATUSES.indexOf(status) >= LOCK_FROM_INDEX; }
+  // Attended / deposit-paid / lost / enrolled cards start folded down to just the name; which ones the
+  // user opened is remembered here so a re-render (after any edit) keeps them open.
+  const expandedLeadIds = new Set();
   const showLostToggle = document.getElementById("show-lost-toggle");
   showLostToggle.addEventListener("change", loadBoard);
+  const showEnrolledToggle = document.getElementById("show-enrolled-toggle");
+  persistInput(showEnrolledToggle, "leads.showEnrolled");
+  showEnrolledToggle.addEventListener("change", loadBoard);
 
   // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the *local* timezone —
   // building it from the local getters (not toISOString, which is UTC)
@@ -387,20 +409,48 @@
     el.style.height = el.scrollHeight + "px";
   }
 
+  // contact_id -> { private, group } for every ACTIVE student under those
+  // contacts, so a lead who already joined can be marked as such instead of
+  // being offered "convert" again.
+  async function loadEnrolledByContact(contactIds) {
+    const map = new Map();
+    const ids = [...new Set(contactIds.filter(Boolean))];
+    if (!ids.length) return map;
+    const { data } = await supabaseClient.from("students").select("contact_id, is_group, created_at").in("contact_id", ids).eq("active", true);
+    for (const s of data ?? []) {
+      if (!map.has(s.contact_id)) map.set(s.contact_id, []);
+      map.get(s.contact_id).push(s);
+    }
+    return map;
+  }
+
+  // Did this lead turn into a student? Only students created on/after the
+  // lead count — otherwise a NEW inquiry for a sibling (same parent contact,
+  // whose older child is already enrolled) would wrongly look enrolled.
+  function enrolledInfo(lead, map) {
+    const since = new Date(lead.created_at ?? 0).getTime();
+    const mine = (map.get(lead.contact_id) ?? []).filter(st => new Date(st.created_at).getTime() >= since);
+    if (!mine.length) return null;
+    return { private: mine.some(st => !st.is_group), group: mine.some(st => st.is_group) };
+  }
+
   async function loadFollowUps() {
     const tbody = document.getElementById("followup-rows");
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, status, visit_type, contacts(name, whatsapp_number, age), appointments!leads_consultation_appointment_fk(scheduled_start)")
+      .select("id, contact_id, created_at, status, visit_type, contacts(name, whatsapp_number, age), appointments!leads_consultation_appointment_fk(scheduled_start)")
       .in("status", ["consultation_booked", "attended"])
       .eq("followed_up", false);
     if (error) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
-    if (!data.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
+    // A lead who has already become a student no longer needs following up.
+    const enrolledForFollowUp = await loadEnrolledByContact(data.map(l => l.contact_id));
+    const pending = data.filter(l => !enrolledInfo(l, enrolledForFollowUp));
+    if (!pending.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">${t("schedule.followup_empty")}</td></tr>`; return; }
 
     // Oldest attended date first (most overdue at the top); anyone who
     // hasn't attended yet (no date at all) has nothing to follow up on
     // urgently, so those sink to the bottom.
-    const sorted = [...data].sort((a, b) => {
+    const sorted = [...pending].sort((a, b) => {
       const ta = a.appointments?.scheduled_start ? new Date(a.appointments.scheduled_start).getTime() : Infinity;
       const tb = b.appointments?.scheduled_start ? new Date(b.appointments.scheduled_start).getTime() : Infinity;
       return ta - tb;
@@ -443,6 +493,9 @@
       .select("id, contact_id, status, visit_type, created_at, updated_at, lost_reason, preferred_times, consultation_appointment_id, followed_up, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, scheduled_end, status)")
       .order("created_at", { ascending: false });
 
+    // Looked up BEFORE the board is cleared: awaiting between clearing and
+    // drawing would let two overlapping loads both draw (duplicate columns).
+    const enrolledByContact = error ? new Map() : await loadEnrolledByContact(data.map(l => l.contact_id));
     const board = document.getElementById("board");
     board.innerHTML = "";
     if (error) {
@@ -455,14 +508,21 @@
     // permanently reserving a column for dead leads. The toggle brings it
     // back when actually reviewing lost leads.
     const visibleStatuses = showLostToggle.checked ? STATUSES : STATUSES.filter(s => s !== "lost");
-    board.style.setProperty("--col-count", visibleStatuses.length);
+    // Leads who already became students leave their column and gather in an
+    // "Enrolled" group that stays collapsed (like "Lost") unless asked for.
+    const isEnrolledLead = (l) => (l.status === "attended" || l.status === "deposit_paid") && !!enrolledInfo(l, enrolledByContact);
+    const columns = visibleStatuses.map(st => ({ label: t("leadstatus." + st), collapsed: st === "lost" || st === "attended" || st === "deposit_paid", leads: data.filter(l => l.status === st && !isEnrolledLead(l)) }));
+    if (showEnrolledToggle.checked) {
+      const lostAt = visibleStatuses.indexOf("lost");
+      columns.splice(lostAt === -1 ? columns.length : lostAt, 0, { label: t("lead.col_enrolled"), collapsed: true, leads: data.filter(isEnrolledLead) });
+    }
+    board.style.setProperty("--col-count", columns.length);
 
-    visibleStatuses.forEach(status => {
+    columns.forEach(({ label, collapsed, leads: leadsInCol }) => {
       const col = document.createElement("div");
       const head = document.createElement("div");
       head.className = "col-head";
-      const leadsInCol = data.filter(l => l.status === status);
-      head.textContent = `${t("leadstatus." + status)} (${leadsInCol.length})`;
+      head.textContent = `${label} (${leadsInCol.length})`;
       col.appendChild(head);
 
       if (!leadsInCol.length) {
@@ -474,6 +534,7 @@
       }
 
       leadsInCol.forEach(lead => {
+        const status = lead.status;
         const c = lead.contacts;
         const metaParts = [];
         if (c?.level) metaParts.push(levelLabel(c.level));
@@ -514,6 +575,19 @@
           <div class="meta stage-age">${timeAgo(lead.updated_at ?? lead.created_at)}</div>
           ${attendedDateLine}
         `;
+
+        if (collapsed) {
+          const nameEl = card.querySelector(".name");
+          nameEl.classList.add("collapsible");
+          if (!expandedLeadIds.has(lead.id)) card.classList.add("is-collapsed");
+          nameEl.addEventListener("click", () => {
+            const nowCollapsed = card.classList.toggle("is-collapsed");
+            if (nowCollapsed) expandedLeadIds.delete(lead.id); else expandedLeadIds.add(lead.id);
+            // The auto-growing text boxes were measured while hidden (height 0),
+            // so re-measure them now that they are visible.
+            if (!nowCollapsed) requestAnimationFrame(() => card.querySelectorAll("textarea").forEach(autoGrowTextarea));
+          });
+        }
 
         // Only shown while there's still a live, upcoming booking to act
         // on — not once it's cancelled (appointment row stays around for
@@ -788,6 +862,31 @@
         deleteBtn.textContent = "🗑️";
         deleteBtn.addEventListener("click", () => deleteLead(lead));
         actionsRow.appendChild(deleteBtn);
+
+        // A lead who showed up (or paid the deposit) can become a student in
+        // one click — the target page opens its new-student dialog already
+        // filled from this lead's contact, so nothing is typed twice.
+        if (status === "attended" || status === "deposit_paid") {
+          const enrolled = enrolledInfo(lead, enrolledByContact);
+          const convertRow = document.createElement("div");
+          convertRow.className = "convert-row";
+          if (enrolled && (enrolled.private || enrolled.group)) {
+            const kinds = [enrolled.private ? t("lead.enrolled_private") : null, enrolled.group ? t("lead.enrolled_group") : null].filter(Boolean).join(" / ");
+            convertRow.innerHTML = `<span class="enrolled-tag">✅ ${tf("lead.enrolled_as", { kind: kinds })}</span>`;
+          } else {
+            const mk = (label, href) => {
+              const b = document.createElement("button");
+              b.type = "button";
+              b.className = "convert-btn";
+              b.textContent = label;
+              b.addEventListener("click", () => { window.location.href = `${href}?fromLead=${encodeURIComponent(lead.id)}`; });
+              return b;
+            };
+            convertRow.appendChild(mk("🎻 " + t("lead.convert_private"), "private.html"));
+            convertRow.appendChild(mk("👥 " + t("lead.convert_group"), "packages.html"));
+          }
+          card.appendChild(convertRow);
+        }
 
         card.appendChild(actionsRow);
 
