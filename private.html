@@ -491,6 +491,7 @@
       </label>
       <label><span data-i18n="private.lesson_duration">Duration (min)</span>
         <select id="lesson-duration">
+          <option value="30">30</option>
           <option value="45">45</option>
           <option value="60">60</option>
         </select>
@@ -1661,6 +1662,8 @@
   const lessonDialog = document.getElementById("lesson-dialog");
   function suggestedPrice(format, duration) {
     if (format === "1on2") return "";
+    // 30 min has no fixed rate, so leave it blank rather than silently suggesting the 45-min price.
+    if (duration < 45) return "";
     return duration >= 60 ? 900 : 750;
   }
   function updateLessonPriceSuggestion() {

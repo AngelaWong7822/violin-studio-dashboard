@@ -289,6 +289,10 @@
   .extra-lessons { margin-top: 12px; padding: 10px 14px; background: #f0f9ff; border: 1.5px dashed #7dd3fc; border-radius: 14px; }
   .extra-lessons .extra-title { font-weight: 700; color: #0369a1; margin-bottom: 6px; }
   .extra-lessons .extra-sum { font-weight: 400; font-size: 12px; color: #0c4a6e; margin-left: 6px; }
+
+  .icon-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+  .icon-legend .legend-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px 3px 8px; border-radius: 999px; background: #fff7ed; border: 1px solid #fed7aa; font-size: 13px; color: #9a3412; white-space: nowrap; }
+  .icon-legend .legend-chip b { font-weight: 400; font-size: 15px; line-height: 1; }
 </style>
 </head>
 <body>
@@ -358,6 +362,11 @@
       <h1 style="margin:0;" data-i18n="classes.title">Classes</h1>
       <button class="primary" id="new-class-btn" data-i18n="classes.new">+ New class</button>
     </div>
+    <div class="icon-legend">
+      <span class="legend-chip"><b>✏️</b><span data-i18n="legend.class_edit">Edit class</span></span>
+      <span class="legend-chip"><b>🔄</b><span data-i18n="legend.class_extend">Renew (+8 lessons)</span></span>
+      <span class="legend-chip"><b>🚫</b><span data-i18n="legend.class_cancel">Cancel class</span></span>
+    </div>
     <table>
       <thead><tr>
         <th data-i18n="classes.col_name">Name</th>
@@ -382,6 +391,13 @@
         <input type="text" id="student-search" data-i18n-placeholder="packages.search_students_placeholder" placeholder="Search by name…" />
       </div>
       <select id="student-class-filter"><option value="" data-i18n="packages.filter_all_classes">All classes</option></select>
+    </div>
+    <div class="icon-legend">
+      <span class="legend-chip"><b>✏️</b><span data-i18n="legend.edit">Edit</span></span>
+      <span class="legend-chip"><b>📚</b><span data-i18n="legend.tutoring">Flag as needing extra help</span></span>
+      <span class="legend-chip"><b>🎻</b><span data-i18n="legend.extra">Add an extra 1:1 lesson</span></span>
+      <span class="legend-chip"><b>🚪</b><span data-i18n="legend.withdraw">Withdraw</span></span>
+      <span class="legend-chip"><b>🗑️</b><span data-i18n="legend.delete">Delete student</span></span>
     </div>
     <table>
       <thead><tr>
@@ -1882,6 +1898,14 @@
   // starts locked so a stray click does not overwrite it.
   const payNoteUnlocked = new Set();
 
+  // "B Class Violin Group Class (Beginner)" -> "B Class": keeps the part up to
+  // the word "Class" (the letter that identifies the class), drops the rest.
+  // Names that do not follow that pattern are left untouched.
+  function shortClassName(name) {
+    const m = String(name ?? "").match(/^(.*?\bClass)\b/i);
+    return m ? m[1].trim() : String(name ?? "");
+  }
+
   function escapeAttr(v) {
     return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   }
@@ -2853,7 +2877,8 @@
 
       let classCell = "—", statusCell = "—", enrollActionBtn;
       if (pkg) {
-        classCell = pkg.classes ? `${esc(pkg.classes.name)} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})` : "";
+        // Short form in the table; the full class name stays available on hover.
+        classCell = pkg.classes ? `<span title="${esc(pkg.classes.name)}">${esc(shortClassName(pkg.classes.name))} (${t("day." + pkg.classes.weekly_day_of_week)} ${pkg.classes.weekly_start_time.slice(0, 5)})</span>` : "";
         statusCell = `<span class="status-pill status-${pkg.status === "active" ? "confirmed" : pkg.status}">${t("pkgstatus." + pkg.status)}</span>`;
         enrollActionBtn = pkg.status === "active"
           ? ""
@@ -2916,7 +2941,7 @@
           <td>${statusCell}</td>
           <td style="white-space:nowrap;">
             <button type="button" class="icon-action-btn" data-edit-student="${s.id}" title="${t("student.edit")}" aria-label="${t("student.edit")}">✏️</button>
-            %%TUTORING_BTN:${s.id}%%
+            ${isWithdrawn ? "" : `%%TUTORING_BTN:${s.id}%%`}
             ${isWithdrawn ? "" : `<button type="button" class="icon-action-btn" data-add-extra="${s.id}" title="${t("extra.add_title")}" aria-label="${t("extra.add_title")}">🎻</button>`}
             ${pkg?.status === "active" ? `<button type="button" class="icon-action-btn" data-withdraw-student="${s.id}" title="${t("student.withdraw")}" aria-label="${t("student.withdraw")}">🚪</button>` : ""}
             ${enrollActionBtn}

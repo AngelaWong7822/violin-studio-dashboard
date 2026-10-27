@@ -20,6 +20,9 @@
   .col-head { font-weight: 600; font-size: 13px; color: #71717a; margin-bottom: 8px; }
   .lead-card { background: #fff; border-radius: 12px; padding: 10px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 10px rgba(0,0,0,.05); font-size: 13px; border-left: 4px solid #e4e4e7; }
   .lead-card.needs-follow-up { background: #fffbeb; }
+  .source-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 12px; }
+  .source-legend .legend-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 3px 8px; border-radius: 999px; background: #fff7ed; border: 1px solid #fed7aa; font-size: 13px; color: #9a3412; white-space: nowrap; }
+  .source-legend .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
   .lead-card.source-facebook_ad { border-left-color: #4267B2; }
   .lead-card.source-whatsapp_direct { border-left-color: #25D366; }
   .lead-card.source-referral { border-left-color: #c9a15c; }
@@ -204,6 +207,13 @@
         <button class="primary" id="new-lead-btn" data-i18n="leads.new">+ New lead</button>
       </div>
     </div>
+    <div class="source-legend">
+      <span class="legend-chip"><i class="legend-dot" style="background:#25D366"></i><span data-i18n="source.whatsapp_direct">whatsapp_direct</span></span>
+      <span class="legend-chip"><i class="legend-dot" style="background:#4267B2"></i><span data-i18n="source.facebook_ad">facebook_ad</span></span>
+      <span class="legend-chip"><i class="legend-dot" style="background:#c13584"></i><span data-i18n="source.instagram">instagram</span></span>
+      <span class="legend-chip"><i class="legend-dot" style="background:#ff2442"></i><span data-i18n="source.rednote">rednote</span></span>
+      <span class="legend-chip"><i class="legend-dot" style="background:#c9a15c"></i><span data-i18n="source.referral">referral</span></span>
+    </div>
     <div id="board"></div>
   </div>
 </main>
@@ -244,7 +254,6 @@
           <option value="facebook_ad" data-i18n="source.facebook_ad">Facebook ad</option>
           <option value="whatsapp_direct" data-i18n="source.whatsapp_direct">WhatsApp direct</option>
           <option value="referral" data-i18n="source.referral">Referral</option>
-          <option value="existing_student" data-i18n="source.existing_student">Existing student</option>
           <option value="rednote" data-i18n="source.rednote">Rednote (小紅書)</option>
           <option value="instagram" data-i18n="source.instagram">Instagram</option>
         </select>
@@ -309,7 +318,6 @@
           <option value="facebook_ad" data-i18n="source.facebook_ad">Facebook ad</option>
           <option value="whatsapp_direct" data-i18n="source.whatsapp_direct">WhatsApp direct</option>
           <option value="referral" data-i18n="source.referral">Referral</option>
-          <option value="existing_student" data-i18n="source.existing_student">Existing student</option>
           <option value="rednote" data-i18n="source.rednote">Rednote (小紅書)</option>
           <option value="instagram" data-i18n="source.instagram">Instagram</option>
         </select>
@@ -1037,7 +1045,18 @@
     document.getElementById("lead-edit-social").value = c?.social_media_name ?? "";
     document.getElementById("lead-edit-level").value = c?.level ?? "";
     document.getElementById("lead-edit-age").value = c?.age ?? "";
-    document.getElementById("lead-edit-source").value = c?.source ?? "facebook_ad";
+    const editSource = document.getElementById("lead-edit-source");
+    const curSource = c?.source ?? "facebook_ad";
+    // Retired source (e.g. existing_student) is no longer offered, but keep it
+    // selectable for contacts that already have it so saving does not change it.
+    if (![...editSource.options].some(o => o.value === curSource)) {
+      const o = document.createElement("option");
+      o.value = curSource; o.textContent = t("source." + curSource); o.dataset.legacy = "1";
+      editSource.appendChild(o);
+    } else {
+      editSource.querySelectorAll("option[data-legacy]").forEach(o => o.remove());
+    }
+    editSource.value = curSource;
     editDialog.showModal();
   }
   document.getElementById("lead-edit-cancel-btn").addEventListener("click", () => editDialog.close());
