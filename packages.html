@@ -272,6 +272,7 @@
   .term-card-header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; color: #27272a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f1; }
   .term-card-header .term-label { font-weight: 600; color: #71717a; }
   .term-card-header .term-price { color: #71717a; }
+  .term-card-header .term-waived { padding: 1px 10px; border-radius: 999px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-size: 12px; font-weight: 700; }
   .term-card-header .pay-note-lock { border: none; background: none; cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1; }
   .term-card-header .pay-note-input.is-locked { background: #fff7ed; border-style: dashed; cursor: default; }
   .term-card-header .pay-note-input { flex: 1 1 180px; min-width: 140px; max-width: 300px; font-size: 12px; padding: 3px 12px; border: 1px solid #fdba74; border-radius: 999px; background: #fff; color: #431407; }
@@ -2015,6 +2016,8 @@
               ${extraFeeTotal(lessons) > 0 ? `<span class="term-extra-fee">${t("makeup.extra_fee_label")} +$${extraFeeTotal(lessons)}</span>` : ""}
               <span>${termPaidCount} / ${lessons.length} ${t("schedule.col_paid")}</span>
               ${isOpenTerm && termPaidCount < lessons.length ? `<button type="button" class="link mark-all-paid-btn" data-term-id="${pkg.id}">${t("payments.mark_all_paid")}</button>` : ""}
+              ${Number(pkg.price) > 0 && termPaidCount < lessons.length ? `<button type="button" class="link waive-term-btn" data-term-id="${pkg.id}">${t("payments.waive")}</button>` : ""}
+              ${Number(pkg.price) === 0 ? `<span class="term-waived">${t("payments.waived_tag")}</span>` : ""}
               ${(() => {
                 const hasNote = !!(pkg.payment_note ?? "").trim();
                 const locked = hasNote && !payNoteUnlocked.has(pkg.id);
@@ -2167,6 +2170,24 @@
           const { error: noteError } = await supabaseClient.from("packages").update({ payment_note: stamp }).eq("id", entry.pkg.id);
           if (!noteError) entry.pkg.payment_note = stamp;
         }
+        renderPayments();
+      });
+    });
+
+    // "Nothing owed for this term" (e.g. a quitting student whose last
+    // lesson was covered by an earlier payment): zeroes the term price, the
+    // same marker the owed count / totals already treat as settled.
+    paymentRowsEl.querySelectorAll(".waive-term-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const entry = paymentPackages.find(({ pkg }) => pkg.id === btn.dataset.termId);
+        if (!entry) return;
+        if (!(await showConfirm(tf("payments.waive_confirm", { price: entry.pkg.price })))) return;
+        const patch = { price: 0 };
+        if (!(entry.pkg.payment_note ?? "").trim()) patch.payment_note = t("payments.waived_tag");
+        const { error } = await supabaseClient.from("packages").update(patch).eq("id", entry.pkg.id);
+        if (error) { showToast("Update failed: " + error.message, "error"); return; }
+        Object.assign(entry.pkg, patch);
         renderPayments();
       });
     });
