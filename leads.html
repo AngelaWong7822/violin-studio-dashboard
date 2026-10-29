@@ -145,6 +145,13 @@
   .followup-none { color: #d4d4d8; }
 
   .convert-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+  .lead-chat { margin-top: 8px; }
+  .lead-chat-toggle { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 999px; padding: 3px 11px; font-size: 12px; cursor: pointer; }
+  .lead-chat-body { margin-top: 6px; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .chat-line { font-size: 12px; padding: 4px 9px; border-radius: 12px; background: #f4f4f5; white-space: pre-wrap; word-break: break-word; }
+  .chat-line.out { background: #fff7ed; border: 1px solid #fed7aa; }
+  .chat-line .chat-meta { display: block; font-size: 11px; color: #a1a1aa; }
+  .lead-chat-more { align-self: flex-start; font-size: 12px; }
   .convert-btn { border: 1.5px solid #fb923c; background: #fff; color: #c2410c; font-weight: 700; font-size: 12px; padding: 4px 12px; border-radius: 999px; cursor: pointer; }
   .convert-btn:hover { background: #ffedd5; }
   .enrolled-tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #dcfce7; color: #166534; font-weight: 700; font-size: 12px; border: 1px solid #86efac; }
@@ -359,6 +366,9 @@
   // Attended / deposit-paid / lost / enrolled cards start folded down to just the name; which ones the
   // user opened is remembered here so a re-render (after any edit) keeps them open.
   const expandedLeadIds = new Set();
+  const expandedChatIds = new Set(); // leads whose WhatsApp chat panel is open
+  const fullChatIds = new Set(); // leads whose chat shows every message, not just the latest few
+  const CHAT_PREVIEW_COUNT = 5;
   const showLostToggle = document.getElementById("show-lost-toggle");
   showLostToggle.addEventListener("change", loadBoard);
   const showEnrolledToggle = document.getElementById("show-enrolled-toggle");
@@ -495,6 +505,83 @@
     }).join("");
   }
 
+  // Every WhatsApp message logged for these leads' contacts, newest first,
+  // grouped per contact. A failed lookup just means no chat panels, never a
+  // broken board.
+  async function loadMessagesByContact(contactIds) {
+    const byContact = new Map();
+    const ids = [...new Set(contactIds.filter(Boolean))];
+    if (!ids.length) return byContact;
+    try {
+      const rows = await fetchAllRows(() => supabaseClient
+        .from("messages")
+        .select("id, contact_id, direction, body, created_at")
+        .in("contact_id", ids)
+        .order("created_at", { ascending: false })
+        .order("id"));
+      rows.forEach(m => {
+        if (!byContact.has(m.contact_id)) byContact.set(m.contact_id, []);
+        byContact.get(m.contact_id).push(m);
+      });
+    } catch (err) {
+      console.error("Could not load WhatsApp chats:", err);
+    }
+    return byContact;
+  }
+
+  // Read-only WhatsApp conversation for a lead (replies are still typed in
+  // WhatsApp itself). Closed by default; open/"show all" state survives the
+  // board reloading. Text goes in via textContent, never innerHTML.
+  function buildChatBlock(leadId, msgs) {
+    if (!msgs?.length) return null;
+    const wrap = document.createElement("div");
+    wrap.className = "lead-chat";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "lead-chat-toggle";
+    const body = document.createElement("div");
+    body.className = "lead-chat-body";
+
+    function render() {
+      const open = expandedChatIds.has(leadId);
+      toggle.textContent = `💬 ${t("lead.chat")} (${msgs.length}) ${open ? "▴" : "▾"}`;
+      body.style.display = open ? "" : "none";
+      body.innerHTML = "";
+      if (!open) return;
+      const showAll = fullChatIds.has(leadId);
+      (showAll ? msgs : msgs.slice(0, CHAT_PREVIEW_COUNT)).forEach(m => {
+        const line = document.createElement("div");
+        line.className = "chat-line" + (m.direction === "outbound" ? " out" : "");
+        const meta = document.createElement("span");
+        meta.className = "chat-meta";
+        const when = new Date(m.created_at).toLocaleString(localeForDates(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        meta.textContent = `${when} · ${t(m.direction === "outbound" ? "private.msg_outbound" : "private.msg_inbound")}`;
+        line.appendChild(meta);
+        line.appendChild(document.createTextNode(m.body ?? ""));
+        body.appendChild(line);
+      });
+      if (msgs.length > CHAT_PREVIEW_COUNT) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "link lead-chat-more";
+        more.textContent = showAll ? t("common.collapse") : tf("common.show_all", { n: msgs.length });
+        more.addEventListener("click", () => {
+          if (fullChatIds.has(leadId)) fullChatIds.delete(leadId); else fullChatIds.add(leadId);
+          render();
+        });
+        body.appendChild(more);
+      }
+    }
+    toggle.addEventListener("click", () => {
+      if (expandedChatIds.has(leadId)) expandedChatIds.delete(leadId); else expandedChatIds.add(leadId);
+      render();
+    });
+    render();
+    wrap.appendChild(toggle);
+    wrap.appendChild(body);
+    return wrap;
+  }
+
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
@@ -504,6 +591,7 @@
     // Looked up BEFORE the board is cleared: awaiting between clearing and
     // drawing would let two overlapping loads both draw (duplicate columns).
     const enrolledByContact = error ? new Map() : await loadEnrolledByContact(data.map(l => l.contact_id));
+    const messagesByContact = error ? new Map() : await loadMessagesByContact(data.map(l => l.contact_id));
     const board = document.getElementById("board");
     board.innerHTML = "";
     if (error) {
@@ -895,6 +983,9 @@
           }
           card.appendChild(convertRow);
         }
+
+        const chatBlock = buildChatBlock(lead.id, messagesByContact.get(lead.contact_id));
+        if (chatBlock) card.appendChild(chatBlock);
 
         card.appendChild(actionsRow);
 
