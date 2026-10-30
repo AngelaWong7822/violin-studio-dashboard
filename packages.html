@@ -1028,6 +1028,38 @@
     return "-";
   }
 
+  // On opening the page, jump to the class that is on right now (or about to
+  // start / just finished today) instead of always the first one in the list.
+  // Distance = 0 while a lesson is running, otherwise minutes until it starts
+  // or since it ended; a lesson that finished counts a little worse than one
+  // starting the same number of minutes away. Returns null when no class has
+  // a lesson today, so the caller keeps the default selection.
+  let attendanceAutoPickDone = false; // only on first load, and never after she picks one herself
+  async function guessCurrentClassId(classList) {
+    const now = new Date();
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const { data, error } = await supabaseClient
+      .from("appointments")
+      .select("class_id, scheduled_start, scheduled_end, status")
+      .eq("type", "group_class")
+      .gte("scheduled_start", dayStart.toISOString())
+      .lt("scheduled_start", dayEnd.toISOString());
+    if (error || !data) return null;
+    const ids = new Set(classList.map(c => c.id));
+    let best = null;
+    for (const a of data) {
+      if (a.status === "cancelled" || !ids.has(a.class_id)) continue;
+      const start = new Date(a.scheduled_start), end = a.scheduled_end ? new Date(a.scheduled_end) : new Date(start.getTime() + 60 * 60 * 1000);
+      let dist;
+      if (now < start) dist = (start - now) / 60000;
+      else if (now <= end) dist = 0;
+      else dist = (now - end) / 60000 + 30;
+      if (!best || dist < best.dist) best = { dist, classId: a.class_id };
+    }
+    return best?.classId ?? null;
+  }
+
   // Called after every classes/students reload so the grid never shows a
   // stale roster or a cancelled/extended class's old date list.
   async function refreshAttendanceSection() {
@@ -1048,6 +1080,11 @@
       classes.some(ac => ac.id === c.id) ? "" : ` · ${t("class.cancelled_suffix")}`
     );
     if (prev && selectableClasses.some(c => c.id === prev)) attendanceClassSelect.value = prev;
+    if (!attendanceAutoPickDone) {
+      attendanceAutoPickDone = true;
+      const guessed = await guessCurrentClassId(classes);
+      if (guessed && !attendanceClassSelect.dataset.userPicked) attendanceClassSelect.value = guessed;
+    }
     await loadClassGrid(attendanceClassSelect.value);
   }
 
@@ -1701,7 +1738,7 @@
     });
   }
 
-  attendanceClassSelect.addEventListener("change", () => loadClassGrid(attendanceClassSelect.value));
+  attendanceClassSelect.addEventListener("change", () => { attendanceClassSelect.dataset.userPicked = "1"; loadClassGrid(attendanceClassSelect.value); });
   document.getElementById("show-withdrawn-toggle").addEventListener("change", (e) => {
     document.getElementById("grid-table").classList.toggle("hide-withdrawn", !e.target.checked);
   });
