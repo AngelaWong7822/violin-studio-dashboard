@@ -1030,10 +1030,11 @@
 
   // On opening the page, jump to the class that is on right now (or about to
   // start / just finished today) instead of always the first one in the list.
-  // Distance = 0 while a lesson is running, otherwise minutes until it starts
-  // or since it ended; a lesson that finished counts a little worse than one
-  // starting the same number of minutes away. Returns null when no class has
-  // a lesson today, so the caller keeps the default selection.
+  // A lesson that is running now wins; otherwise the next one still to start
+  // today (so once one class has finished, the next class is shown); only when
+  // every lesson today is over does it fall back to the one that ended most
+  // recently. Returns null when no class has a lesson today, so the caller
+  // keeps the default selection.
   let attendanceAutoPickDone = false; // only on first load, and never after she picks one herself
   async function guessCurrentClassId(classList) {
     const now = new Date();
@@ -1054,7 +1055,7 @@
       let dist;
       if (now < start) dist = (start - now) / 60000;
       else if (now <= end) dist = 0;
-      else dist = (now - end) / 60000 + 30;
+      else dist = 1_000_000 + (now - end) / 60000; // finished: always loses to a running/upcoming lesson
       if (!best || dist < best.dist) best = { dist, classId: a.class_id };
     }
     return best?.classId ?? null;
@@ -3207,6 +3208,53 @@
     await loadStudents();
   });
 
+  // Typing a phone number that another contact already owns (typically one
+  // whatsapp-ingest auto-created when the parent first messaged) would fail on
+  // contacts.whatsapp_number's unique constraint. Look that contact up so the
+  // save can offer to connect the student to it instead.
+  async function findPhoneConflict(phone, ownContactId) {
+    const { data: c } = await supabaseClient
+      .from("contacts").select("id, name, social_media_name").eq("whatsapp_number", phone).maybeSingle();
+    if (!c || c.id === ownContactId) return null;
+    const countRows = async (table) => {
+      const { count } = await supabaseClient.from(table).select("id", { count: "exact", head: true }).eq("contact_id", c.id);
+      return count ?? 0;
+    };
+    const [msgs, studs, leadCount] = await Promise.all([countRows("messages"), countRows("students"), countRows("leads")]);
+    return { ...c, msgs, studs, leadCount };
+  }
+
+  // Points the student at the contact that already owns the number: that
+  // contact keeps its WhatsApp history (so the chat follows the student),
+  // takes this form's details, and — when this student is its only child —
+  // its name becomes the student's, with the old WhatsApp display name kept
+  // in the social-media field. The student's previous contact is deleted only
+  // if nothing else uses it.
+  async function mergeStudentIntoContact({ studentId, oldContactId, target, studentFields, contactFields, nameValue }) {
+    const { count: otherKids } = await supabaseClient
+      .from("students").select("id", { count: "exact", head: true }).eq("contact_id", target.id).neq("id", studentId);
+    const renameContact = !otherKids && !!nameValue;
+    const update = { ...contactFields };
+    if (renameContact) {
+      update.name = nameValue;
+      if (!update.social_media_name) {
+        update.social_media_name = target.social_media_name ?? (target.name && target.name !== nameValue ? target.name : null);
+      }
+    }
+    const { error: cErr } = await supabaseClient.from("contacts").update(update).eq("id", target.id);
+    if (cErr) { showToast("Save failed: " + cErr.message, "error"); return false; }
+    const { error: sErr } = await supabaseClient.from("students").update({ ...studentFields, contact_id: target.id }).eq("id", studentId);
+    if (sErr) { showToast("Save failed: " + sErr.message, "error"); return false; }
+
+    const used = async (table) => {
+      const { count } = await supabaseClient.from(table).select("id", { count: "exact", head: true }).eq("contact_id", oldContactId);
+      return count ?? 0;
+    };
+    const inUse = (await used("students")) + (await used("leads")) + (await used("messages"));
+    if (!inUse) await supabaseClient.from("contacts").delete().eq("id", oldContactId); // best effort; a leftover empty contact is harmless
+    return true;
+  }
+
   document.getElementById("student-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const studentId = document.getElementById("student-id").value;
@@ -3232,6 +3280,15 @@
     };
 
     if (studentId && contactId) {
+      const conflict = contactFields.whatsapp_number ? await findPhoneConflict(contactFields.whatsapp_number, contactId) : null;
+      if (conflict) {
+        const ok = await showConfirm(tf("student.phone_conflict_confirm", {
+          name: conflict.name || conflict.social_media_name || contactFields.whatsapp_number,
+          msgs: conflict.msgs, students: conflict.studs, leads: conflict.leadCount, student: nameValue || "?",
+        }), { danger: false });
+        if (!ok) return;
+        if (!(await mergeStudentIntoContact({ studentId, oldContactId: contactId, target: conflict, studentFields, contactFields, nameValue }))) return;
+      } else {
       const { error: sErr } = await supabaseClient.from("students").update(studentFields).eq("id", studentId);
       if (sErr) { showToast("Save failed: " + sErr.message, "error"); return; }
       // Only sync the contact's own name when this is the family's only
@@ -3241,6 +3298,7 @@
       const { error } = await supabaseClient.from("contacts")
         .update(soleChild && nameValue ? { ...contactFields, name: nameValue } : contactFields).eq("id", contactId);
       if (error) { showToast("Save failed: " + error.message, "error"); return; }
+      }
 
       const classField = document.getElementById("student-edit-class-field");
       if (classField.style.display !== "none") {
