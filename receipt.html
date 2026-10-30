@@ -63,12 +63,36 @@
   .item-schedule .schedule-line { font-size: 12px; line-height: 1.6; word-break: break-word; }
   .item-schedule .schedule-line .struck { text-decoration: line-through; color: #a89b8a; }
 
-  #add-item-btn, #add-violin-item-btn, #add-deposit-refund-btn, #add-makeup-conversion-btn { font-size: 12px; margin: 8px 12px 16px 0; }
+  .color-picks { display: flex; gap: 6px; margin-top: 3px; }
+  .color-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #d4d4d8; cursor: pointer; padding: 0; }
+  .color-dot.green { background: #16a34a; }
+  .color-dot.red { background: #dc2626; }
+  .color-dot.active { box-shadow: 0 0 0 2px #52525b; }
+  #item-rows tr.color-green textarea.item-desc, #item-rows tr.color-green .item-desc-print, #item-rows tr.color-green input, #item-rows tr.color-green .row-total { color: #15803d !important; }
+  #item-rows tr.color-red textarea.item-desc, #item-rows tr.color-red .item-desc-print, #item-rows tr.color-red input, #item-rows tr.color-red .row-total { color: #b91c1c !important; }
+  .count-toggle { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: #9a3412; margin-top: 3px; white-space: nowrap; cursor: pointer; }
+  #item-table .row-total input.item-amount { width: 100%; box-sizing: border-box; text-align: center; font: inherit; }
+  #add-item-btn, #add-text-line-btn, #add-summary-btn, #add-violin-item-btn, #add-deposit-refund-btn, #add-makeup-conversion-btn { font-size: 12px; margin: 8px 12px 16px 0; }
 
 
+  .summary-box { margin: 0 0 24px auto; width: 430px; max-width: 100%; box-sizing: border-box; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 6px 18px; }
+  .summary-box .sum-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; }
+  .summary-box .sum-line + .sum-line { border-top: 1px solid #e5e7eb; }
+  .summary-box .sum-course { border-bottom: 1px dashed #d4d4d8; color: #52525b; font-size: 14px; }
+  .summary-box .sum-course + .sum-line { border-top: none; }
+  .summary-box .sum-paid { color: #15803d; font-weight: 700; font-size: 16px; }
+  .summary-box .sum-due { color: #b45309; font-weight: 700; font-size: 16px; }
+  .summary-box input.sum-label { flex: 1; min-width: 0; border: none; border-bottom: 1px dashed transparent; background: transparent; font: inherit; color: inherit; padding: 0; outline: none; }
+  .summary-box input.sum-label:hover, .summary-box input.sum-label:focus { border-bottom-color: #c2410c; }
+  .summary-box .sum-line > span { white-space: nowrap; }
+  @media print { .summary-box input.sum-label { border-bottom-color: transparent !important; } }
   .total-row { display: flex; justify-content: flex-end; background: #e2d6bb; padding: 8px 14px; margin-bottom: 24px; }
   .total-row .total-label { font-size: 11px; letter-spacing: 2px; color: #4a4038; margin-right: 20px; }
   .total-row .total-value { font-weight: 700; font-size: 14px; }
+  /* the word beside the total figure is editable (e.g. "BALANCE DUE") */
+  .total-row input.total-label { border: none; border-bottom: 1px dashed transparent; background: transparent; font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-align: right; padding: 0; outline: none; }
+  .total-row input.total-label:hover, .total-row input.total-label:focus { border-bottom-color: #c2410c; }
+  @media print { .total-row input.total-label { border-bottom-color: transparent !important; } }
 
   .receipt-footer { display: flex; justify-content: space-between; align-items: flex-end; }
   .receipt-footer .studio-info { font-size: 12px; line-height: 1.7; }
@@ -310,12 +334,20 @@
       <tbody id="item-rows"></tbody>
     </table>
     <button type="button" class="link no-print" id="add-item-btn" data-i18n="receipt.add_item">+ Add item</button>
+    <button type="button" class="link no-print" id="add-text-line-btn" data-i18n="receipt.add_text_line">+ Add text line</button>
+    <button type="button" class="link no-print" id="add-summary-btn" data-i18n="receipt.add_summary">+ Add payment summary</button>
     <button type="button" class="link no-print" id="add-violin-item-btn" style="display:none;" data-i18n="receipt.add_violin_item">+ Add violin item</button>
     <button type="button" class="link no-print" id="add-deposit-refund-btn" data-i18n="receipt.add_deposit_refund">− Deduct paid deposit</button>
     <button type="button" class="link no-print" id="add-makeup-conversion-btn" data-i18n="receipt.add_makeup_conversion">+ Add make-up conversion</button>
 
+    <div class="summary-box" id="summary-box" style="display:none;">
+      <div class="sum-line sum-course"><input type="text" class="sum-label" id="sum-label-course" value="Course Total (全期學費):" /><span id="sum-course">$0</span></div>
+      <div class="sum-line sum-paid"><input type="text" class="sum-label" id="sum-label-paid" value="Amount Paid (本次已付):" /><span id="sum-paid">$0</span></div>
+      <div class="sum-line sum-due"><input type="text" class="sum-label" id="sum-label-due" value="Balance Due (尚欠餘額 / 首堂繳付):" /><span id="sum-due">$0</span></div>
+    </div>
+
     <div class="total-row">
-      <span class="total-label">TOTAL</span>
+      <input type="text" class="total-label" id="receipt-total-label" value="TOTAL" title="Click to rename" />
       <span class="total-value" id="receipt-total">$0</span>
     </div>
 
@@ -399,7 +431,21 @@
     el.style.height = el.scrollHeight + "px";
   }
 
-  function addItemRow({ description = "", unitPrice = "", qty = 1, scheduleLines = null } = {}) {
+  // The amount of an "amount line" is typed as text so a "$" (or commas) can be
+  // typed too: only digits, "." and "-" count towards the number.
+  function parseAmount(raw) {
+    const cleaned = String(raw ?? "").replace(/[^0-9.\-]/g, "");
+    if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : null;
+  }
+  function formatAmount(raw) {
+    const n = parseAmount(raw);
+    if (n == null) return String(raw ?? "");
+    return (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString();
+  }
+
+  function addItemRow({ description = "", unitPrice = "", qty = 1, scheduleLines = null, amountLine = false, amount = "", counted = false, color = "" } = {}) {
     const tbody = document.getElementById("item-rows");
     const tr = document.createElement("tr");
     const scheduleHtml = scheduleLines && scheduleLines.length
@@ -409,11 +455,18 @@
             : `<div class="schedule-line">${l.text}</div>`
         ).join("")}</div>`
       : "";
+    // An amount line is a description plus ONE amount in the TOTAL column — no
+    // unit price, no qty (e.g. "Course Total: $2,000", "Amount Paid: $500").
+    // It is only added into the receipt total when "count in total" is ticked,
+    // so a line that just states a figure never changes what is owed.
+    if (amountLine) tr.dataset.amountLine = "1";
     tr.innerHTML = `
-      <td><textarea class="item-desc" rows="1"></textarea><div class="item-desc-print"></div>${scheduleHtml}</td>
-      <td class="num-cell"><input type="number" class="item-price" value="${unitPrice}" step="0.01" /></td>
+      <td><textarea class="item-desc" rows="1"></textarea><div class="item-desc-print"></div><div class="color-picks no-print"><button type="button" class="color-dot green" data-color="green" title="${t("receipt.color_green")}"></button><button type="button" class="color-dot red" data-color="red" title="${t("receipt.color_red")}"></button></div>${scheduleHtml}</td>
+      ${amountLine
+        ? `<td class="num-cell"></td><td class="qty-cell"></td><td class="row-total"><input type="text" inputmode="decimal" class="item-amount" value="${esc(amount === "" ? "" : formatAmount(amount))}" placeholder="$" /><label class="count-toggle no-print"><input type="checkbox" class="item-count"${counted ? " checked" : ""} />${t("receipt.count_in_total")}</label></td>`
+        : `<td class="num-cell"><input type="number" class="item-price" value="${unitPrice}" step="0.01" /></td>
       <td class="qty-cell"><input type="number" class="item-qty" value="${qty}" min="0" step="1" /></td>
-      <td class="row-total">$0</td>
+      <td class="row-total">$0</td>`}
       <td class="no-print"><button type="button" class="remove-item-btn" title="${t("receipt.remove_item")}">×</button></td>
     `;
     // Kept as a plain JS property (not re-derived from the rendered HTML
@@ -434,24 +487,74 @@
     syncPrintText();
     descEl.addEventListener("input", () => { autoGrowTextarea(descEl); syncPrintText(); });
     autoGrowTextarea(descEl);
-    tr.querySelectorAll("input").forEach(el => el.addEventListener("input", recalcTotals));
+    tr.querySelectorAll("input").forEach(el => { el.addEventListener("input", recalcTotals); el.addEventListener("change", recalcTotals); });
+    // Optional green / red for this whole line (text and figures), on screen
+    // and in the PDF. Clicking the active colour again clears it.
+    function setRowColor(c) {
+      tr.dataset.color = c || "";
+      tr.classList.toggle("color-green", c === "green");
+      tr.classList.toggle("color-red", c === "red");
+      tr.querySelectorAll(".color-dot").forEach(b => b.classList.toggle("active", b.dataset.color === c));
+    }
+    tr.querySelectorAll(".color-dot").forEach(b => b.addEventListener("click", () => setRowColor(tr.dataset.color === b.dataset.color ? "" : b.dataset.color)));
+    setRowColor(color);
+    const amountEl = tr.querySelector(".item-amount");
+    if (amountEl) amountEl.addEventListener("blur", () => { amountEl.value = formatAmount(amountEl.value); });
     tr.querySelector(".remove-item-btn").addEventListener("click", () => { tr.remove(); recalcTotals(); });
     recalcTotals();
   }
 
   function recalcTotals() {
-    let grandTotal = 0;
+    let grandTotal = 0, charges = 0, paid = 0;
+    const take = (n) => { grandTotal += n; if (n >= 0) charges += n; else paid += -n; };
     document.querySelectorAll("#item-rows tr").forEach(tr => {
+      if (tr.dataset.amountLine) {
+        if (tr.querySelector(".item-count").checked) take(parseAmount(tr.querySelector(".item-amount").value) ?? 0);
+        return;
+      }
       const price = parseFloat(tr.querySelector(".item-price").value) || 0;
       const qty = parseFloat(tr.querySelector(".item-qty").value) || 0;
       const rowTotal = price * qty;
       tr.querySelector(".row-total").textContent = `$${rowTotal.toLocaleString()}`;
-      grandTotal += rowTotal;
+      take(rowTotal);
     });
     document.getElementById("receipt-total").textContent = `$${grandTotal.toLocaleString()}`;
+    const money = (n) => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString();
+    document.getElementById("sum-course").textContent = money(charges);
+    document.getElementById("sum-paid").textContent = money(paid);
+    document.getElementById("sum-due").textContent = money(charges - paid);
   }
 
+  // Width follows the text (an <input> has no auto-size of its own).
+  const totalLabelEl = document.getElementById("receipt-total-label");
+  function fitTotalLabel() {
+    const chars = [...totalLabelEl.value];
+    const w = chars.reduce((sum, ch) => sum + (ch.charCodeAt(0) > 255 ? 2.2 : 1.15), 0);
+    // + the 2px letter-spacing after every character, which "ch" does not cover
+    totalLabelEl.style.width = `calc(${Math.max(4, w)}ch + ${chars.length * 2 + 6}px)`;
+  }
+  totalLabelEl.addEventListener("input", fitTotalLabel);
+  fitTotalLabel();
+
   document.getElementById("add-item-btn").addEventListener("click", () => addItemRow());
+  document.getElementById("add-text-line-btn").addEventListener("click", () => addItemRow({ amountLine: true }));
+
+  // Optional payment summary box (Course Total / Amount Paid / Balance Due)
+  // that replaces the orange TOTAL bar. It is live: recalcTotals() keeps the
+  // three figures in step with the lines above — charges are the positive
+  // lines, Amount Paid is the negative ones (e.g. a deducted deposit), and
+  // Balance Due is what is left, i.e. the receipt total.
+  const summaryBoxEl = document.getElementById("summary-box");
+  const summaryBtn = document.getElementById("add-summary-btn");
+  function summaryOn() { return summaryBoxEl.style.display !== "none"; }
+  function applySummaryMode(on) {
+    summaryBoxEl.style.display = on ? "" : "none";
+    document.querySelector(".total-row").style.display = on ? "none" : "";
+    summaryBtn.textContent = t(on ? "receipt.remove_summary" : "receipt.add_summary");
+    recalcTotals();
+  }
+  summaryBtn.addEventListener("click", () => applySummaryMode(!summaryOn()));
+  const SUMMARY_LABEL_IDS = ["sum-label-course", "sum-label-paid", "sum-label-due"];
 
   // Not a per-term charge — the button only appears when the student's own
   // profile (Packages page) says they need a violin, and stays a manual
@@ -695,6 +798,12 @@
     metaLine: [234, 150, 80],
     sigText: [62, 26, 14],
     struck: [168, 155, 138],
+    green: [21, 128, 61],
+    red: [185, 28, 28],
+    sumBg: [249, 250, 251],
+    sumBorder: [229, 231, 235],
+    sumMute: [82, 82, 91],
+    sumDue: [180, 83, 9],
   };
 
   const TERMS_AND_CONDITIONS_ZH = [
@@ -854,6 +963,8 @@
       "Contact number: 95179962 Address: 9A Spark City(Mong Kok), Tong Mi Road 25, Mong Kok",
       "$0123456789,.-/:()",
       document.getElementById("receipt-issued-to").value,
+      document.getElementById("receipt-total-label").value,
+      ...SUMMARY_LABEL_IDS.map(id => document.getElementById(id).value),
       t("receipt.schedule_title"),
     ];
     collectReceiptItems().forEach(it => {
@@ -958,10 +1069,17 @@
 
   function collectReceiptItems() {
     return [...document.querySelectorAll("#item-rows tr")].map(tr => {
+      if (tr.dataset.amountLine) {
+        const raw = tr.querySelector(".item-amount").value.trim();
+        const amount = parseAmount(raw);
+        const counted = tr.querySelector(".item-count").checked;
+        return { description: tr.querySelector(".item-desc").value, color: tr.dataset.color || "", amountLine: true, amountText: formatAmount(raw), price: 0, qty: 0, total: counted ? (amount ?? 0) : 0, scheduleLines: tr._scheduleLines || [] };
+      }
       const price = parseFloat(tr.querySelector(".item-price").value) || 0;
       const qty = parseFloat(tr.querySelector(".item-qty").value) || 0;
       return {
         description: tr.querySelector(".item-desc").value,
+        color: tr.dataset.color || "",
         price, qty, total: price * qty,
         scheduleLines: tr._scheduleLines || [],
       };
@@ -1003,7 +1121,8 @@
     let cy = y + 16;
     doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(11);
-    doc.setTextColor(...PDF_COLORS.text);
+    const rowColor = PDF_COLORS[item.color] ?? PDF_COLORS.text; // "green" / "red" / none
+    doc.setTextColor(...rowColor);
     measured.descLines.forEach(line => { doc.text(line, PDF.COL_DESC_X + padX, cy); cy += 14; });
 
     if (measured.scheduleLines.length) {
@@ -1038,25 +1157,67 @@
 
     doc.setFont(CJK_FONT_NAME, "normal");
     doc.setFontSize(11);
-    doc.setTextColor(...PDF_COLORS.text);
+    doc.setTextColor(...rowColor);
     const valueY = y + 16;
-    doc.text(item.price.toLocaleString(), PDF.COL_PRICE_X + PDF.COL_PRICE_W / 2, valueY, { align: "center" });
-    doc.text(String(item.qty), PDF.COL_QTY_X + PDF.COL_QTY_W / 2, valueY, { align: "center" });
-    doc.text(`$${item.total.toLocaleString()}`, PDF.COL_TOTAL_X + PDF.COL_TOTAL_W / 2, valueY, { align: "center" });
+    if (item.amountLine) {
+      // only the one amount, in the TOTAL column (nothing at all if left blank)
+      if (item.amountText) doc.text(item.amountText, PDF.COL_TOTAL_X + PDF.COL_TOTAL_W / 2, valueY, { align: "center" });
+    } else {
+      doc.text(item.price.toLocaleString(), PDF.COL_PRICE_X + PDF.COL_PRICE_W / 2, valueY, { align: "center" });
+      doc.text(String(item.qty), PDF.COL_QTY_X + PDF.COL_QTY_W / 2, valueY, { align: "center" });
+      doc.text(`$${item.total.toLocaleString()}`, PDF.COL_TOTAL_X + PDF.COL_TOTAL_W / 2, valueY, { align: "center" });
+    }
 
     doc.setDrawColor(...PDF_COLORS.border);
     doc.line(PDF.MARGIN, y + measured.height, PDF.MARGIN + PDF.CONTENT_W, y + measured.height);
     return y + measured.height;
   }
 
-  function drawTotalRow(doc, y, total) {
+  // The optional Course Total / Amount Paid / Balance Due box, right-aligned
+  // like the on-screen one, drawn in place of the orange TOTAL bar.
+  function collectSummary() {
+    if (!summaryOn()) return null;
+    const lbl = (id) => document.getElementById(id).value.trim();
+    return {
+      course: { label: lbl("sum-label-course"), value: document.getElementById("sum-course").textContent },
+      paid: { label: lbl("sum-label-paid"), value: document.getElementById("sum-paid").textContent },
+      due: { label: lbl("sum-label-due"), value: document.getElementById("sum-due").textContent },
+    };
+  }
+  const SUMMARY_BOX_H = 96;
+  function drawSummaryBox(doc, y, sm) {
+    const w = 370, x = PDF.MARGIN + PDF.CONTENT_W - w, padX = 16;
+    doc.setFillColor(...PDF_COLORS.sumBg);
+    doc.setDrawColor(...PDF_COLORS.sumBorder);
+    doc.roundedRect(x, y, w, SUMMARY_BOX_H, 9, 9, "FD");
+
+    const row = (cy, item, { bold, size, color }) => {
+      doc.setFont(CJK_FONT_NAME, bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      doc.setTextColor(...color);
+      doc.text(item.label, x + padX, cy);
+      doc.text(item.value, x + w - padX, cy, { align: "right" });
+    };
+    row(y + 26, sm.course, { bold: false, size: 10.5, color: PDF_COLORS.sumMute });
+    if (typeof doc.setLineDashPattern === "function") doc.setLineDashPattern([2, 2], 0);
+    doc.setDrawColor(212, 212, 216);
+    doc.line(x + padX, y + 36, x + w - padX, y + 36);
+    if (typeof doc.setLineDashPattern === "function") doc.setLineDashPattern([], 0);
+    row(y + 58, sm.paid, { bold: true, size: 12, color: PDF_COLORS.green });
+    doc.setDrawColor(...PDF_COLORS.sumBorder);
+    doc.line(x + padX, y + 66, x + w - padX, y + 66);
+    row(y + 86, sm.due, { bold: true, size: 12, color: PDF_COLORS.sumDue });
+    return y + SUMMARY_BOX_H + 32;
+  }
+
+  function drawTotalRow(doc, y, total, label = "TOTAL") {
     const h = 26;
     doc.setFillColor(...PDF_COLORS.headerBg);
     doc.roundedRect(PDF.MARGIN, y, PDF.CONTENT_W, h, 7, 7, "F");
     doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(9);
     doc.setTextColor(...PDF_COLORS.headerText);
-    doc.text("TOTAL", PDF.COL_TOTAL_X - 16, y + h / 2 + 3, { align: "right" });
+    doc.text(label, PDF.COL_TOTAL_X - 16, y + h / 2 + 3, { align: "right" });
     doc.setFont(CJK_FONT_NAME, "bold");
     doc.setFontSize(12);
     doc.setTextColor(...PDF_COLORS.text);
@@ -1121,11 +1282,14 @@
     });
 
     const grandTotal = items.reduce((sum, it) => sum + it.total, 0);
-    if (y + 26 + 130 > PDF.BOTTOM_LIMIT) {
+    const summary = collectSummary();
+    if (y + (summary ? SUMMARY_BOX_H : 26) + 130 > PDF.BOTTOM_LIMIT) {
       doc.addPage();
       y = 40;
     }
-    y = drawTotalRow(doc, y, grandTotal);
+    y = summary
+      ? drawSummaryBox(doc, y, summary)
+      : drawTotalRow(doc, y, grandTotal, document.getElementById("receipt-total-label").value.trim() || "TOTAL");
     drawFooter(doc, y + 20, images.stamp, images.signature);
   }
 
