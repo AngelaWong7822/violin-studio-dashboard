@@ -628,7 +628,15 @@
     const columns = visibleStatuses.map(st => ({ label: t("leadstatus." + st), collapsed: st === "lost" || st === "attended" || st === "deposit_paid", leads: data.filter(l => l.status === st && !isEnrolledLead(l)) }));
     if (showEnrolledToggle.checked) {
       const lostAt = visibleStatuses.indexOf("lost");
-      columns.splice(lostAt === -1 ? columns.length : lostAt, 0, { label: t("lead.col_enrolled"), collapsed: true, leads: data.filter(isEnrolledLead) });
+      // Once the first lesson day has passed they are simply students now, so
+      // the lead card drops off the board (the lead record itself is kept).
+      // One with no lesson scheduled yet stays until it has a date.
+      const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+      const firstLessonPassed = (l) => {
+        const first = enrolledInfo(l, enrolledByContact)?.firstLesson;
+        return first != null && first < startOfToday.getTime();
+      };
+      columns.splice(lostAt === -1 ? columns.length : lostAt, 0, { label: t("lead.col_enrolled"), collapsed: true, leads: data.filter(l => isEnrolledLead(l) && !firstLessonPassed(l)) });
     }
     board.style.setProperty("--col-count", columns.length);
 
