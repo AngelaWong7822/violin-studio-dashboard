@@ -301,6 +301,7 @@
   <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
   <a href="leads.html" data-i18n="nav.leads">Leads</a>
   <a href="packages.html" class="active" data-i18n="nav.packages">Packages</a>
+  <a href="exams.html" data-i18n="nav.exams">Exam Results</a>
   <a href="private.html" data-i18n="nav.private">Private Students</a>
   <a href="homework-links.html" data-i18n="nav.homework_links">Homework Links</a>
   <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
@@ -1843,7 +1844,7 @@
     // several renewals shows as a single line, not repeated rows.
     const { data: pkgs, error } = await supabaseClient
       .from("packages")
-      .select("id, class_id, student_id, start_date, total_lessons, price, payment_note, students!inner(active, name, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
+      .select("id, class_id, student_id, start_date, total_lessons, price, status, payment_note, students!inner(active, name, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
       .eq("students.active", true)
       .order("start_date", { ascending: false });
     if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
@@ -1957,7 +1958,12 @@
       map.get(sid).entries.push(entry);
     }
     // Chronological within each student, so "Term 1, Term 2…" reads in join order.
-    for (const s of map.values()) s.entries.sort((a, b) => a.pkg.start_date.localeCompare(b.pkg.start_date));
+    for (const s of map.values()) {
+      s.entries.sort((a, b) => a.pkg.start_date.localeCompare(b.pkg.start_date));
+      // Quit = their most recent term was cancelled (the same signal the
+      // student list uses for "withdrawn").
+      s.isWithdrawn = s.entries[s.entries.length - 1]?.pkg.status === "cancelled";
+    }
     // A-Z by name across students, so the list is easy to scan/find someone in.
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
   }
@@ -1977,6 +1983,10 @@
     }
     const paymentQuery = paymentSearchEl.value.trim().toLowerCase();
     if (paymentQuery) visible = visible.filter(s => (s.name ?? "").toLowerCase().includes(paymentQuery));
+    // In the "unpaid only" view, students who have quit drop to the bottom and
+    // are greyed out, so who still needs chasing stands out from who left.
+    const dimWithdrawn = unpaidOnlyToggle.checked;
+    if (dimWithdrawn) visible = [...visible.filter(s => !s.isWithdrawn), ...visible.filter(s => s.isWithdrawn)];
     if (!visible.length) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">${t("payments.empty")}</td></tr>`; return; }
 
     paymentRowsEl.innerHTML = visible.map((student) => {
@@ -2075,7 +2085,7 @@
       }).join("");
 
       return `
-        <tr class="student-row ${isSettled ? "pay-settled" : "pay-owing"}" data-student-id="${student.studentId}">
+        <tr class="student-row ${isSettled ? "pay-settled" : "pay-owing"}${dimWithdrawn && student.isWithdrawn ? " pay-withdrawn" : ""}" data-student-id="${student.studentId}">
           <td><span class="expand-arrow ${isOpen ? "open" : ""}">▶</span></td>
           <td>${isSettled ? "" : `<span class="owe-dot" title="${t("payments.owing_title")}"></span>`}${esc(student.name)}</td>
           <td>${student.entries.length}</td>

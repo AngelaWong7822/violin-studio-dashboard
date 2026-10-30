@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Violin Studio — Exam Results</title>
+<link rel="stylesheet" href="shared.css" />
+<link rel="icon" href="logo.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ---- warm cute tone (same as packages.html / homework-links.html) ---- */
+  .card.cute-card { background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); border: 1.5px solid #fdba74; }
+  .cute-card h1 { color: #9a3412; }
+  .cute-exam h1::before { content: "🏅 "; }
+  #exam-class-select { border-radius: 999px; border-color: #fdba74; background: #fff; padding-left: 14px; width: 100%; max-width: 480px; }
+  .exam-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 10px 0 14px; }
+  .exam-toolbar label.tog { font-size: 13px; font-weight: normal; display: inline-flex; align-items: center; gap: 6px; }
+  .cute-card .toggle-switch input:checked + .slider { background: linear-gradient(135deg, #fdba74, #ea580c); }
+
+  .term-block { background: #fff; border: 1px solid #fed7aa; border-radius: 16px; padding: 12px 14px 14px; margin-bottom: 14px; }
+  .term-block h2 { margin: 0 0 10px; font-size: 15px; color: #9a3412; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .term-tag { background: #ffedd5; border: 1px solid #fdba74; color: #c2410c; border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 700; }
+  .term-range { font-size: 12px; font-weight: 400; color: #a1a1aa; }
+  .exam-scroll { overflow-x: auto; }
+  table.exam-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
+  .exam-table th, .exam-table td { padding: 6px 8px; text-align: center; border-bottom: 1px dashed #fed7aa; font-size: 13px; }
+  .exam-table th.stu-col, .exam-table td.stu-col { text-align: left; white-space: nowrap; font-weight: 600; color: #7c2d12; position: sticky; left: 0; background: #fff; }
+  .exam-table th.exam-head { background: #fed7aa; color: #9a3412; font-weight: 700; }
+  .exam-table th.exam-head:first-of-type { border-top-left-radius: 12px; }
+  .exam-table thead tr:first-child th.stu-col { background: #fed7aa; border-top-left-radius: 12px; }
+  .exam-table thead tr:first-child th.exam-head:last-child { border-top-right-radius: 12px; }
+  .exam-table input { box-sizing: border-box; border: 1px solid #fdba74; border-radius: 10px; background: #fff; padding: 4px 8px; font-size: 13px; }
+  .exam-table input.score { width: 76px; text-align: center; }
+  .exam-table input.exam-content { width: 100%; text-align: left; }
+  .exam-table input.exam-label { width: 96px; text-align: center; font-weight: 700; color: #9a3412; background: #fff7ed; }
+  .exam-table th.total-col { color: #9a3412; font-weight: 700; background: #fff7ed; }
+  .exam-table td.total-cell { font-weight: 700; color: #c2410c; background: #fff7ed; min-width: 52px; }
+  .exam-table .exam-sep { border-left: 2px solid #fed7aa; }
+  .exam-empty { color: #c2410c; padding: 14px 4px; }
+  .saved-flash { outline: 2px solid #86efac; }
+  .exam-table .content-cell { display: flex; align-items: center; gap: 10px; }
+  .exam-table button.part-btn { border: 1px solid #fdba74; background: #fff; color: #c2410c; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .exam-table button.part-btn:hover:not(:disabled) { background: #ffedd5; }
+  .exam-table button.part-btn:disabled { opacity: 0.4; cursor: default; }
+  .exam-table label.no-exam { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; color: #9a3412; font-weight: 700; cursor: pointer; }
+  .exam-table td.ctrl-cell { background: #ffedd5; border-bottom: 1px solid #fed7aa; }
+  .exam-table td.off, .exam-table th.off { background: #f4f4f5; }
+  .exam-table td.off input, .exam-table th.off input { background: #f4f4f5; border-color: #e4e4e7; color: #a1a1aa; }
+  .exam-table td.total-cell.off { color: #a1a1aa; }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <span class="brand"><img src="logo.png" alt="" class="brand-logo">Violin Studio</span>
+  <a href="leads.html" data-i18n="nav.leads">Leads</a>
+  <a href="packages.html" data-i18n="nav.packages">Packages</a>
+  <a href="exams.html" class="active" data-i18n="nav.exams">Exam Results</a>
+  <a href="private.html" data-i18n="nav.private">Private Students</a>
+  <a href="homework-links.html" data-i18n="nav.homework_links">Homework Links</a>
+  <a href="receipt.html" data-i18n="nav.receipt">Receipt</a>
+  <a href="accounting.html" data-i18n="nav.accounting">Accounting</a>
+  <span class="spacer"></span>
+  <button id="refresh-btn" aria-label="Refresh">🔄</button>
+  <div class="settings-wrap">
+    <button id="settings-btn" title="Settings">⚙️</button>
+    <div id="settings-menu" class="settings-menu" style="display:none;">
+      <button id="settings-lang-toggle" data-lang-toggle>中文</button>
+      <button id="settings-export-btn" data-i18n="settings.export_data">Export all data (Excel)</button>
+    </div>
+  </div>
+  <button id="logout-btn" data-i18n="nav.logout">Log out</button>
+</header>
+<main>
+  <div class="card cute-card cute-exam">
+    <h1 style="margin:0 0 10px;" data-i18n="exams.title_page">Exam results</h1>
+    <select id="exam-class-select"></select>
+    <div class="exam-toolbar">
+      <label class="tog">
+        <span class="toggle-switch"><input type="checkbox" id="exam-show-past" /><span class="slider"></span></span>
+        <span data-i18n="exams.show_past">Show past terms</span>
+      </label>
+      <span style="font-size:12px; color:#a1a1aa;" data-i18n="exams.hint">Two exams per term: after lesson 4 and lesson 8. Scores save as you type.</span>
+    </div>
+    <div id="exam-wrap"></div>
+  </div>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+<script>
+(async () => {
+  const session = await requireSession();
+  if (!session) return;
+  wireLogoutButton(document.getElementById("logout-btn"));
+  applyI18n();
+  initSettingsMenu();
+
+  // Same 8-lesson "term" the attendance grid uses (packages.html); the two
+  // exams sit on its 4th and 8th lesson.
+  const LESSONS_PER_TERM = 8;
+  const EXAM_LESSON = { 1: 4, 2: 8 };
+  const PART_MAX = 100; // each part is marked out of 100; the exam total is their average
+  const MAX_PARTS = 8;
+
+  const classSelect = document.getElementById("exam-class-select");
+  const showPastToggle = document.getElementById("exam-show-past");
+  const wrap = document.getElementById("exam-wrap");
+  persistInput(showPastToggle, "exams.showPast");
+
+  let classes = [];
+  let current = null; // { classId, appts, roster:[{id,name}], sessions:Map, results:Map }
+  let loadSeq = 0;
+
+  const studentName = (s) => s?.name || s?.contacts?.name || "";
+  const sessionKey = (batch, exam) => `${batch}:${exam}`;
+  const resultKey = (batch, exam, studentId) => `${batch}:${exam}:${studentId}`;
+
+  // ---------- class list ----------
+  function classOptionsHtml(list) {
+    const byDay = new Map();
+    list.forEach(c => {
+      if (!byDay.has(c.weekly_day_of_week)) byDay.set(c.weekly_day_of_week, []);
+      byDay.get(c.weekly_day_of_week).push(c);
+    });
+    const mondayFirst = (d) => (d + 6) % 7; // weekly_day_of_week is Sun(0)..Sat(6)
+    return [...byDay.entries()]
+      .sort((a, b) => mondayFirst(a[0]) - mondayFirst(b[0]))
+      .map(([day, items]) => `<optgroup label="${esc(t("weekday_full." + day))}">${
+        items.sort((a, b) => a.weekly_start_time.localeCompare(b.weekly_start_time))
+          .map(c => `<option value="${esc(c.id)}">${esc(c.weekly_start_time.slice(0, 5))} — ${esc(c.name)}</option>`).join("")
+      }</optgroup>`).join("");
+  }
+
+  function fillClassSelect() {
+    const prev = classSelect.value;
+    classSelect.innerHTML = classOptionsHtml(classes);
+    let saved = "";
+    try { saved = localStorage.getItem("ui:exams.class") || ""; } catch (e) {}
+    const want = [prev, saved].find(id => id && classes.some(c => c.id === id));
+    if (want) classSelect.value = want;
+  }
+
+  async function loadClasses() {
+    const { data, error } = await supabaseClient
+      .from("classes").select("id, name, weekly_day_of_week, weekly_start_time").eq("active", true);
+    if (error) { wrap.innerHTML = `<p class="exam-empty">Error: ${esc(error.message)}</p>`; return; }
+    classes = data ?? [];
+    if (!classes.length) { classSelect.innerHTML = ""; wrap.innerHTML = `<p class="exam-empty">${esc(t("exams.no_classes"))}</p>`; return; }
+    fillClassSelect();
+    await loadClass(classSelect.value);
+  }
+
+  // ---------- one class ----------
+  async function loadClass(classId) {
+    if (!classId) return;
+    const seq = ++loadSeq;
+    const [apptsRes, pkgsRes, sessRes, resRes] = await Promise.all([
+      supabaseClient.from("appointments").select("id, scheduled_start")
+        .eq("class_id", classId).order("scheduled_start", { ascending: true }),
+      supabaseClient.from("packages").select("student_id, students(name, contacts(name))")
+        .eq("class_id", classId).eq("status", "active"),
+      supabaseClient.from("exam_sessions").select("*").eq("class_id", classId),
+      fetchAllRows(() => supabaseClient.from("exam_results").select("*").eq("class_id", classId).order("id"))
+        .then(rows => ({ data: rows, error: null }), err => ({ data: null, error: err })),
+    ]);
+    if (seq !== loadSeq) return; // a newer load has started
+    const err = apptsRes.error || pkgsRes.error || sessRes.error || resRes.error;
+    if (err) { wrap.innerHTML = `<p class="exam-empty">Error: ${esc(err.message)}</p>`; return; }
+
+    const seen = new Set();
+    const roster = [];
+    (pkgsRes.data ?? []).forEach(p => {
+      if (seen.has(p.student_id)) return;
+      seen.add(p.student_id);
+      roster.push({ id: p.student_id, name: studentName(p.students) });
+    });
+    roster.sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
+
+    const sessions = new Map();
+    (sessRes.data ?? []).forEach(r => sessions.set(sessionKey(r.batch_index, r.exam_no), r));
+    const results = new Map();
+    (resRes.data ?? []).forEach(r => results.set(resultKey(r.batch_index, r.exam_no, r.student_id), r));
+
+    current = { classId, appts: apptsRes.data ?? [], roster, sessions, results };
+    render();
+  }
+
+  // ---------- rendering ----------
+  function dateLabel(iso, withWeekday) {
+    return new Date(iso).toLocaleDateString(localeForDates(), withWeekday
+      ? { month: "numeric", day: "numeric", weekday: "short" }
+      : { month: "numeric", day: "numeric" });
+  }
+
+  function fmtScore(v) { return v == null ? "" : String(Number(v)); }
+
+  // An exam has any number of parts (default 2). Part names live in
+  // session.part_labels; each student's marks in result.scores, same order.
+  // Rows saved before parts became flexible only have part1/part2 columns,
+  // so those are read as a fallback until the row is next edited.
+  function sessionLabels(s) {
+    if (Array.isArray(s?.part_labels) && s.part_labels.length) return s.part_labels.map(x => x ?? "");
+    if (s && (s.part1_label != null || s.part2_label != null)) return [s.part1_label ?? "", s.part2_label ?? ""];
+    return ["", ""];
+  }
+  function scoresOf(r, n) {
+    let arr = [];
+    if (Array.isArray(r?.scores) && r.scores.length) arr = r.scores.slice();
+    else if (r && (r.part1_score != null || r.part2_score != null)) arr = [r.part1_score, r.part2_score];
+    while (arr.length < n) arr.push(null);
+    return arr.slice(0, n);
+  }
+  // Every part is out of 100 and the exam's total is the average of the parts
+  // that have a mark so far (still blank = not counted, so a half-filled exam
+  // shows the average of what is in rather than being dragged down by a gap).
+  function totalOf(scores) {
+    const vals = scores.filter(v => v != null);
+    return vals.length ? vals.reduce((a, v) => a + Number(v), 0) / vals.length : null;
+  }
+  function fmtTotal(n) { return n == null ? "—" : String(Math.round(n * 100) / 100); }
+
+  function batchHasData(batchIdx) {
+    for (const [k, s] of current.sessions) {
+      if (k.startsWith(batchIdx + ":") && (s.no_exam || sessionLabels(s).some(l => l) || sessionLabels(s).length !== 2)) return true;
+    }
+    for (const [k, r] of current.results) {
+      if (k.startsWith(batchIdx + ":") && scoresOf(r, MAX_PARTS).some(v => v != null)) return true;
+    }
+    return false;
+  }
+
+  function termHtml(batchIdx, batch, isCurrent) {
+    const exams = [1, 2].map(e => {
+      const s = current.sessions.get(sessionKey(batchIdx, e)) ?? {};
+      const labels = sessionLabels(s);
+      return { e, labels, n: labels.length, off: !!s.no_exam };
+    });
+
+    const examHead = exams.map(({ e, n }) => {
+      const appt = batch[EXAM_LESSON[e] - 1];
+      const when = appt ? dateLabel(appt.scheduled_start, true) : t("exams.not_scheduled");
+      return `<th colspan="${n + 1}" class="exam-head${e === 2 ? " exam-sep" : ""}">${esc(tf("exams.exam_head", { n: e, lesson: EXAM_LESSON[e], date: when }))}</th>`;
+    }).join("");
+
+    const controlRow = exams.map(({ e, n, off }) => `<td colspan="${n + 1}" class="ctrl-cell ${e === 2 ? "exam-sep " : ""}${off ? "off" : ""}"><div class="content-cell">
+        <label class="no-exam"><input type="checkbox" class="exam-off-toggle" data-batch="${batchIdx}" data-exam="${e}"${off ? " checked" : ""} />${esc(t("exams.no_exam"))}</label>
+        <button type="button" class="part-btn" data-act="add" data-batch="${batchIdx}" data-exam="${e}"${off || n >= MAX_PARTS ? " disabled" : ""}>${esc(t("exams.add_part"))}</button>
+        <button type="button" class="part-btn" data-act="del" data-batch="${batchIdx}" data-exam="${e}"${off || n <= 1 ? " disabled" : ""}>${esc(t("exams.del_part"))}</button>
+      </div></td>`).join("");
+
+    const labelRow = exams.map(({ e, labels, off }) => {
+      const dis = off ? " disabled" : "", offCls = off ? " off" : "";
+      return labels.map((lab, i) => `<th class="${e === 2 && i === 0 ? "exam-sep" : ""}${offCls}"><input type="text" class="exam-label" data-batch="${batchIdx}" data-exam="${e}" data-part="${i}" placeholder="${esc(tf("exams.part_default", { n: i + 1 }))}" value="${esc(lab)}"${dis} /></th>`).join("")
+        + `<th class="total-col${offCls}">${esc(t("exams.total"))}<div style="font-size:11px; font-weight:400;">${esc(t("exams.out_of"))}</div></th>`;
+    }).join("");
+
+    const rows = current.roster.map(st => {
+      const cells = exams.map(({ e, n, off }) => {
+        const scores = scoresOf(current.results.get(resultKey(batchIdx, e, st.id)), n);
+        const inputs = scores.map((v, i) => `<td class="${e === 2 && i === 0 ? "exam-sep " : ""}${off ? "off" : ""}"><input type="number" class="score" step="0.5" min="0" max="100" data-batch="${batchIdx}" data-exam="${e}" data-student="${esc(st.id)}" data-part="${i}" value="${esc(fmtScore(v))}"${off ? " disabled" : ""} /></td>`).join("");
+        return inputs + `<td class="total-cell${off ? " off" : ""}" data-total="${batchIdx}:${e}:${esc(st.id)}">${esc(off ? "—" : fmtTotal(totalOf(scores)))}</td>`;
+      }).join("");
+      return `<tr><td class="stu-col">${esc(st.name)}</td>${cells}</tr>`;
+    }).join("");
+
+    const first = batch[0], last = batch[batch.length - 1];
+    const range = first && last ? `${dateLabel(first.scheduled_start)} – ${dateLabel(last.scheduled_start)}` : "";
+    return `
+      <div class="term-block">
+        <h2>${esc(tf("exams.term_label", { n: batchIdx + 1 }))}
+          ${isCurrent ? `<span class="term-tag">${esc(t("exams.current_term"))}</span>` : ""}
+          <span class="term-range">${esc(range)}</span></h2>
+        <div class="exam-scroll">
+          <table class="exam-table">
+            <thead>
+              <tr><th rowspan="3" class="stu-col exam-head">${esc(t("exams.col_student"))}</th>${examHead}</tr>
+              <tr>${controlRow}</tr>
+              <tr>${labelRow}</tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function render() {
+    if (!current) return;
+    const { appts, roster } = current;
+    if (!appts.length) { wrap.innerHTML = `<p class="exam-empty">${esc(t("exams.no_lessons"))}</p>`; return; }
+    if (!roster.length) { wrap.innerHTML = `<p class="exam-empty">${esc(t("exams.no_students"))}</p>`; return; }
+
+    const batches = [];
+    for (let i = 0; i < appts.length; i += LESSONS_PER_TERM) batches.push(appts.slice(i, i + LESSONS_PER_TERM));
+
+    // "Current" term = the first one that still has a lesson today or later
+    // (the last term if the whole run is over). Terms before it only appear
+    // if they already hold results, or when "show past terms" is on.
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    let currentIdx = batches.findIndex(b => new Date(b[b.length - 1].scheduled_start) >= startOfToday);
+    if (currentIdx === -1) currentIdx = batches.length - 1;
+
+    const showPast = showPastToggle.checked;
+    const shown = batches.map((b, i) => i)
+      .filter(i => i >= currentIdx || showPast || batchHasData(i));
+    // current term first, later ones next, then older ones newest-first
+    const upcoming = shown.filter(i => i >= currentIdx);
+    const past = shown.filter(i => i < currentIdx).sort((a, b) => b - a);
+    wrap.innerHTML = [...upcoming, ...past].map(i => termHtml(i, batches[i], i === currentIdx)).join("");
+  }
+
+  // ---------- saving ----------
+  function flash(el) {
+    el.classList.add("saved-flash");
+    setTimeout(() => el.classList.remove("saved-flash"), 700);
+  }
+
+  // Edits update the local copy at once and are sent one after another per
+  // exam cell, each carrying the latest full row — so tabbing quickly from one
+  // part to the next can never make a later save overwrite an earlier one
+  // with stale data (or arrive out of order).
+  const saveChains = new Map();
+  function enqueue(key, job) {
+    const next = (saveChains.get(key) ?? Promise.resolve()).then(job).catch(() => {});
+    saveChains.set(key, next);
+    return next;
+  }
+
+  function saveSession(batch, exam, patch, el) {
+    const key = sessionKey(batch, exam);
+    const local = { ...(current.sessions.get(key) ?? {}), ...patch, class_id: current.classId, batch_index: batch, exam_no: exam };
+    current.sessions.set(key, local);
+    return enqueue("s:" + key, async () => {
+      const row = { ...current.sessions.get(key) };
+      delete row.id; delete row.created_at;
+      const { data, error } = await supabaseClient
+        .from("exam_sessions").upsert(row, { onConflict: "class_id,batch_index,exam_no" }).select().single();
+      if (error) { showToast("Save failed: " + error.message, "error"); return; }
+      const latest = current.sessions.get(key);
+      if (latest && data?.id) latest.id = data.id;
+      flash(el);
+    });
+  }
+
+  // Writes one student's whole scores array; queued per exam cell like the rest.
+  function persistResult(key) {
+    return enqueue("r:" + key, async () => {
+      const l = current.results.get(key);
+      if (!l) return;
+      const row = {
+        class_id: l.class_id, batch_index: l.batch_index, exam_no: l.exam_no, student_id: l.student_id,
+        scores: l.scores, updated_at: new Date().toISOString(),
+      };
+      const { data, error } = await supabaseClient
+        .from("exam_results").upsert(row, { onConflict: "class_id,batch_index,exam_no,student_id" }).select().single();
+      if (error) { showToast("Save failed: " + error.message, "error"); return false; }
+      if (data?.id) l.id = data.id;
+      return true;
+    });
+  }
+
+  function saveScore(batch, exam, studentId, part, rawValue, el) {
+    let value = null;
+    if (rawValue !== "") {
+      value = Number(rawValue);
+      if (!Number.isFinite(value) || value < 0) { showToast(t("exams.bad_score"), "error"); value = undefined; }
+    }
+    const key = resultKey(batch, exam, studentId);
+    const n = sessionLabels(current.sessions.get(sessionKey(batch, exam))).length;
+    const scores = scoresOf(current.results.get(key), n);
+    if (value !== undefined && value !== null && value > PART_MAX) {
+      showToast(t("exams.over_max"), "error");
+      value = undefined;
+    }
+    if (value === undefined) { el.value = fmtScore(scores[part]); return; } // put the last saved value back
+    scores[part] = value;
+    const local = {
+      ...(current.results.get(key) ?? {}),
+      class_id: current.classId, batch_index: batch, exam_no: exam, student_id: studentId, scores,
+    };
+    current.results.set(key, local);
+    const totalEl = wrap.querySelector(`[data-total="${batch}:${exam}:${CSS.escape(studentId)}"]`);
+    if (totalEl) totalEl.textContent = fmtTotal(totalOf(scores));
+    persistResult(key).then(ok => { if (ok) flash(el); });
+  }
+
+  function addPart(batch, exam) {
+    const labels = sessionLabels(current.sessions.get(sessionKey(batch, exam)));
+    if (labels.length >= MAX_PARTS) return;
+    saveSession(batch, exam, { part_labels: [...labels, ""] }, wrap);
+    render();
+  }
+
+  async function removeLastPart(batch, exam) {
+    const labels = sessionLabels(current.sessions.get(sessionKey(batch, exam)));
+    if (labels.length <= 1) return;
+    const last = labels.length - 1;
+    const prefix = `${batch}:${exam}:`;
+    const withScore = [...current.results].filter(([k, r]) => k.startsWith(prefix) && scoresOf(r, labels.length)[last] != null);
+    if (withScore.length && !(await showConfirm(t("exams.del_part_confirm")))) return;
+    // drop that column's marks from every student of this exam, then the part itself
+    for (const [k, r] of current.results) {
+      if (!k.startsWith(prefix)) continue;
+      r.scores = scoresOf(r, labels.length).slice(0, last);
+      persistResult(k);
+    }
+    saveSession(batch, exam, { part_labels: labels.slice(0, last) }, wrap);
+    render();
+  }
+
+  wrap.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || !current) return;
+    const batch = Number(el.dataset.batch), exam = Number(el.dataset.exam);
+    if (el.classList.contains("exam-off-toggle")) {
+      // Scores already typed are kept (just hidden behind the grey-out), so
+      // un-ticking brings them straight back.
+      saveSession(batch, exam, { no_exam: el.checked }, el);
+      render();
+    } else if (el.classList.contains("score")) {
+      saveScore(batch, exam, el.dataset.student, Number(el.dataset.part), el.value.trim(), el);
+    } else if (el.classList.contains("exam-label")) {
+      const labels = sessionLabels(current.sessions.get(sessionKey(batch, exam))).slice();
+      labels[Number(el.dataset.part)] = el.value.trim();
+      saveSession(batch, exam, { part_labels: labels }, el);
+    }
+  });
+
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target instanceof Element ? e.target.closest("button.part-btn") : null;
+    if (!btn || !current || btn.disabled) return;
+    const batch = Number(btn.dataset.batch), exam = Number(btn.dataset.exam);
+    if (btn.dataset.act === "add") addPart(batch, exam); else removeLastPart(batch, exam);
+  });
+
+  classSelect.addEventListener("change", () => {
+    try { localStorage.setItem("ui:exams.class", classSelect.value); } catch (e) {}
+    loadClass(classSelect.value);
+  });
+  showPastToggle.addEventListener("change", render);
+  window.onLangChange = () => { fillClassSelect(); render(); };
+
+  await loadClasses();
+})();
+</script>
+</body>
+</html>
