@@ -125,6 +125,7 @@
     #lead-form > div[style*="flex-direction:column"], #lead-edit-form > div[style*="flex-direction:column"] { grid-template-columns: 1fr; }
   }
 
+  .first-lesson-tag { background: #dcfce7 !important; color: #166534 !important; }
   .visit-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #fde68a; color: #78350f; font-size: 11px; font-weight: 700; vertical-align: middle; }
 
   /* follow-up table: tighter columns, day-count pills, tappable WhatsApp */
@@ -435,8 +436,23 @@
     const map = new Map();
     const ids = [...new Set(contactIds.filter(Boolean))];
     if (!ids.length) return map;
-    const { data } = await supabaseClient.from("students").select("contact_id, is_group, created_at").in("contact_id", ids).eq("active", true);
+    const { data } = await supabaseClient.from("students").select("id, contact_id, is_group, created_at").in("contact_id", ids).eq("active", true);
+    // First lesson per student: earliest of their term start dates (group
+    // classes) and their own 1:1 lesson appointments (private / extra). A
+    // failed lookup just leaves the date off.
+    const firstLesson = new Map();
+    const studentIds = (data ?? []).map(st => st.id);
+    if (studentIds.length) {
+      const note = (id, ms) => { if (Number.isFinite(ms) && (!firstLesson.has(id) || ms < firstLesson.get(id))) firstLesson.set(id, ms); };
+      const [pk, ap] = await Promise.all([
+        supabaseClient.from("packages").select("student_id, start_date").in("student_id", studentIds),
+        supabaseClient.from("appointments").select("student_id, scheduled_start").in("student_id", studentIds).neq("status", "cancelled"),
+      ]);
+      (pk.data ?? []).forEach(r => note(r.student_id, new Date(`${r.start_date}T00:00:00`).getTime()));
+      (ap.data ?? []).forEach(r => note(r.student_id, new Date(r.scheduled_start).getTime()));
+    }
     for (const s of data ?? []) {
+      s.firstLesson = firstLesson.get(s.id) ?? null;
       if (!map.has(s.contact_id)) map.set(s.contact_id, []);
       map.get(s.contact_id).push(s);
     }
@@ -450,7 +466,8 @@
     const since = new Date(lead.created_at ?? 0).getTime();
     const mine = (map.get(lead.contact_id) ?? []).filter(st => new Date(st.created_at).getTime() >= since);
     if (!mine.length) return null;
-    return { private: mine.some(st => !st.is_group), group: mine.some(st => st.is_group) };
+    const dates = mine.map(st => st.firstLesson).filter(v => v != null);
+    return { private: mine.some(st => !st.is_group), group: mine.some(st => st.is_group), firstLesson: dates.length ? Math.min(...dates) : null };
   }
 
   async function loadFollowUps() {
@@ -662,10 +679,16 @@
         // a lead has already landed there.
         const needsFollowUpBg = !lead.followed_up && (status === "consultation_booked" || status === "attended");
 
+        // For someone who has already enrolled: the day their first lesson is.
+        const enrolledNow = (status === "attended" || status === "deposit_paid") ? enrolledInfo(lead, enrolledByContact) : null;
+        const firstLessonTag = enrolledNow?.firstLesson
+          ? `<span class="visit-tag first-lesson-tag">${esc(t("lead.first_lesson"))} ${esc(new Date(enrolledNow.firstLesson).toLocaleDateString(localeForDates(), { month: "numeric", day: "numeric", weekday: "short" }))}</span>`
+          : "";
+
         const card = document.createElement("div");
         card.className = `lead-card${c?.source ? ` source-${c.source}` : ""}${needsFollowUpBg ? " needs-follow-up" : ""}`;
         card.innerHTML = `
-          <div class="name">${esc(c?.name ?? "(no name)")}${lead.visit_type === "trial" ? `<span class="visit-tag">${t("lead.visit_trial")}</span>` : ""}</div>
+          <div class="name">${esc(c?.name ?? "(no name)")}${lead.visit_type === "trial" ? `<span class="visit-tag">${t("lead.visit_trial")}</span>` : ""}${firstLessonTag}</div>
           <div class="meta">${whatsappCell}</div>
           ${metaParts.length ? `<div class="meta">${metaParts.map(esc).join(" · ")}</div>` : ""}
           <div class="meta">${c?.source ? t("source." + c.source) : ""}</div>
