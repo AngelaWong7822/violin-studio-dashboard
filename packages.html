@@ -1810,7 +1810,10 @@
   const unpaidOnlyToggle = document.getElementById("unpaid-only");
   const paymentSearchEl = document.getElementById("payment-search");
   persistInput(paymentSearchEl, "packages.paymentSearch");
-  persistInput(unpaidOnlyToggle, "packages.unpaidOnly");
+  // Not remembered across visits on purpose: the payments list always opens on
+  // "unpaid only" (the HTML default), and the switch only changes the view for
+  // the current visit. (It used to be saved, so turning it off once kept it off.)
+  try { localStorage.removeItem("ui:packages.unpaidOnly"); } catch (e) {}
   persistInput(document.getElementById("student-search"), "packages.studentSearch");
   persistInput(document.getElementById("student-class-filter"), "packages.classFilter");
   const paymentRowsEl = document.getElementById("payment-rows");
@@ -1983,10 +1986,11 @@
     }
     const paymentQuery = paymentSearchEl.value.trim().toLowerCase();
     if (paymentQuery) visible = visible.filter(s => (s.name ?? "").toLowerCase().includes(paymentQuery));
-    // In the "unpaid only" view, students who have quit drop to the bottom and
-    // are greyed out, so who still needs chasing stands out from who left.
-    const dimWithdrawn = unpaidOnlyToggle.checked;
-    if (dimWithdrawn) visible = [...visible.filter(s => !s.isWithdrawn), ...visible.filter(s => s.isWithdrawn)];
+    // Students who have quit drop to the bottom (still A-Z among themselves)
+    // and are greyed out, in every view, so who still needs chasing stands out
+    // from who left.
+    const dimWithdrawn = true;
+    visible = [...visible.filter(s => !s.isWithdrawn), ...visible.filter(s => s.isWithdrawn)];
     if (!visible.length) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">${t("payments.empty")}</td></tr>`; return; }
 
     paymentRowsEl.innerHTML = visible.map((student) => {
