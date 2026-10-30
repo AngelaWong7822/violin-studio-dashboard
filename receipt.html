@@ -634,7 +634,18 @@
     if (!pkg) return;
 
     const appts = await getPackageLessonAppointments(pkg.class_id, pkg.start_date, pkg.total_lessons);
-    const scheduleLines = appts.map(scheduleLineData);
+    // A lesson the student skipped and that was taken off this term's price
+    // (leave, not made up) is not a lesson being billed, so its date is left
+    // off the list — same rule effectivePrice() uses above.
+    let attended = appts;
+    if (appts.length && studentSelect.value) {
+      const { data: attRows } = await supabaseClient
+        .from("attendance").select("appointment_id, status, make_up_status")
+        .eq("student_id", studentSelect.value).in("appointment_id", appts.map(a => a.id));
+      const skipped = new Set((attRows ?? []).filter(isDeductible).map(r => r.appointment_id));
+      attended = appts.filter(a => !skipped.has(a.id));
+    }
+    const scheduleLines = attended.map(scheduleLineData);
 
     const cls = pkg.classes;
     let description = cls?.name ?? "";
