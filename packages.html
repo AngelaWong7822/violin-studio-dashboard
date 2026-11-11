@@ -384,7 +384,7 @@
 
   <div class="card cute-card cute-students">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-      <h1 style="margin:0;" data-i18n="packages.students_title">Students</h1>
+      <h1 style="margin:0;"><span data-i18n="packages.students_title">Students</span><span id="student-count" style="font-size:15px; font-weight:700; color:#c2410c; margin-left:8px;"></span></h1>
       <button class="primary" id="new-student-btn" data-i18n="packages.new_student">+ New student</button>
     </div>
     <div class="student-filter-row">
@@ -2741,6 +2741,9 @@
     let filtered = studentRowsCache;
     if (searchText) filtered = filtered.filter(r => r.name.toLowerCase().includes(searchText));
     if (classFilter) filtered = filtered.filter(r => r.classId === classFilter);
+    // How many students are currently in (quit ones are not counted); follows
+    // the search / class filter, so picking a class shows that class's size.
+    document.getElementById("student-count").textContent = `(${filtered.filter(r => !r.isWithdrawn).length})`;
 
     if (searchText || classFilter) {
       btn.style.display = "none";
