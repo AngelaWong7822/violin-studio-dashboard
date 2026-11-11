@@ -101,7 +101,7 @@
   .tutoring-class { background: #fed7aa; color: #9a3412; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; }
   .tutoring-row input { flex: 1 1 120px; min-width: 0; font-size: 12px; padding: 4px 12px; border-radius: 999px; border-color: #fdba74; background: #fff; }
   .tutoring-empty { text-align: center; color: #c2410c; font-size: 13px; padding: 6px 0 2px; margin: 0; }
-  /* ---- same cute tone for Classes / Students / Payments / Quick replies ---- */
+  /* ---- same cute tone for Classes / Students / Payments ---- */
   .cute-classes h1::before { content: "🏫 "; }
   .cute-students h1::before { content: "🧒 "; }
   .cute-payments h1::before { content: "💰 "; }
@@ -124,11 +124,6 @@
   .cute-card .term-card-header .term-label { color: #c2410c; }
   .cute-card .detail-table th { color: #c2410c; font-weight: 600; }
   .cute-card .detail-table tr:nth-child(even) { background: #fff7ed; }
-  .cute-card .reply-template-card { background: #fff; border-color: #fed7aa; }
-  .cute-card .reply-template-card .rt-copy-btn { background: #fed7aa; color: #9a3412; }
-  .cute-card .reply-template-card .rt-copy-btn:hover { background: #fdba74; }
-  .cute-card .reply-template-card .rt-copy-btn.rt-copied { background: #bbf7d0; color: #14532d; }
-  .cute-card .reply-template-add { border-color: #fdba74; }
   .icon-action-btn.danger { color: #b91c1c; }
   .icon-action-btn.danger:hover { background: #fef2f2; }
 
@@ -439,16 +434,6 @@
     </table>
   </div>
 
-  <div class="card cute-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-      <h1 style="margin:0;" data-i18n="reply_templates.title">💌 Quick replies</h1>
-      <button type="button" id="reply-templates-toggle" class="link"></button>
-    </div>
-    <div id="reply-templates-body" hidden>
-      <p style="color:#71717a; font-size:13px; margin:8px 0 12px;" data-i18n="reply_templates.subtitle">Copy a reply for a parent's homework message.</p>
-      <div id="reply-templates-list" class="reply-templates-wrap"></div>
-    </div>
-  </div>
 </main>
 
 <dialog id="student-dialog" class="wide-dialog">
@@ -709,8 +694,7 @@
   wireLogoutButton(document.getElementById("logout-btn"));
   applyI18n();
   initSettingsMenu();
-  initReplyTemplates();
-  window.onLangChange = () => { loadClasses(); loadStudents(); window.renderReplyTemplates?.(); window.refreshReplyTemplatesToggleLabel?.(); };
+  window.onLangChange = () => { loadClasses(); loadStudents(); };
 
   let students = [];
   let classes = [];
@@ -3630,173 +3614,6 @@
   }
 })();
 
-// Quick-reply template cards (packages.html only) — copy-paste prompts for
-// replying to a parent's homework message. mac-listener never sends a
-// WhatsApp message itself (see mac-listener/index.js's hard rule), so this
-// is copy-to-clipboard only; the actual reply is still typed/sent by hand.
-// Shared across both logins via the `reply_templates` table rather than
-// localStorage, since either Angela or the boyfriend may be the one replying.
-async function initReplyTemplates() {
-  const list = document.getElementById("reply-templates-list");
-  if (!list) return;
-
-  let templates = [];
-  let loadError = null;
-
-  async function load() {
-    const { data, error } = await supabaseClient
-      .from("reply_templates").select("*").order("created_at", { ascending: true });
-    // Render either way — even on error (e.g. the table not existing yet)
-    // the "add your own" box below must still show, instead of leaving the
-    // whole card silently blank with no visible feedback.
-    loadError = error;
-    if (error) console.error(error);
-    templates = data ?? [];
-    render();
-  }
-
-  function render() {
-    list.innerHTML = "";
-
-    if (loadError) {
-      const p = document.createElement("p");
-      p.className = "empty";
-      p.textContent = tf("reply_templates.load_failed", { detail: loadError.message });
-      list.appendChild(p);
-    } else if (!templates.length) {
-      const p = document.createElement("p");
-      p.className = "empty";
-      p.textContent = t("reply_templates.empty");
-      list.appendChild(p);
-    }
-
-    for (const tpl of templates) {
-      const card = document.createElement("div");
-      card.className = "reply-template-card";
-
-      const textDiv = document.createElement("div");
-      textDiv.textContent = tpl.text;
-      card.appendChild(textDiv);
-
-      const delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "rt-delete-btn";
-      delBtn.textContent = "🗑️";
-      delBtn.title = t("reply_templates.delete");
-      delBtn.addEventListener("click", async () => {
-        if (!(await showConfirm(t("reply_templates.confirm_delete")))) return;
-        const { error } = await supabaseClient.from("reply_templates").delete().eq("id", tpl.id);
-        if (error) { showToast(error.message, "error"); return; }
-        await load();
-      });
-      card.appendChild(delBtn);
-
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "rt-edit-btn";
-      editBtn.textContent = "✏️";
-      editBtn.title = t("reply_templates.edit");
-      editBtn.addEventListener("click", () => {
-        let cancelled = false;
-        const textarea = document.createElement("textarea");
-        textarea.className = "rt-edit-textarea";
-        textarea.value = tpl.text;
-        card.replaceChild(textarea, textDiv);
-        textarea.focus();
-        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-
-        async function save() {
-          if (cancelled) return;
-          const newText = textarea.value.trim();
-          if (!newText || newText === tpl.text) { render(); return; }
-          const { error } = await supabaseClient.from("reply_templates").update({ text: newText }).eq("id", tpl.id);
-          if (error) { showToast(error.message, "error"); return; }
-          await load();
-        }
-        textarea.addEventListener("blur", save);
-        textarea.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); textarea.blur(); }
-          else if (e.key === "Escape") { cancelled = true; render(); }
-        });
-      });
-      card.appendChild(editBtn);
-
-      const copyBtn = document.createElement("button");
-      copyBtn.type = "button";
-      copyBtn.className = "rt-copy-btn";
-      copyBtn.textContent = t("reply_templates.copy");
-      copyBtn.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(tpl.text);
-        } catch {
-          // Clipboard API needs a secure context/permission — fall back to
-          // the old select+execCommand trick so copying still works.
-          const ta = document.createElement("textarea");
-          ta.value = tpl.text;
-          ta.style.position = "fixed";
-          ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
-        }
-        copyBtn.textContent = t("reply_templates.copied");
-        copyBtn.classList.add("rt-copied");
-        setTimeout(() => {
-          copyBtn.textContent = t("reply_templates.copy");
-          copyBtn.classList.remove("rt-copied");
-        }, 1500);
-      });
-      card.appendChild(copyBtn);
-
-      list.appendChild(card);
-    }
-
-    // "Add your own" card, always last.
-    const addCard = document.createElement("div");
-    addCard.className = "reply-template-add";
-    const textarea = document.createElement("textarea");
-    textarea.placeholder = t("reply_templates.add_placeholder");
-    addCard.appendChild(textarea);
-    const addBtn = document.createElement("button");
-    addBtn.type = "button";
-    addBtn.className = "primary";
-    addBtn.textContent = t("reply_templates.add_btn");
-    addBtn.addEventListener("click", async () => {
-      const text = textarea.value.trim();
-      if (!text) return;
-      addBtn.disabled = true;
-      const { error } = await supabaseClient.from("reply_templates").insert({ text });
-      addBtn.disabled = false;
-      if (error) { showToast(error.message, "error"); return; }
-      await load();
-    });
-    addCard.appendChild(addBtn);
-    list.appendChild(addCard);
-  }
-
-  window.renderReplyTemplates = render; // re-run on language toggle to relabel buttons
-  await load();
-
-  // Collapsed by default — this card sits at the very bottom of an already
-  // long page and isn't needed every visit; open/closed choice remembered
-  // per browser, same pattern as the Schedule page's Google Calendar embed.
-  const body = document.getElementById("reply-templates-body");
-  const toggle = document.getElementById("reply-templates-toggle");
-  function refreshToggleLabel() {
-    toggle.textContent = body.hidden ? t("reply_templates.show") : t("reply_templates.hide");
-  }
-  function setOpen(open) {
-    body.hidden = !open;
-    refreshToggleLabel();
-    try { localStorage.setItem("replyTemplatesOpen", open ? "1" : "0"); } catch (e) {}
-  }
-  toggle.addEventListener("click", () => setOpen(body.hidden));
-  let startOpen = false;
-  try { startOpen = localStorage.getItem("replyTemplatesOpen") === "1"; } catch (e) {}
-  setOpen(startOpen);
-  window.refreshReplyTemplatesToggleLabel = refreshToggleLabel; // re-run on language toggle
-}
 </script>
 </body>
 </html>

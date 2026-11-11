@@ -24,31 +24,33 @@
   .term-tag { background: #ffedd5; border: 1px solid #fdba74; color: #c2410c; border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 700; }
   .term-range { font-size: 12px; font-weight: 400; color: #a1a1aa; }
   .exam-scroll { overflow-x: auto; }
-  table.exam-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
-  .exam-table th, .exam-table td { padding: 6px 8px; text-align: center; border-bottom: 1px dashed #fed7aa; font-size: 13px; }
-  .exam-table th.stu-col, .exam-table td.stu-col { text-align: left; white-space: nowrap; font-weight: 600; color: #7c2d12; position: sticky; left: 0; background: #fff; }
-  .exam-table th.exam-head { background: #fed7aa; color: #9a3412; font-weight: 700; }
-  .exam-table th.exam-head:first-of-type { border-top-left-radius: 12px; }
-  .exam-table thead tr:first-child th.stu-col { background: #fed7aa; border-top-left-radius: 12px; }
-  .exam-table thead tr:first-child th.exam-head:last-child { border-top-right-radius: 12px; }
-  .exam-table input { box-sizing: border-box; border: 1px solid #fdba74; border-radius: 10px; background: #fff; padding: 4px 8px; font-size: 13px; }
-  .exam-table input.score { width: 76px; text-align: center; }
-  .exam-table input.exam-content { width: 100%; text-align: left; }
-  .exam-table input.exam-label { width: 96px; text-align: center; font-weight: 700; color: #9a3412; background: #fff7ed; }
-  .exam-table th.total-col { color: #9a3412; font-weight: 700; background: #fff7ed; }
-  .exam-table td.total-cell { font-weight: 700; color: #c2410c; background: #fff7ed; min-width: 52px; }
-  .exam-table .exam-sep { border-left: 2px solid #fed7aa; }
+  .exam-sec + .exam-sec { margin-top: 18px; }
+  .exam-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .exam-title { font-weight: 700; color: #9a3412; font-size: 14px; }
+  .exam-actions { display: flex; align-items: center; gap: 14px; font-size: 12px; }
+  .exam-actions button.part-btn { border: none; background: none; color: #c2410c; cursor: pointer; font-size: 12px; padding: 0; }
+  .exam-actions button.part-btn:hover:not(:disabled) { text-decoration: underline; }
+  .exam-actions button.part-btn:disabled { color: #d4d4d8; cursor: default; }
+  .exam-actions label.no-exam { display: inline-flex; align-items: center; gap: 4px; color: #71717a; cursor: pointer; white-space: nowrap; }
+  table.exam-table { border-collapse: collapse; width: 100%; }
+  .exam-table th, .exam-table td { padding: 6px 8px; text-align: center; font-size: 13px; }
+  .exam-table thead th { background: transparent !important; border-radius: 0 !important; border-bottom: 1px solid #fed7aa; color: #9a3412; font-weight: 700; font-size: 12px; vertical-align: bottom; }
+  .exam-table tbody tr, .exam-table tbody tr:hover { background: transparent; }
+  .exam-table tbody td { border-bottom: 1px solid #f4f4f5; }
+  .exam-table th.stu-col, .exam-table td.stu-col { text-align: left; white-space: nowrap; font-weight: 600; color: #7c2d12; }
+  .exam-table input { box-sizing: border-box; font-size: 13px; }
+  .exam-table input.score { width: 80px; text-align: center; border: 1px solid #e4e4e7; border-radius: 8px; background: #fff; padding: 4px 6px; }
+  .exam-table input.score:focus { border-color: #fb923c; outline: none; }
+  /* part names: plain text in the header, only look editable on hover / focus */
+  .exam-table input.exam-label { width: 100%; min-width: 80px; text-align: center; font: inherit; font-weight: 700; color: #9a3412; border: none; border-bottom: 1px dashed transparent; background: transparent; padding: 2px 0; outline: none; }
+  .exam-table input.exam-label::placeholder { color: #d6b9a0; font-weight: 400; }
+  .exam-table input.exam-label:hover, .exam-table input.exam-label:focus { border-bottom-color: #fb923c; }
+  .exam-table .total-col small { display: block; font-size: 10px; font-weight: 400; color: #a1a1aa; }
+  .exam-table td.total-cell { font-weight: 700; color: #c2410c; min-width: 56px; }
+  .exam-sec.off .exam-title, .exam-sec.off .exam-table { opacity: 0.45; }
+  .exam-sec.off .exam-table input { background: #f4f4f5; }
   .exam-empty { color: #c2410c; padding: 14px 4px; }
   .saved-flash { outline: 2px solid #86efac; }
-  .exam-table .content-cell { display: flex; align-items: center; gap: 10px; }
-  .exam-table button.part-btn { border: 1px solid #fdba74; background: #fff; color: #c2410c; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
-  .exam-table button.part-btn:hover:not(:disabled) { background: #ffedd5; }
-  .exam-table button.part-btn:disabled { opacity: 0.4; cursor: default; }
-  .exam-table label.no-exam { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; color: #9a3412; font-weight: 700; cursor: pointer; }
-  .exam-table td.ctrl-cell { background: #ffedd5; border-bottom: 1px solid #fed7aa; }
-  .exam-table td.off, .exam-table th.off { background: #f4f4f5; }
-  .exam-table td.off input, .exam-table th.off input { background: #f4f4f5; border-color: #e4e4e7; color: #a1a1aa; }
-  .exam-table td.total-cell.off { color: #a1a1aa; }
 </style>
 </head>
 <body>
@@ -234,37 +236,38 @@
   }
 
   function termHtml(batchIdx, batch, isCurrent) {
-    const exams = [1, 2].map(e => {
+    const sections = [1, 2].map(e => {
       const s = current.sessions.get(sessionKey(batchIdx, e)) ?? {};
       const labels = sessionLabels(s);
-      return { e, labels, n: labels.length, off: !!s.no_exam };
-    });
-
-    const examHead = exams.map(({ e, n }) => {
+      const n = labels.length, off = !!s.no_exam, dis = off ? " disabled" : "";
       const appt = batch[EXAM_LESSON[e] - 1];
       const when = appt ? dateLabel(appt.scheduled_start, true) : t("exams.not_scheduled");
-      return `<th colspan="${n + 1}" class="exam-head${e === 2 ? " exam-sep" : ""}">${esc(tf("exams.exam_head", { n: e, lesson: EXAM_LESSON[e], date: when }))}</th>`;
-    }).join("");
 
-    const controlRow = exams.map(({ e, n, off }) => `<td colspan="${n + 1}" class="ctrl-cell ${e === 2 ? "exam-sep " : ""}${off ? "off" : ""}"><div class="content-cell">
-        <label class="no-exam"><input type="checkbox" class="exam-off-toggle" data-batch="${batchIdx}" data-exam="${e}"${off ? " checked" : ""} />${esc(t("exams.no_exam"))}</label>
-        <button type="button" class="part-btn" data-act="add" data-batch="${batchIdx}" data-exam="${e}"${off || n >= MAX_PARTS ? " disabled" : ""}>${esc(t("exams.add_part"))}</button>
-        <button type="button" class="part-btn" data-act="del" data-batch="${batchIdx}" data-exam="${e}"${off || n <= 1 ? " disabled" : ""}>${esc(t("exams.del_part"))}</button>
-      </div></td>`).join("");
+      const head = labels.map((lab, i) => `<th><input type="text" class="exam-label" data-batch="${batchIdx}" data-exam="${e}" data-part="${i}" placeholder="${esc(tf("exams.part_default", { n: i + 1 }))}" value="${esc(lab)}"${dis} /></th>`).join("");
 
-    const labelRow = exams.map(({ e, labels, off }) => {
-      const dis = off ? " disabled" : "", offCls = off ? " off" : "";
-      return labels.map((lab, i) => `<th class="${e === 2 && i === 0 ? "exam-sep" : ""}${offCls}"><input type="text" class="exam-label" data-batch="${batchIdx}" data-exam="${e}" data-part="${i}" placeholder="${esc(tf("exams.part_default", { n: i + 1 }))}" value="${esc(lab)}"${dis} /></th>`).join("")
-        + `<th class="total-col${offCls}">${esc(t("exams.total"))}<div style="font-size:11px; font-weight:400;">${esc(t("exams.out_of"))}</div></th>`;
-    }).join("");
-
-    const rows = current.roster.map(st => {
-      const cells = exams.map(({ e, n, off }) => {
+      const rows = current.roster.map(st => {
         const scores = scoresOf(current.results.get(resultKey(batchIdx, e, st.id)), n);
-        const inputs = scores.map((v, i) => `<td class="${e === 2 && i === 0 ? "exam-sep " : ""}${off ? "off" : ""}"><input type="number" class="score" step="0.5" min="0" max="100" data-batch="${batchIdx}" data-exam="${e}" data-student="${esc(st.id)}" data-part="${i}" value="${esc(fmtScore(v))}"${off ? " disabled" : ""} /></td>`).join("");
-        return inputs + `<td class="total-cell${off ? " off" : ""}" data-total="${batchIdx}:${e}:${esc(st.id)}">${esc(off ? "—" : fmtTotal(totalOf(scores)))}</td>`;
+        const inputs = scores.map((v, i) => `<td><input type="number" class="score" step="0.5" min="0" max="100" data-batch="${batchIdx}" data-exam="${e}" data-student="${esc(st.id)}" data-part="${i}" value="${esc(fmtScore(v))}"${dis} /></td>`).join("");
+        return `<tr><td class="stu-col">${esc(st.name)}</td>${inputs}<td class="total-cell" data-total="${batchIdx}:${e}:${esc(st.id)}">${esc(off ? "—" : fmtTotal(totalOf(scores)))}</td></tr>`;
       }).join("");
-      return `<tr><td class="stu-col">${esc(st.name)}</td>${cells}</tr>`;
+
+      return `
+        <div class="exam-sec${off ? " off" : ""}">
+          <div class="exam-bar">
+            <span class="exam-title">${esc(tf("exams.exam_head", { n: e, lesson: EXAM_LESSON[e], date: when }))}</span>
+            <span class="exam-actions">
+              <button type="button" class="part-btn" data-act="add" data-batch="${batchIdx}" data-exam="${e}"${off || n >= MAX_PARTS ? " disabled" : ""}>${esc(t("exams.add_part"))}</button>
+              <button type="button" class="part-btn" data-act="del" data-batch="${batchIdx}" data-exam="${e}"${off || n <= 1 ? " disabled" : ""}>${esc(t("exams.del_part"))}</button>
+              <label class="no-exam"><input type="checkbox" class="exam-off-toggle" data-batch="${batchIdx}" data-exam="${e}"${off ? " checked" : ""} />${esc(t("exams.no_exam"))}</label>
+            </span>
+          </div>
+          <div class="exam-scroll">
+            <table class="exam-table">
+              <thead><tr><th class="stu-col">${esc(t("exams.col_student"))}</th>${head}<th class="total-col">${esc(t("exams.total"))}<small>${esc(t("exams.out_of"))}</small></th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
     }).join("");
 
     const first = batch[0], last = batch[batch.length - 1];
@@ -274,16 +277,7 @@
         <h2>${esc(tf("exams.term_label", { n: batchIdx + 1 }))}
           ${isCurrent ? `<span class="term-tag">${esc(t("exams.current_term"))}</span>` : ""}
           <span class="term-range">${esc(range)}</span></h2>
-        <div class="exam-scroll">
-          <table class="exam-table">
-            <thead>
-              <tr><th rowspan="3" class="stu-col exam-head">${esc(t("exams.col_student"))}</th>${examHead}</tr>
-              <tr>${controlRow}</tr>
-              <tr>${labelRow}</tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
+        ${sections}
       </div>`;
   }
 
