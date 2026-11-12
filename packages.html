@@ -687,6 +687,7 @@
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
 <script src="settings.js"></script>
+<script src="search.js"></script>
 <script>
 (async () => {
   const session = await requireSession();
@@ -3611,6 +3612,15 @@
   if (fromLeadParam) {
     history.replaceState(null, "", window.location.pathname);
     await openStudentFromLead(fromLeadParam);
+  }
+  // Arrived from the global 🔍 search: show just that student.
+  const searchParam = new URLSearchParams(window.location.search).get("q");
+  if (searchParam) {
+    history.replaceState(null, "", window.location.pathname);
+    document.getElementById("student-search").value = searchParam;
+    document.getElementById("student-class-filter").value = "";
+    renderStudentRows();
+    document.getElementById("student-search").scrollIntoView({ block: "center" });
   }
 })();
 

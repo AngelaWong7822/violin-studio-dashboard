@@ -512,6 +512,7 @@
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
 <script src="settings.js"></script>
+<script src="search.js"></script>
 <script>
 (async () => {
   const session = await requireSession();
@@ -2143,6 +2144,15 @@
 
   await load();
   await loadPendingReviews();
+
+  // Arrived from the global 🔍 search: show just that student.
+  const searchParam = new URLSearchParams(window.location.search).get("q");
+  if (searchParam) {
+    history.replaceState(null, "", window.location.pathname);
+    document.getElementById("student-search").value = searchParam;
+    render();
+    document.getElementById("student-search").scrollIntoView({ block: "center" });
+  }
 
   // Arrived from a lead card's "convert to private student" button.
   async function openStudentFromLead(leadId) {

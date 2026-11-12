@@ -349,6 +349,7 @@
 <script src="auth.js"></script>
 <script src="i18n.js"></script>
 <script src="settings.js"></script>
+<script src="search.js"></script>
 <script>
 (async () => {
   const session = await requireSession();
@@ -1214,6 +1215,16 @@
 
   await loadFollowUps();
   await loadBoard();
+
+  // Arrived from the global 🔍 search: open that parent's lead.
+  const contactParam = new URLSearchParams(window.location.search).get("contact");
+  if (contactParam) {
+    history.replaceState(null, "", window.location.pathname);
+    const { data: found } = await supabaseClient.from("leads")
+      .select("id, contact_id, visit_type, contacts(name, whatsapp_number, social_media_name, level, age, source)")
+      .eq("contact_id", contactParam).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (found) openEditLead(found);
+  }
 })();
 </script>
 </body>
