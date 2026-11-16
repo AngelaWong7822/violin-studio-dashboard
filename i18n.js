@@ -472,6 +472,9 @@ const I18N_STRINGS = {
     "format.1on2": "1-on-2",
 
     "dialog.new_student": "New student",
+    "student.from_lead": "From a lead? (optional)",
+    "student.from_lead_none": "— Not from a lead —",
+    "student.from_lead_hint": "Pick the lead so it moves to Enrolled by itself and the chat history stays attached.",
     "student.name": "Name",
     "student.phone": "WhatsApp number",
     "student.gender": "Gender",
@@ -1058,6 +1061,9 @@ const I18N_STRINGS = {
     "format.1on2": "1對2",
 
     "dialog.new_student": "新增學生",
+    "student.from_lead": "由客戶轉入？（可不揀）",
+    "student.from_lead_none": "— 唔係由客戶轉 —",
+    "student.from_lead_hint": "揀返個客戶，佢就會自動移去「已入學」，WhatsApp 對話記錄都會接得上。",
     "student.name": "姓名",
     "student.phone": "WhatsApp 號碼",
     "student.gender": "性別",

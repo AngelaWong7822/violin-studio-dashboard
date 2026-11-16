@@ -442,6 +442,11 @@
       <h1 id="student-dialog-title" data-i18n="dialog.new_student">New student</h1>
       <input type="hidden" id="student-contact-id" />
       <input type="hidden" id="student-id" />
+      <label id="student-from-lead-field" class="full-width" style="display:none; margin-bottom:10px;">
+        <span data-i18n="student.from_lead">From a lead? (optional)</span>
+        <select id="student-from-lead"><option value="" data-i18n="student.from_lead_none">— Not from a lead —</option></select>
+        <small style="color:#a1a1aa;" data-i18n="student.from_lead_hint">Pick the lead so it moves to Enrolled by itself and the chat history stays attached.</small>
+      </label>
       <div class="field-grid-2col">
         <label><span data-i18n="student.name">Name</span> <input type="text" id="student-name" required /></label>
         <label><span data-i18n="student.gender">Gender</span>
@@ -3095,6 +3100,8 @@
     if (!student) return;
     const c = student.contacts ?? {};
     document.getElementById("student-dialog-title").textContent = t("dialog.edit_student");
+    document.getElementById("student-from-lead-field").style.display = "none";
+    fromLeadContactId = null;
     document.getElementById("student-id").value = student.id;
     document.getElementById("student-contact-id").value = student.contact_id;
     document.getElementById("student-name").value = groupStudentLabel(student);
@@ -3173,7 +3180,53 @@
     showToast(t("extra.saved"), "success");
     await loadPayments();
   });
+  // Leads that could be the person being added: still open (not lost / already
+  // converted) and whose contact has no student yet. Picking one makes the new
+  // student hang off that lead's contact, exactly like the lead card's
+  // "Make group-class student" button — instead of creating a second contact
+  // that the leads board cannot match to the lead.
+  const fromLeadField = document.getElementById("student-from-lead-field");
+  const fromLeadSelect = document.getElementById("student-from-lead");
+  let leadChoices = new Map();
+  async function loadLeadChoices() {
+    fromLeadSelect.innerHTML = `<option value="">${esc(t("student.from_lead_none"))}</option>`;
+    fromLeadField.style.display = "none";
+    leadChoices = new Map();
+    const { data: rows } = await supabaseClient.from("leads")
+      .select("id, contact_id, status, created_at, contacts(name, whatsapp_number, social_media_name, level, age)")
+      .in("status", ["inquired", "consultation_booked", "attended", "deposit_paid"])
+      .order("created_at", { ascending: false });
+    const ids = [...new Set((rows ?? []).map(l => l.contact_id))];
+    const taken = new Set();
+    if (ids.length) {
+      const { data: st } = await supabaseClient.from("students").select("contact_id").in("contact_id", ids);
+      (st ?? []).forEach(x => taken.add(x.contact_id));
+    }
+    const cands = (rows ?? []).filter(l => !taken.has(l.contact_id) && !leadChoices.has(l.contact_id));
+    cands.forEach(l => leadChoices.set(l.contact_id, l));
+    if (!cands.length || !studentDialog.open || document.getElementById("student-id").value) return;
+    fromLeadSelect.innerHTML += cands.map(l => {
+      const c = l.contacts ?? {};
+      const label = [c.name || c.social_media_name || "?", c.social_media_name && c.name ? c.social_media_name : null, t("leadstatus." + l.status)].filter(Boolean).join(" · ");
+      return `<option value="${esc(l.contact_id)}">${esc(label)}</option>`;
+    }).join("");
+    fromLeadField.style.display = "";
+  }
+  fromLeadSelect.addEventListener("change", () => {
+    const l = leadChoices.get(fromLeadSelect.value);
+    if (!l) { fromLeadContactId = null; return; }
+    const c = l.contacts ?? {};
+    document.getElementById("student-name").value = c.name ?? "";
+    document.getElementById("student-phone").value = c.whatsapp_number || "852";
+    document.getElementById("student-social").value = c.social_media_name ?? "";
+    document.getElementById("student-level").value = c.level ?? "";
+    document.getElementById("student-age").value = c.age ?? "";
+    fromLeadContactId = l.contact_id;
+  });
+  studentDialog.addEventListener("close", () => { fromLeadField.style.display = "none"; });
+
   document.getElementById("new-student-btn").addEventListener("click", () => {
+    fromLeadContactId = null;
     document.getElementById("student-form").reset();
     document.getElementById("student-id").value = "";
     document.getElementById("student-contact-id").value = "";
@@ -3186,6 +3239,7 @@
     document.getElementById("student-phone").value = "852";
     setNeedsViolinToggle("not_needed");
     studentDialog.showModal();
+    loadLeadChoices();
   });
   document.getElementById("student-cancel-btn").addEventListener("click", () => studentDialog.close());
 
@@ -3341,6 +3395,29 @@
     // blind-inserting, which would otherwise fail on
     // contacts.whatsapp_number's unique constraint.
     let contact = null;
+    if (fromLeadContactId && contactFields.whatsapp_number) {
+      const { data: owner } = await supabaseClient
+        .from("contacts").select("id").eq("whatsapp_number", contactFields.whatsapp_number).maybeSingle();
+      if (owner && owner.id !== fromLeadContactId) {
+        // The typed number already belongs to another contact (it keeps the
+        // WhatsApp history). Move the lead(s) onto it so the board still
+        // recognises this student, carry over the lead's source, and drop the
+        // old number-less lead contact once nothing uses it.
+        const oldId = fromLeadContactId;
+        const { data: oldC } = await supabaseClient.from("contacts").select("source").eq("id", oldId).maybeSingle();
+        const { error: moveErr } = await supabaseClient.from("leads").update({ contact_id: owner.id }).eq("contact_id", oldId);
+        if (moveErr) { showToast("Save failed: " + moveErr.message, "error"); return; }
+        if (oldC?.source) contactFields.source = oldC.source;
+        fromLeadContactId = owner.id;
+        const used = async (table) => {
+          const { count } = await supabaseClient.from(table).select("id", { count: "exact", head: true }).eq("contact_id", oldId);
+          return count ?? 0;
+        };
+        if (!((await used("students")) + (await used("leads")) + (await used("messages")))) {
+          await supabaseClient.from("contacts").delete().eq("id", oldId); // best effort
+        }
+      }
+    }
     if (fromLeadContactId) {
       contact = { id: fromLeadContactId };
     } else if (contactFields.whatsapp_number) {
@@ -3599,6 +3676,7 @@
     document.getElementById("student-contact-id").value = "";
     document.getElementById("student-edit-class-field").style.display = "none";
     document.getElementById("student-dialog-title").textContent = t("lead.convert_group_title");
+    document.getElementById("student-from-lead-field").style.display = "none";
     document.getElementById("student-name").value = c.name ?? "";
     document.getElementById("student-phone").value = c.whatsapp_number || "852";
     document.getElementById("student-social").value = c.social_media_name ?? "";
