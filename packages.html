@@ -225,6 +225,29 @@
 
   /* ---- cute pass: pastel attendance card ---- */
   #attendance-card > div:first-child h1::before { content: "🎻 "; }
+  .renewal-board { margin: 0 0 14px; }
+  .renewal-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 2px 4px; border: none; background: none; font: inherit; font-size: 13px; font-weight: 700; color: #9a3412; cursor: pointer; }
+  .renewal-toggle, .renewal-toggle:hover { text-decoration: none; box-shadow: none; }
+  .renewal-toggle:hover { background: #ffedd5; border-radius: 999px; }
+  .renewal-toggle .rt-arrow { display: inline-block; width: 12px; }
+  .renewal-toggle .rb { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 8px; }
+  .renewal-toggle .rb.warn { color: #c2410c; background: #ffedd5; border: 1px solid #fdba74; }
+  .renewal-toggle .rb.due { color: #b91c1c; background: #fee2e2; border: 1px solid #fca5a5; }
+  .renewal-rows[hidden] { display: none; }
+  .renewal-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 6px 12px; margin-bottom: 4px; background: #fff; border: 1px solid #fed7aa; border-radius: 12px; font-size: 13px; cursor: pointer; }
+  .renewal-row:hover { border-color: #fb923c; }
+  .renewal-row.sel { border-color: #ea580c; box-shadow: 0 0 0 2px rgba(234, 88, 12, .12); }
+  .renewal-row .r-class { font-weight: 700; color: #7c2d12; min-width: 190px; }
+  .renewal-row .r-term { color: #71717a; min-width: 48px; }
+  .renewal-row .r-left { font-weight: 700; min-width: 64px; }
+  .renewal-row .r-end { color: #52525b; }
+  .renewal-row .r-tag { margin-left: auto; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 1px 10px; }
+  .renewal-row.warn { background: #fff7ed; border-color: #fb923c; }
+  .renewal-row.warn .r-left, .renewal-row.warn .r-tag { color: #c2410c; }
+  .renewal-row.warn .r-tag { background: #ffedd5; border: 1px solid #fdba74; }
+  .renewal-row.due { background: #fef2f2; border-color: #f87171; }
+  .renewal-row.due .r-left, .renewal-row.due .r-tag { color: #b91c1c; }
+  .renewal-row.due .r-tag { background: #fee2e2; border: 1px solid #fca5a5; }
   #attendance-class-select { border-radius: 999px; border-color: #fdba74; background: #fff; padding-left: 14px; }
   #grid-wrap { background: #fff; border-radius: 18px; box-shadow: 0 2px 10px rgba(194, 65, 12, .14); border: 1.5px solid #fdba74; }
   #grid-table { border-collapse: separate; border-spacing: 0; }
@@ -282,7 +305,7 @@
   .detail-table th { color: #71717a; font-weight: 500; }
   .detail-table tr:nth-child(even) { background: #fafafa; }
 
-  .extra-lessons { margin-top: 12px; padding: 10px 14px; background: #f0f9ff; border: 1.5px dashed #7dd3fc; border-radius: 14px; }
+  .extra-lessons { margin: 10px 26px 0 26px; box-sizing: border-box; padding: 12px 14px; background: #f0f9ff; border: 1.5px dashed #7dd3fc; border-radius: 14px; }
   .extra-lessons .extra-title { font-weight: 700; color: #0369a1; margin-bottom: 6px; }
   .extra-lessons .extra-sum { font-weight: 400; font-size: 12px; color: #0c4a6e; margin-left: 6px; }
 
@@ -323,6 +346,7 @@
       <h1 data-i18n="attendance.title" style="margin:0;">Attendance</h1>
       <button type="button" id="grid-lock-toggle-btn"></button>
     </div>
+    <div id="renewal-board" class="renewal-board"></div>
     <label>
       <select id="attendance-class-select" style="width:100%; max-width:480px;"></select>
     </label>
@@ -1078,6 +1102,84 @@
       if (guessed && !attendanceClassSelect.dataset.userPicked) attendanceClassSelect.value = guessed;
     }
     await loadClassGrid(attendanceClassSelect.value);
+    renderRenewalBoard();
+  }
+
+  // Renewal reminder: one row per active class — which 8-lesson term it is in,
+  // how many lessons of that term are still to come, and the date that term
+  // ends (= when students need to renew). Terms are the same 8-lesson chunks
+  // the attendance grid below uses. Orange once <= RENEW_WARN_LESSONS are
+  // left, red once the term has finished with nothing newer started.
+  const RENEW_WARN_LESSONS = 2;
+  let renewalOpen = false; // folded away until she opens it
+  async function renderRenewalBoard() {
+    const el = document.getElementById("renewal-board");
+    if (!el) return;
+    // Paged (not the capped cache above): the term numbering counts every
+    // lesson from the class's very first date, so none may be cut off.
+    let all;
+    try {
+      all = await fetchAllRows(() => supabaseClient
+        .from("appointments")
+        .select("id, scheduled_start, status, class_id")
+        .eq("type", "group_class")
+        .in("class_id", classes.map(c => c.id))
+        .order("scheduled_start", { ascending: true }).order("id"));
+    } catch (e) { el.innerHTML = ""; return; }
+    const byClass = new Map();
+    for (const a of all) {
+      if (!byClass.has(a.class_id)) byClass.set(a.class_id, []);
+      byClass.get(a.class_id).push(a);
+    }
+    const now = Date.now();
+    const rows = [];
+    for (const [, items] of groupClassesByWeekday(classes)) {
+      for (const c of items) {
+        const appts = (byClass.get(c.id) ?? []).slice().sort((x, y) => new Date(x.scheduled_start) - new Date(y.scheduled_start));
+        if (!appts.length) continue;
+        const batches = [];
+        for (let i = 0; i < appts.length; i += STANDARD_LESSONS_PER_TERM) batches.push(appts.slice(i, i + STANDARD_LESSONS_PER_TERM));
+        const live = (a) => a.status !== "cancelled";
+        const upcoming = (a) => live(a) && new Date(a.scheduled_start).getTime() >= now;
+        let idx = batches.findIndex(b => b.some(upcoming));
+        if (idx < 0) idx = batches.length - 1; // everything is over: the last term
+        const batch = batches[idx];
+        const left = batch.filter(upcoming).length;
+        const lastLesson = batch.filter(live).pop() ?? batch[batch.length - 1];
+        rows.push({ c, term: idx + 1, left, end: new Date(lastLesson.scheduled_start) });
+      }
+    }
+    if (!rows.length) { el.innerHTML = ""; return; }
+    const selected = attendanceClassSelect.value;
+    const nDue = rows.filter(r => r.left === 0).length;
+    const nSoon = rows.filter(r => r.left > 0 && r.left <= RENEW_WARN_LESSONS).length;
+    // Collapsed by default; the header still says how many classes need attention.
+    const badges = [nDue ? `<span class="rb due">${esc(tf("renewal.badge_due", { n: nDue }))}</span>` : "", nSoon ? `<span class="rb warn">${esc(tf("renewal.badge_soon", { n: nSoon }))}</span>` : ""].join("");
+    el.innerHTML = `<button type="button" class="renewal-toggle" aria-expanded="${renewalOpen}"><span class="rt-arrow">${renewalOpen ? "▾" : "▸"}</span> ${esc(t("renewal.title"))} ${badges}</button><div class="renewal-rows"${renewalOpen ? "" : " hidden"}>` + rows.map(r => {
+      const state = r.left === 0 ? "due" : r.left <= RENEW_WARN_LESSONS ? "warn" : "";
+      const tag = state === "due" ? t("renewal.due") : state === "warn" ? t("renewal.soon") : "";
+      const endTxt = r.end.toLocaleDateString(localeForDates(), { dateStyle: "long" });
+      return `<div class="renewal-row ${state}${r.c.id === selected ? " sel" : ""}" data-renewal-class="${esc(r.c.id)}">
+        <span class="r-class">${esc(r.c.weekly_start_time.slice(0, 5))} — ${esc(r.c.name)}</span>
+        <span class="r-term">${esc(tf("renewal.term", { n: r.term }))}</span>
+        <span class="r-left">${esc(tf(r.left === 0 ? "renewal.left_none" : "renewal.left", { n: r.left }))}</span>
+        <span class="r-end">${esc(tf("renewal.ends", { date: endTxt }))}</span>
+        ${tag ? `<span class="r-tag">${esc(tag)}</span>` : ""}
+      </div>`;
+    }).join("") + "</div>";
+    el.querySelector(".renewal-toggle").addEventListener("click", () => {
+      renewalOpen = !renewalOpen;
+      const btn = el.querySelector(".renewal-toggle");
+      btn.setAttribute("aria-expanded", String(renewalOpen));
+      btn.querySelector(".rt-arrow").textContent = renewalOpen ? "▾" : "▸";
+      el.querySelector(".renewal-rows").hidden = !renewalOpen;
+    });
+    el.querySelectorAll("[data-renewal-class]").forEach(row => row.addEventListener("click", () => {
+      attendanceClassSelect.value = row.dataset.renewalClass;
+      attendanceClassSelect.dataset.userPicked = "1";
+      loadClassGrid(attendanceClassSelect.value);
+      el.querySelectorAll(".renewal-row").forEach(x => x.classList.toggle("sel", x === row));
+    }));
   }
 
   // Ticking one student's status right after another fires two overlapping
@@ -1541,7 +1643,7 @@
     // appointments shouldn't clutter the make-up target list.
     const { data } = await supabaseClient
       .from("appointments")
-      .select("id, scheduled_start, class_id, classes!inner(active, name)")
+      .select("id, scheduled_start, status, class_id, classes!inner(active, name)")
       .eq("type", "group_class")
       .eq("classes.active", true)
       .order("scheduled_start", { ascending: true });
@@ -1730,7 +1832,11 @@
     });
   }
 
-  attendanceClassSelect.addEventListener("change", () => { attendanceClassSelect.dataset.userPicked = "1"; loadClassGrid(attendanceClassSelect.value); });
+  attendanceClassSelect.addEventListener("change", () => {
+    attendanceClassSelect.dataset.userPicked = "1";
+    loadClassGrid(attendanceClassSelect.value);
+    document.querySelectorAll(".renewal-row").forEach(x => x.classList.toggle("sel", x.dataset.renewalClass === attendanceClassSelect.value));
+  });
   document.getElementById("show-withdrawn-toggle").addEventListener("change", (e) => {
     document.getElementById("grid-table").classList.toggle("hide-withdrawn", !e.target.checked);
   });
