@@ -588,8 +588,50 @@
   // line so the current total reflects the $200 already in hand from an
   // earlier receipt; it doesn't touch that earlier receipt itself. Applies
   // to every student, not just violin rentals, so it's always visible.
-  document.getElementById("add-deposit-refund-btn").addEventListener("click", () => {
-    addItemRow({ description: "Deposit (Previously Paid)", unitPrice: -200, qty: 1 });
+  // Asks how much the deposit was (it is not always $200) and remembers the
+  // last amount typed, so the usual figure is already filled in next time.
+  function askDepositAmount() {
+    return new Promise((resolve) => {
+      let last = "200";
+      try { last = localStorage.getItem("ui:receipt.depositAmount") || "200"; } catch (e) {}
+      const dlg = document.createElement("dialog");
+      dlg.className = "confirm-dialog";
+      dlg.innerHTML = `
+        <p class="confirm-message"></p>
+        <input type="text" inputmode="decimal" class="deposit-amount-input" />
+        <div class="confirm-actions">
+          <button type="button" class="confirm-cancel"></button>
+          <button type="button" class="confirm-ok primary"></button>
+        </div>`;
+      dlg.querySelector(".confirm-message").textContent = t("receipt.deposit_prompt");
+      dlg.querySelector(".confirm-cancel").textContent = t("common.cancel");
+      dlg.querySelector(".confirm-ok").textContent = t("common.confirm");
+      const input = dlg.querySelector(".deposit-amount-input");
+      input.value = last;
+      document.body.appendChild(dlg);
+      dlg.showModal();
+      input.select();
+      function done(v) {
+        dlg.close();
+        dlg.addEventListener("close", () => dlg.remove(), { once: true });
+        resolve(v);
+      }
+      function submit() {
+        const n = parseAmount(input.value);
+        if (n === null || !(Math.abs(n) > 0)) { input.focus(); input.select(); return; }
+        try { localStorage.setItem("ui:receipt.depositAmount", String(Math.abs(n))); } catch (e) {}
+        done(Math.abs(n));
+      }
+      dlg.querySelector(".confirm-ok").addEventListener("click", submit);
+      dlg.querySelector(".confirm-cancel").addEventListener("click", () => done(null));
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+      dlg.addEventListener("cancel", () => done(null)); // Esc
+    });
+  }
+  document.getElementById("add-deposit-refund-btn").addEventListener("click", async () => {
+    const amount = await askDepositAmount();
+    if (amount === null) return;
+    addItemRow({ description: "Deposit (Previously Paid)", unitPrice: -amount, qty: 1 });
   });
 
   // Same idea as the deposit shortcut — a standing paid service (turning
