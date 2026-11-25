@@ -548,6 +548,7 @@ const I18N_STRINGS = {
     "class.cancel_confirm": "Cancel this class? Upcoming lessons will be cancelled too (past/completed ones are kept). Students enrolled here keep their history.",
     "classes.extend_dialog_title": "Renew class",
     "classes.extend_dates_label": "Lesson dates (untick a holiday)",
+    "classes.holiday_coverage": "Public holidays are only marked up to {year}.",
     "classes.extend_need_more": "Tick {n} more date(s) — a term needs 8 lessons.",
     "classes.extend_dialog_note": "Untick a student who is not continuing — they'll be marked withdrawn.",
 
@@ -1147,6 +1148,7 @@ const I18N_STRINGS = {
     "class.cancel_confirm": "取消呢個班?未來嘅堂都會一併取消(已上/已完成嘅堂會保留)。已報名嘅學生歷史記錄會保留。",
     "classes.extend_dialog_title": "續期",
     "classes.extend_dates_label": "堂嘅日期(有假期就剔走)",
+    "classes.holiday_coverage": "公眾假期只標示到 {year} 年。",
     "classes.extend_need_more": "仲要剔多{n}個日期先夠——一期要8堂。",
     "classes.extend_dialog_note": "剔走唔續讀嘅學生,佢哋而家嘅報名會自動標記做「退出」。",
 
