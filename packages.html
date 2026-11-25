@@ -953,7 +953,8 @@
       enrolledByClass.get(p.class_id).add(p.student_id);
     }
 
-    const rows = data.map((cls) => {
+    // Table reads Monday → Sunday, then by start time (same order as the class dropdowns).
+    const rows = groupClassesByWeekday(data).flatMap(([, items]) => items).map((cls) => {
       const lessonCount = lessonCountByClass.get(cls.id) ?? 0;
       const enrolledCount = enrolledByClass.get(cls.id)?.size ?? 0;
       const start = cls.weekly_start_time.slice(0, 5);
