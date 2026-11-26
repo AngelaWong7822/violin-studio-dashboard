@@ -35,10 +35,14 @@
   .lead-card select, .lead-card input, .lead-card textarea { width: 100%; margin-top: 6px; font-size: 12px; padding: 4px 6px; }
   .lead-card textarea { resize: none; overflow: hidden; display: block; }
   .lead-card textarea:read-only, .lead-card input:read-only { background: #f4f4f5; color: #71717a; cursor: default; }
-  .pref-time-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-  .pref-time-btn { padding: 3px 8px; font-size: 11px; border: 1px solid #d4d4d8; border-radius: 999px; background: #fff; color: #71717a; cursor: pointer; }
-  .pref-time-btn.active { background: #18181b; border-color: #18181b; color: #fff; font-weight: 600; }
-  .pref-time-btn:disabled { cursor: default; opacity: 0.5; }
+  .field-label { margin-top: 8px; font-size: 11px; font-weight: 700; color: #9a3412; }
+  .slot-grid { display: grid; grid-template-columns: max-content repeat(7, minmax(0, 1fr)); gap: 3px; align-items: center; margin-top: 4px; font-size: 11px; color: #92400e; text-align: center; }
+  .slot-grid .slot-btn { height: 24px; min-width: 0; padding: 0; font-size: 12px; line-height: 1; font-weight: 700; border: 1.5px dashed #fdba74; border-radius: 8px; background: #fff; color: #9a3412; cursor: pointer; }
+  .slot-grid .slot-btn[aria-pressed="true"] { background: #fed7aa; border: 1.5px solid #fb923c; }
+  .slot-grid .slot-btn:disabled { cursor: default; opacity: .55; }
+  .old-pref { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; font-size: 11px; color: #a1a1aa; word-break: break-word; }
+  .old-pref button { border: none; background: none; padding: 0 3px; font-size: 11px; color: #a1a1aa; cursor: pointer; }
+  .old-pref button:hover { color: #b91c1c; }
   .consultation-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .consult-time-label { font-size: 11px; white-space: nowrap; }
   .consultation-row input.consult-time-input { width: auto; flex: 1 1 auto; min-width: 150px; margin-top: 0; font-size: 11px; padding: 3px 4px; }
@@ -107,8 +111,6 @@
   .lead-card .meta { color: #92400e; opacity: .75; }
   .lead-card select, .lead-card input, .lead-card textarea { border-color: #fdba74; border-radius: 12px; background: #fff; }
   .lead-card textarea:read-only, .lead-card input:read-only { background: #fff7ed; color: #78716c; }
-  .pref-time-btn { border: 1.5px dashed #fdba74; color: #c2410c; background: #fff; }
-  .pref-time-btn.active { background: #fed7aa; border: 1.5px solid #fb923c; color: #9a3412; font-weight: 700; }
   .toggle-switch input:checked + .slider { background: linear-gradient(135deg, #fdba74, #ea580c); }
   .icon-action-btn:hover { background: #ffedd5; color: #9a3412; }
   /* dialogs: wide two-column, no scrolling */
@@ -267,7 +269,14 @@
           <option value="instagram" data-i18n="source.instagram">Instagram</option>
         </select>
       </label>
-      <label><span data-i18n="lead.preferred_times">Preferred times</span> <input type="text" id="lead-preferred-times" data-i18n-placeholder="lead.preferred_times_placeholder" placeholder="e.g. Sat morning, Fri after 5pm" /></label>
+      <label><span data-i18n="lead.school_session">School session</span>
+        <select id="lead-school">
+          <option value="" data-i18n="lead.school_none">Not set</option>
+          <option value="am" data-i18n="lead.school_am">AM session</option>
+          <option value="pm" data-i18n="lead.school_pm">PM session</option>
+          <option value="full_day" data-i18n="lead.school_full_day">Whole day</option>
+        </select>
+      </label>
       <label><span data-i18n="lead.visit_type">Type</span>
         <select id="lead-visit-type">
           <option value="consultation" data-i18n="lead.visit_consultation">Consultation</option>
@@ -281,6 +290,10 @@
           <option value="60" data-i18n="lead.trial_60">1 hour</option>
         </select>
       </label>
+      <div>
+        <div class="field-label" data-i18n="lead.lesson_slots">Possible lesson days</div>
+        <div id="lead-slots"></div>
+      </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button type="button" class="link" id="lead-cancel-btn" data-i18n="dialog.cancel">Cancel</button>
         <button type="submit" class="primary" data-i18n="dialog.save">Save</button>
@@ -329,6 +342,14 @@
           <option value="referral" data-i18n="source.referral">Referral</option>
           <option value="rednote" data-i18n="source.rednote">Rednote (小紅書)</option>
           <option value="instagram" data-i18n="source.instagram">Instagram</option>
+        </select>
+      </label>
+      <label><span data-i18n="lead.school_session">School session</span>
+        <select id="lead-edit-school">
+          <option value="" data-i18n="lead.school_none">Not set</option>
+          <option value="am" data-i18n="lead.school_am">AM session</option>
+          <option value="pm" data-i18n="lead.school_pm">PM session</option>
+          <option value="full_day" data-i18n="lead.school_full_day">Whole day</option>
         </select>
       </label>
       <label><span data-i18n="lead.visit_type">Type</span>
@@ -428,6 +449,38 @@
   function autoGrowTextarea(el) {
     el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
+  }
+
+  const SCHOOL_SESSIONS = ["am", "pm", "full_day"];
+  const SLOT_PERIODS = ["morning", "afternoon", "evening"];
+  // Weekday x time-of-day tick table. `selected` and what onChange receives
+  // are lists of "<day 0-6>-<period>".
+  function buildSlotGrid(selected, onChange) {
+    const chosen = new Set(selected ?? []);
+    const grid = document.createElement("div");
+    grid.className = "slot-grid";
+    const text = (value) => { const el = document.createElement("span"); el.textContent = value; grid.appendChild(el); };
+    text("");
+    for (let d = 0; d < 7; d++) text(t("day." + d));
+    SLOT_PERIODS.forEach(period => {
+      text(t("lead.period_" + period));
+      for (let d = 0; d < 7; d++) {
+        const key = d + "-" + period;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-btn";
+        btn.setAttribute("aria-label", t("day." + d) + " " + t("lead.period_" + period));
+        const paint = () => { btn.setAttribute("aria-pressed", chosen.has(key)); btn.textContent = chosen.has(key) ? "✓" : ""; };
+        btn.addEventListener("click", () => {
+          if (chosen.has(key)) chosen.delete(key); else chosen.add(key);
+          paint();
+          onChange([...chosen].sort());
+        });
+        paint();
+        grid.appendChild(btn);
+      }
+    });
+    return grid;
   }
 
   // contact_id -> { private, group } for every ACTIVE student under those
@@ -604,7 +657,7 @@
   async function loadBoard() {
     const { data, error } = await supabaseClient
       .from("leads")
-      .select("id, contact_id, status, visit_type, created_at, updated_at, lost_reason, preferred_times, consultation_appointment_id, followed_up, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, scheduled_end, status)")
+      .select("id, contact_id, status, visit_type, created_at, updated_at, lost_reason, preferred_times, school_session, lesson_slots, consultation_appointment_id, followed_up, contacts(name, whatsapp_number, source, level, age, social_media_name, notes), appointments!leads_consultation_appointment_fk(scheduled_start, scheduled_end, status)")
       .order("created_at", { ascending: false });
 
     // Looked up BEFORE the board is cleared: awaiting between clearing and
@@ -806,91 +859,63 @@
         let fieldsUnlocked = false;
         function fieldsLocked() { return isLockedStatus(status) && !fieldsUnlocked; }
 
-        const preferredTimesInput = document.createElement("textarea");
-        preferredTimesInput.rows = 1;
-        preferredTimesInput.placeholder = t("lead.preferred_times_placeholder");
-        preferredTimesInput.value = lead.preferred_times ?? "";
-        preferredTimesInput.addEventListener("input", () => autoGrowTextarea(preferredTimesInput));
-        async function savePreferredTimes() {
-          const { error } = await supabaseClient
-            .from("leads")
-            .update({ preferred_times: preferredTimesInput.value || null })
-            .eq("id", lead.id);
-          if (error) showToast("Update failed: " + error.message, "error");
+        const addFieldLabel = (key) => {
+          const el = document.createElement("div");
+          el.className = "field-label";
+          el.textContent = t(key);
+          card.appendChild(el);
+        };
+        // Saves run one after another, so quick successive ticks cannot land
+        // out of order and leave an older selection stored.
+        let saveChain = Promise.resolve();
+        function saveLeadFields(fields) {
+          Object.assign(lead, fields); // the edit dialog reads this same object
+          saveChain = saveChain.then(async () => {
+            const { error } = await supabaseClient.from("leads").update(fields).eq("id", lead.id);
+            if (error) showToast("Update failed: " + error.message, "error");
+          });
+          return saveChain;
         }
-        preferredTimesInput.addEventListener("change", savePreferredTimes);
-        card.appendChild(preferredTimesInput);
-        // Deferred: this card (and the column it's in) isn't attached to
-        // the live document yet at this point in the loop, so scrollHeight
-        // would just read 0 (or an unsettled, wrong value if measured mid-
-        // layout) — double-rAF waits for a full paint to actually land
-        // before measuring, which a single rAF isn't reliably guaranteed to do.
-        requestAnimationFrame(() => requestAnimationFrame(() => autoGrowTextarea(preferredTimesInput)));
 
-        // Quick-tick weekday/time-of-day picker — most consultation
-        // comments are exactly "which day/time does the parent prefer",
-        // so this saves retyping it out every time. Ticking never wipes
-        // whatever's already in the box: it strips only the phrase THIS
-        // picker last inserted (if that's still there untouched) and
-        // appends the freshly-ticked one, so a manually-typed remark like
-        // "應該係小學學生" survives sitting alongside it.
-        const pickerState = { days: new Set(), periods: new Set(), lastChunk: "" };
-        function buildPickerSummary() {
-          const dayLabels = [...pickerState.days].sort((a, b) => a - b).map(d => t("day." + d));
-          const periodLabels = [...pickerState.periods].map(p => t("lead.period_" + p));
-          return [...dayLabels, ...periodLabels].join("、");
-        }
-        function applyPickerSummary() {
-          const summary = buildPickerSummary();
-          // lastChunk is exactly what the PREVIOUS tick appended (separator
-          // included) — stripping via endsWith (not a mid-string replace)
-          // only ever touches what the picker itself put at the end, so a
-          // manually-typed remark before it is never touched. If she's typed
-          // something new after the picker's chunk since the last tick, the
-          // endsWith check just fails and this appends fresh instead of
-          // guessing what to remove.
-          let current = preferredTimesInput.value;
-          if (pickerState.lastChunk && current.endsWith(pickerState.lastChunk)) {
-            current = current.slice(0, current.length - pickerState.lastChunk.length);
-          }
-          const chunk = (current && summary ? " · " : "") + summary;
-          preferredTimesInput.value = current + chunk;
-          pickerState.lastChunk = summary ? chunk : "";
-          autoGrowTextarea(preferredTimesInput);
-          savePreferredTimes();
-        }
-        const picker = document.createElement("div");
-        picker.className = "pref-time-picker";
-        for (let d = 0; d < 7; d++) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "pref-time-btn";
-          btn.textContent = t("day." + d);
-          btn.addEventListener("click", () => {
-            if (pickerState.days.has(d)) pickerState.days.delete(d); else pickerState.days.add(d);
-            btn.classList.toggle("active");
-            applyPickerSummary();
-          });
-          picker.appendChild(btn);
-        }
-        ["morning", "afternoon", "evening"].forEach(period => {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "pref-time-btn";
-          btn.textContent = t("lead.period_" + period);
-          btn.addEventListener("click", () => {
-            if (pickerState.periods.has(period)) pickerState.periods.delete(period); else pickerState.periods.add(period);
-            btn.classList.toggle("active");
-            applyPickerSummary();
-          });
-          picker.appendChild(btn);
+        addFieldLabel("lead.school_session");
+        const schoolSelect = document.createElement("select");
+        ["", ...SCHOOL_SESSIONS].forEach(value => {
+          const opt = document.createElement("option");
+          opt.value = value;
+          opt.textContent = t("lead.school_" + (value || "none"));
+          schoolSelect.appendChild(opt);
         });
-        card.appendChild(picker);
+        schoolSelect.value = lead.school_session ?? "";
+        schoolSelect.addEventListener("change", () => saveLeadFields({ school_session: schoolSelect.value || null }));
+        card.appendChild(schoolSelect);
 
-        // A separate free-text field from "preferred times" — that one's
-        // specifically for scheduling preferences; general remarks (family
-        // background, how the trial went, etc.) belong on the contact's own
-        // notes column instead of overloading the times field with them.
+        addFieldLabel("lead.lesson_slots");
+        const slotGrid = buildSlotGrid(lead.lesson_slots, (slots) => saveLeadFields({ lesson_slots: slots.length ? slots : null }));
+        card.appendChild(slotGrid);
+
+        // Free text typed before the tick table existed: still shown, and
+        // removable once it has been copied into the table or the notes.
+        let oldPrefClearBtn = null;
+        if (lead.preferred_times) {
+          const oldPref = document.createElement("div");
+          oldPref.className = "old-pref";
+          const oldText = document.createElement("span");
+          oldText.textContent = lead.preferred_times;
+          oldPrefClearBtn = document.createElement("button");
+          oldPrefClearBtn.type = "button";
+          oldPrefClearBtn.textContent = "✕";
+          oldPrefClearBtn.title = t("lead.old_pref_clear");
+          oldPrefClearBtn.addEventListener("click", async () => {
+            if (!(await showConfirm(tf("lead.old_pref_clear_confirm", { text: lead.preferred_times })))) return;
+            await saveLeadFields({ preferred_times: null });
+            await loadBoard();
+          });
+          oldPref.append(oldText, oldPrefClearBtn);
+          card.appendChild(oldPref);
+        }
+
+        // General remarks (family background, how the trial went, anything the
+        // tick table above cannot say) live on the contact's own notes column.
         const notesInput = document.createElement("textarea");
         notesInput.rows = 1;
         notesInput.placeholder = t("lead.notes_placeholder");
@@ -965,10 +990,11 @@
 
         function applyFieldLock() {
           const isLocked = fieldsLocked();
-          preferredTimesInput.readOnly = isLocked;
+          schoolSelect.disabled = isLocked;
+          if (oldPrefClearBtn) oldPrefClearBtn.style.display = isLocked ? "none" : "";
           notesInput.readOnly = isLocked;
           if (lostReasonInput) lostReasonInput.readOnly = isLocked;
-          picker.querySelectorAll(".pref-time-btn").forEach(btn => { btn.disabled = isLocked; });
+          slotGrid.querySelectorAll(".slot-btn").forEach(btn => { btn.disabled = isLocked; });
           if (lockBtn) {
             lockBtn.textContent = isLocked ? "🔒" : "🔓";
             lockBtn.title = t(isLocked ? "lead.unlock_fields" : "lead.lock_fields");
@@ -1052,6 +1078,7 @@
   }
 
   const dialog = document.getElementById("lead-dialog");
+  let newLeadSlots = [];
   document.getElementById("new-lead-btn").addEventListener("click", () => {
     document.getElementById("lead-form").reset();
     // Defaults to the "852" prefix so she only has to type the 8 digits —
@@ -1060,6 +1087,8 @@
     // "shadow" contact instead of linking to the real WhatsApp conversation.
     document.getElementById("lead-phone").value = "852";
     syncTrialDuration();
+    newLeadSlots = [];
+    document.getElementById("lead-slots").replaceChildren(buildSlotGrid([], (slots) => { newLeadSlots = slots; }));
     dialog.showModal();
   });
   // Trial lessons let her pick 45 min or 1 hour; a consultation is just
@@ -1079,7 +1108,12 @@
     const level = document.getElementById("lead-level").value || null;
     const age = document.getElementById("lead-age").value || null;
     const source = document.getElementById("lead-source").value;
-    const preferred_times = document.getElementById("lead-preferred-times").value || null;
+    // Only what was actually filled in, so re-saving an existing open lead
+    // never blanks what is already on it.
+    const timing = {};
+    const schoolSession = document.getElementById("lead-school").value;
+    if (schoolSession) timing.school_session = schoolSession;
+    if (newLeadSlots.length) timing.lesson_slots = newLeadSlots;
     const consultationTimeStr = document.getElementById("lead-consultation-time").value;
     const visit_type = document.getElementById("lead-visit-type").value;
     const durationMin = visit_type === "trial" ? Number(document.getElementById("lead-trial-duration").value) || 45 : 20;
@@ -1116,14 +1150,14 @@
     if (existingLead) {
       const { data: updatedLead, error: leadError } = await supabaseClient
         .from("leads")
-        .update({ status: "consultation_booked", visit_type, preferred_times, updated_at: new Date().toISOString() })
+        .update({ status: "consultation_booked", visit_type, ...timing, updated_at: new Date().toISOString() })
         .eq("id", existingLead.id).select().single();
       if (leadError) { showToast("Save failed: " + leadError.message, "error"); return; }
       lead = updatedLead;
     } else {
       const { data: newLead, error: leadError } = await supabaseClient
         .from("leads")
-        .insert({ contact_id: contact.id, status: "consultation_booked", visit_type, preferred_times })
+        .insert({ contact_id: contact.id, status: "consultation_booked", visit_type, ...timing })
         .select().single();
       if (leadError) { showToast("Save failed: " + leadError.message, "error"); return; }
       lead = newLead;
@@ -1164,6 +1198,7 @@
     document.getElementById("lead-edit-contact-id").value = lead.contact_id;
     document.getElementById("lead-edit-lead-id").value = lead.id;
     document.getElementById("lead-edit-visit-type").value = lead.visit_type ?? "consultation";
+    document.getElementById("lead-edit-school").value = lead.school_session ?? "";
     document.getElementById("lead-edit-name").value = c?.name ?? "";
     document.getElementById("lead-edit-phone").value = c?.whatsapp_number || "852";
     document.getElementById("lead-edit-social").value = c?.social_media_name ?? "";
@@ -1205,7 +1240,8 @@
     // this update can fail (editing the number to one another contact
     // already has), so surface it rather than a generic message.
     if (error) { showToast("Save failed: " + error.message, "error"); return; }
-    const { error: typeError } = await supabaseClient.from("leads").update({ visit_type: visitType }).eq("id", leadId);
+    const school_session = document.getElementById("lead-edit-school").value || null;
+    const { error: typeError } = await supabaseClient.from("leads").update({ visit_type: visitType, school_session }).eq("id", leadId);
     if (typeError) { showToast("Save failed: " + typeError.message, "error"); return; }
 
     editDialog.close();
@@ -1221,7 +1257,7 @@
   if (contactParam) {
     history.replaceState(null, "", window.location.pathname);
     const { data: found } = await supabaseClient.from("leads")
-      .select("id, contact_id, visit_type, contacts(name, whatsapp_number, social_media_name, level, age, source)")
+      .select("id, contact_id, visit_type, school_session, contacts(name, whatsapp_number, social_media_name, level, age, source)")
       .eq("contact_id", contactParam).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (found) openEditLead(found);
   }
