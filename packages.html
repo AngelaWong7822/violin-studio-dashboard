@@ -225,6 +225,22 @@
 
   /* ---- cute pass: pastel attendance card ---- */
   #attendance-card > div:first-child h1::before { content: "🎻 "; }
+  /* Payments never scrolls sideways: the shared min-width:max-content would
+     let one long term header stretch the whole table instead of wrapping. */
+  .cute-payments table { min-width: 0; }
+  @media (max-width: 700px) {
+    .cute-payments table th, .cute-payments table td { padding-left: 4px; padding-right: 4px; }
+    .cute-payments table { font-size: 12px; }
+    .cute-payments .count-pill { padding-left: 5px; padding-right: 5px; white-space: nowrap; }
+    .cute-payments .owe-dot { margin-right: 3px; }
+    /* Four-character headings break two and two, not one per line. */
+    .cute-payments > table > thead th { font-size: 11px; min-width: 2.1em; }
+    .cute-payments .term-cards, .cute-payments .extra-lessons { margin-left: 0; margin-right: 4px; }
+    .cute-payments .term-card { padding: 10px 8px; }
+    .cute-payments tr.student-detail > td:first-child { padding: 0; }
+    .cute-payments .owe-tag, .cute-payments .settled-tag { margin-left: 0; white-space: nowrap; }
+    .cute-payments .notes-progress { display: none; }
+  }
   .renew-msg-btn, .renewal-row .r-msg { font-size: 12px; font-weight: 700; padding: 2px 11px; border-radius: 999px; border: 1.5px solid #fb923c; background: #fff; color: #c2410c; cursor: pointer; }
   .renew-msg-btn:hover, .renewal-row .r-msg:hover { background: #ffedd5; }
   .renewal-row .r-msg { margin-left: auto; }
