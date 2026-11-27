@@ -225,6 +225,30 @@
 
   /* ---- cute pass: pastel attendance card ---- */
   #attendance-card > div:first-child h1::before { content: "🎻 "; }
+  .renew-msg-btn, .renewal-row .r-msg { font-size: 12px; font-weight: 700; padding: 2px 11px; border-radius: 999px; border: 1.5px solid #fb923c; background: #fff; color: #c2410c; cursor: pointer; }
+  .renew-msg-btn:hover, .renewal-row .r-msg:hover { background: #ffedd5; }
+  .renewal-row .r-msg { margin-left: auto; }
+  .renewal-row .r-tag + .r-msg { margin-left: 0; }
+  .payment-class-chip { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; border: 1px solid #fb923c; background: #ffedd5; color: #9a3412; cursor: pointer; }
+  .renewal-msg-dialog { width: 520px; max-width: 94vw; max-height: 92vh; padding: 0; border: 1.5px solid #fdba74; border-radius: 16px; background: linear-gradient(135deg, #ffedd5 0%, #fef3c7 100%); }
+  .rm-body { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; }
+  .rm-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: #9a3412; }
+  .rm-head strong { font-size: 17px; }
+  .rm-head span { font-size: 12px; color: #92400e; }
+  .rm-parent { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9a3412; }
+  .rm-parent button { font-size: 12px; padding: 2px 12px; border-radius: 999px; border: 1.5px dashed #fdba74; background: #fff; color: #c2410c; cursor: pointer; }
+  .rm-parent button[aria-pressed="true"] { border: 1.5px solid #fb923c; background: #fed7aa; color: #9a3412; font-weight: 700; }
+  .rm-warn { margin: 0; font-size: 12px; font-weight: 700; color: #b91c1c; }
+  .rm-text { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 13px; line-height: 1.6; padding: 10px 12px; border: 1px solid #fdba74; border-radius: 12px; background: #fff; color: #27272a; }
+  .rm-settings { font-size: 12px; color: #9a3412; }
+  .rm-settings summary { cursor: pointer; font-weight: 700; }
+  .rm-settings label { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+  .rm-settings input { width: 100%; box-sizing: border-box; font-size: 13px; padding: 4px 10px; border: 1px solid #fdba74; border-radius: 999px; background: #fff; }
+  .rm-save { margin-top: 8px; font-size: 12px; padding: 3px 14px; border-radius: 999px; border: 1.5px solid #fb923c; background: #fff; color: #c2410c; font-weight: 700; cursor: pointer; }
+  .rm-status { margin: 0; min-height: 1em; font-size: 12px; font-weight: 700; color: #166534; }
+  .rm-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+  .rm-actions .rm-wa { border-radius: 999px; padding: 7px 16px; border: 1px solid #86efac; background: #dcfce7; color: #166534; font-weight: 700; cursor: pointer; }
+  .rm-actions .primary { border-radius: 999px; padding: 8px 24px; }
   .holiday-tag { font-size: 12px; font-weight: 700; color: #b91c1c; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 999px; padding: 0 9px; }
   .holiday-note { color: #a1a1aa; font-size: 11px; }
   .renewal-board { margin: 0 0 14px; }
@@ -442,6 +466,7 @@
       <label style="font-size:13px; display:inline-flex; align-items:center; gap:6px;"><span class="toggle-switch"><input type="checkbox" id="unpaid-only" checked /><span class="slider"></span></span> <span data-i18n="payments.unpaid_only">Show unpaid only</span></label>
     </div>
     <div class="student-filter-row">
+      <button type="button" id="payment-class-chip" class="payment-class-chip" hidden></button>
       <div class="search-wrap">
         <span class="search-icon">🔍</span>
         <input type="text" id="payment-search" data-i18n-placeholder="packages.search_students_placeholder" placeholder="Search by name…" />
@@ -719,6 +744,7 @@
 <script src="i18n.js"></script>
 <script src="settings.js"></script>
 <script src="holidays.js"></script>
+<script src="renewal-message.js"></script>
 <script src="search.js"></script>
 <script>
 (async () => {
@@ -1116,6 +1142,7 @@
   // left, red once the term has finished with nothing newer started.
   const RENEW_WARN_LESSONS = 2;
   let renewalOpen = false; // folded away until she opens it
+  let paymentClassFilter = ""; // payments table narrowed to one class (from a row below)
   async function renderRenewalBoard() {
     const el = document.getElementById("renewal-board");
     if (!el) return;
@@ -1169,6 +1196,7 @@
         <span class="r-left">${esc(tf(r.left === 0 ? "renewal.left_none" : "renewal.left", { n: r.left }))}</span>
         <span class="r-end">${esc(tf("renewal.ends", { date: endTxt }))}</span>
         ${tag ? `<span class="r-tag">${esc(tag)}</span>` : ""}
+        <button type="button" class="r-msg" data-renewal-msg="${esc(r.c.id)}">💬 ${esc(t("renewmsg.button"))}</button>
       </div>`;
     }).join("") + "</div>";
     el.querySelector(".renewal-toggle").addEventListener("click", () => {
@@ -1178,6 +1206,13 @@
       btn.querySelector(".rt-arrow").textContent = renewalOpen ? "▾" : "▸";
       el.querySelector(".renewal-rows").hidden = !renewalOpen;
     });
+    el.querySelectorAll("[data-renewal-msg]").forEach(btn => btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      paymentClassFilter = btn.dataset.renewalMsg;
+      paymentSearchEl.value = "";
+      paymentSearchEl.dispatchEvent(new Event("input", { bubbles: true }));
+      document.querySelector(".cute-payments").scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
     el.querySelectorAll("[data-renewal-class]").forEach(row => row.addEventListener("click", () => {
       attendanceClassSelect.value = row.dataset.renewalClass;
       attendanceClassSelect.dataset.userPicked = "1";
@@ -1947,7 +1982,7 @@
     // several renewals shows as a single line, not repeated rows.
     const { data: pkgs, error } = await supabaseClient
       .from("packages")
-      .select("id, class_id, student_id, start_date, total_lessons, price, status, payment_note, students!inner(active, name, contacts(name)), classes(name, weekly_day_of_week, weekly_start_time)")
+      .select("id, class_id, student_id, start_date, total_lessons, price, status, payment_note, students!inner(active, name, contacts(name, whatsapp_number)), classes(name, weekly_day_of_week, weekly_start_time)")
       .eq("students.active", true)
       .order("start_date", { ascending: false });
     if (error) { paymentRowsEl.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(error.message)}</td></tr>`; return; }
@@ -2071,11 +2106,55 @@
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
   }
 
+  // The renewal message belongs on a student's newest term in a class; an
+  // older class they have since moved away from only keeps it while that term
+  // still has lessons to come.
+  function canSendRenewal(student, entry) {
+    const i = student.entries.indexOf(entry);
+    if (entry.pkg.status === "cancelled") return false;
+    if (student.entries.slice(i + 1).some(e => e.pkg.class_id === entry.pkg.class_id)) return false;
+    if (i === student.entries.length - 1) return true;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return entry.lessons.some(l => new Date(l.date) >= today);
+  }
+
+  async function openTermMessage(packageId) {
+    await loadPayments(); // attendance may have been ticked since this table was drawn
+    for (const student of groupPackagesByStudent(paymentPackages)) {
+      const i = student.entries.findIndex(e => e.pkg.id === packageId);
+      if (i < 0) continue;
+      const { pkg, lessons } = student.entries[i];
+      // "Last term": the one before in the same class, else simply the one before.
+      const earlier = student.entries.slice(0, i);
+      const prev = [...earlier].reverse().find(e => e.pkg.class_id === pkg.class_id) ?? earlier[earlier.length - 1];
+      await openRenewalMessage({
+        studentId: student.studentId,
+        name: pkg.students?.name || pkg.students?.contacts?.name || "",
+        phone: pkg.students?.contacts?.whatsapp_number ?? "",
+        weekday: pkg.classes?.weekly_day_of_week,
+        price: Number(pkg.price),
+        finalPrice: effectivePrice(pkg, lessons),
+        totalLessons: pkg.total_lessons,
+        lessons,
+        prev: prev ? { price: Number(prev.pkg.price), totalLessons: prev.pkg.total_lessons, lessons: prev.lessons } : null,
+        madeUpDate: (l) => paymentsAllGroupAppts.find(a => a.id === l.made_up_appointment_id)?.scheduled_start ?? null,
+      });
+      return;
+    }
+  }
+
   function renderPayments() {
     const studentsList = groupPackagesByStudent(paymentPackages);
     let visible = studentsList;
     // Typing a name searches everyone, even if the unpaid-only filter is on.
-    if (unpaidOnlyToggle.checked && !paymentSearchEl.value.trim()) {
+    const chip = document.getElementById("payment-class-chip");
+    chip.hidden = !paymentClassFilter;
+    if (paymentClassFilter) {
+      const cls = classes.find(c => c.id === paymentClassFilter);
+      chip.textContent = `${shortClassName(cls?.name)} ✕`;
+      visible = visible.filter(s => s.entries.some((e) => e.pkg.class_id === paymentClassFilter && canSendRenewal(s, e)));
+    }
+    if (unpaidOnlyToggle.checked && !paymentSearchEl.value.trim() && !paymentClassFilter) {
       // Outstanding extra fees never affect the normal paid count/total (kept
       // separate on purpose), but a student shouldn't silently drop off this
       // filtered list just because their 8/8 regular lessons are settled
@@ -2170,6 +2249,7 @@
               ${isOpenTerm && termPaidCount < lessons.length ? `<button type="button" class="link mark-all-paid-btn" data-term-id="${pkg.id}">${t("payments.mark_all_paid")}</button>` : ""}
               ${Number(pkg.price) > 0 && termPaidCount < lessons.length ? `<button type="button" class="link waive-term-btn" data-term-id="${pkg.id}">${t("payments.waive")}</button>` : ""}
               ${Number(pkg.price) === 0 ? `<span class="term-waived">${t("payments.waived_tag")}</span>` : ""}
+              ${canSendRenewal(student, student.entries[i]) ? `<button type="button" class="renew-msg-btn" data-term-id="${pkg.id}">💬 ${t("renewmsg.button")}</button>` : ""}
               ${(() => {
                 const hasNote = !!(pkg.payment_note ?? "").trim();
                 const locked = hasNote && !payNoteUnlocked.has(pkg.id);
@@ -2242,6 +2322,16 @@
         const id = tr.dataset.studentId;
         if (paymentExpandedIds.has(id)) paymentExpandedIds.delete(id); else paymentExpandedIds.add(id);
         renderPayments();
+      });
+    });
+
+    paymentRowsEl.querySelectorAll(".renew-msg-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (btn.dataset.busy) return;
+        btn.dataset.busy = "1";
+        await openTermMessage(btn.dataset.termId);
+        delete btn.dataset.busy;
       });
     });
 
@@ -2391,6 +2481,7 @@
 
   unpaidOnlyToggle.addEventListener("change", renderPayments);
   paymentSearchEl.addEventListener("input", renderPayments);
+  document.getElementById("payment-class-chip").addEventListener("click", () => { paymentClassFilter = ""; renderPayments(); });
 
   // Extending a class means a new term is starting for everyone currently
   // enrolled — so this is also the natural checkpoint to ask who's actually
